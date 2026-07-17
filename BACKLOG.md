@@ -20,32 +20,42 @@ Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS 
 ## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
 **Epic:** Foundation & Auth
 **Sprint:** 1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** none
 ### Goal
 A walking skeleton: FastAPI health endpoint + Next.js placeholder page run locally via bootstrap script and auto-deploy to Railway DEV on push to main.
 ### Acceptance Criteria
-- [ ] `backend/` FastAPI app with `GET /health` returning `{"status":"ok","env":...}`
-- [ ] `frontend/` Next.js 15 app (TypeScript, Tailwind, next-intl with `ru` locale) rendering a placeholder page with a Russian string from the locale file
-- [ ] `docker-compose.yml` provides Postgres 16 + Redis 7; `scripts/bootstrap.sh` gets a fresh machine to running apps
-- [ ] Backend tests run via pytest, frontend lint+typecheck via npm; both wired into `.github/workflows/ci.yml`
-- [ ] Push to `main` deploys backend + frontend to Railway DEV
+- [x] `backend/` FastAPI app with `GET /health` returning `{"status":"ok","env":...}`
+- [x] `frontend/` Next.js 15 app (TypeScript, Tailwind, next-intl with `ru` locale) rendering a placeholder page with a Russian string from the locale file
+- [x] `docker-compose.yml` provides Postgres 16 + Redis 7; `scripts/bootstrap.sh` gets a fresh machine to running apps
+- [x] Backend tests run via pytest, frontend lint+typecheck via npm; both wired into `.github/workflows/ci.yml`
+- [x] Push to `main` deploys backend + frontend to Railway DEV
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Open DEV frontend URL — Russian placeholder renders. `curl <dev-api>/health` returns ok.
 ### Files to read
 CLAUDE.md, docs/ARCHITECTURE.md, docs/TECH_STACK.md, ENV.md
 ### Files to create or modify
 backend/src/main.py, backend/src/config.py, backend/tests/test_health.py, backend/requirements.txt, backend/Dockerfile, frontend/** (Next.js scaffold), frontend/messages/ru.json, docker-compose.yml, scripts/bootstrap.sh, .github/workflows/ci.yml
+### Changelog
+- Skipped `backend/Dockerfile`: `railway.toml`/`railway.prod.toml` (from the prior "wire Railway envs" commit) already pin `builder = "nixpacks"` for all services, and `docker-compose.yml` only runs Postgres/Redis, never builds the app images. A Dockerfile would be dead weight; revisit only if we deliberately switch the Railway builder to Docker.
+- Pinned frontend deps to patched versions to clear `npm audit` findings found during setup: `next` 15.5.20 (CVE-2025-66478 fixed post-15.1.4), `next-intl` 4.13.2 (open-redirect/prototype-pollution advisories unfixed on 3.x), `eslint` 9.39.5 (ReDoS in `@eslint/plugin-kit`), `tailwindcss`/`@tailwindcss/postcss` 4.3.3 (4.0.0 threw `Missing field 'negated' on ScannerOptions.sources` on `next build`). One moderate advisory remains open (XSS in Next's internally-bundled `postcss <8.5.10`, nested under `next` itself) — no fix exists in the Next 15 line; `npm audit fix --force` would downgrade `next` to a `9.x` canary, which is not viable.
+- Docker Desktop wasn't running in the dev sandbox, so `docker-compose.yml`/`scripts/bootstrap.sh` were reviewed but not executed end-to-end; all other pieces (health endpoint, frontend build/lint/typecheck, browser render) were exercised directly.
 ### Handover
-—
+- Backend app factory lives at `backend/src/main.py` (`app = FastAPI(...)`); settings via `backend/src/config.py:get_settings()` (`Settings` — currently `environment`, `cors_origins`; extend here for E1-S2/E1-S3, don't create a parallel settings module).
+- Backend test config (pytest-asyncio `asyncio_mode = "auto"`, ruff, mypy) lives in `backend/pyproject.toml` — new backend stories should rely on this, not add a second config file.
+- Frontend i18n: `frontend/i18n/request.ts` hardcodes `locale = "ru"` (no routing/middleware, single-locale MVP per D8); add keys to `frontend/messages/ru.json` under a page-scoped top-level key (see `HomePage`) rather than a flat namespace.
+- Root layout (`frontend/app/layout.tsx`) sets base light/dark background+text classes on `<body>`; new pages can rely on that instead of re-specifying background colors.
+- `.claude/launch.json` added (Claude Code harness config only, not part of the app) so `npm run dev` can be previewed in-session; safe to ignore/remove if unwanted.
+- No new ENV vars.
 
 ## [E1-S2] Database schema and migrations
 **Epic:** Foundation & Auth

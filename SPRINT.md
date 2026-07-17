@@ -8,11 +8,11 @@
 
 | Story | Title | Status |
 |---|---|---|
-| E1-S1 | Monorepo scaffold, local env, CI, DEV deploy | ready |
+| E1-S1 | Monorepo scaffold, local env, CI, DEV deploy | done |
 | E1-S2 | Database schema and migrations | ready |
 | E1-S3 | Email+password auth and personal workspace | ready |
 
-**Active story:** E1-S1 — start with `/start-story E1-S1`
+**Active story:** E1-S2 — start with `/start-story E1-S2`
 
 Full story definitions live in `BACKLOG.md`.
 
