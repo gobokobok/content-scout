@@ -4,13 +4,13 @@
 
 **Goal:** A deployed, authenticated, Russian-language shell: anyone can register on DEV, log in, and see their empty workspace. Schema and CI foundations in place for everything that follows.
 
-**⚠️ Blocker affecting every story's DoD ("CI green, deployed to DEV"):** `RAILWAY_TOKEN_DEV`/`RAILWAY_TOKEN_PROD` GitHub Actions secrets don't exist yet (ENV.md's pending human action, item 3) — `deploy-dev` fails with "Not signed in" on every push to `main` until they're added. Code-level work can continue; deploy verification is blocked for the whole sprint until this is done.
+**⚠️ Pre-launch reminder:** the `production` Railway environment still needs `RAILPACK_START_CMD` set per-service on `api`/`worker` (same fix just applied to `dev` — see DONE.md E1-S1 handover and ENV.md) before the first `v*` tag is pushed, or `cd.yml`'s deploy will fail the same way `deploy-dev` initially did.
 
 **Stories (in order):**
 
 | Story | Title | Status |
 |---|---|---|
-| E1-S1 | Monorepo scaffold, local env, CI, DEV deploy | blocked (code done, deploy blocked — see warning above) |
+| E1-S1 | Monorepo scaffold, local env, CI, DEV deploy | done |
 | E1-S2 | Database schema and migrations | ready |
 | E1-S3 | Email+password auth and personal workspace | ready |
 

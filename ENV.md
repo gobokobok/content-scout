@@ -25,13 +25,20 @@ All environment variables. No values here — see `.env.example` for the templat
 |---|---|---|---|---|
 | NEXT_PUBLIC_API_URL | Backend base URL | http://localhost:8000 | Railway DEV api | Railway PROD api |
 
-## Railway state (as of 2026-07-17 init)
+## Railway state (as of 2026-07-18, verified during E1-S1)
 
-Both envs (`dev`, `production`) are provisioned with api/worker/web + Postgres + Redis. Already set per env: DATABASE_URL and REDIS_URL (reference vars), JWT_SECRET (generated, distinct per env), ENVIRONMENT, CORS_ORIGINS, SUMMARY_MODEL, SUMMARY_CONCURRENCY, USE_MOCK_PLATFORM=false, RAILPACK_START_CMD per service, NEXT_PUBLIC_API_URL on web. Empty placeholders awaiting values: APIFY_API_TOKEN, APIFY_IG_ACTOR_ID, ANTHROPIC_API_KEY.
+Both envs (`dev`, `production`) are provisioned with api/worker/web + Postgres + Redis. Confirmed set per env: DATABASE_URL and REDIS_URL (reference vars), JWT_SECRET (generated, distinct per env), ENVIRONMENT, CORS_ORIGINS, SUMMARY_MODEL, SUMMARY_CONCURRENCY, USE_MOCK_PLATFORM=false, NEXT_PUBLIC_API_URL on web. Empty placeholders awaiting values: APIFY_API_TOKEN, APIFY_IG_ACTOR_ID, ANTHROPIC_API_KEY.
+
+**Correction:** this doc previously claimed `RAILPACK_START_CMD` was already set per service — it was not (confirmed by a real `deploy-dev` build failure: "No start command detected"). Railway's builder is Railpack, which only auto-detects a Python start command from `main.py`/`app.py` at the service's build root; since `api`/`worker`'s code lives under `backend/src/`, this must be set explicitly per service:
+- `api`: `RAILPACK_START_CMD=uvicorn src.main:app --host 0.0.0.0 --port $PORT`
+- `worker`: `RAILPACK_START_CMD=arq src.worker.WorkerSettings` (this will still crash-loop until `backend/src/worker.py` exists — expected until that story lands)
+
+Confirmed set now on `dev` (verified 2026-07-18: `curl <dev-api>/health` → `{"status":"ok","env":"dev"}`). **Not yet set on `production`** — must be added before the first `v*` tag is pushed, or `cd.yml`'s deploy will fail identically.
 
 ## Human actions required before Sprint 1
 
 1. Copy `.env.example` → `.env`, fill local values (JWT_SECRET, APIFY_API_TOKEN, APIFY_IG_ACTOR_ID, ANTHROPIC_API_KEY).
 2. In the Railway dashboard, fill APIFY_API_TOKEN, APIFY_IG_ACTOR_ID, ANTHROPIC_API_KEY on the **api and worker** services in **both** `dev` and `production` environments.
-3. Create two Railway **project tokens** (dashboard → Settings → Tokens): one scoped to `dev`, one to `production`; add them as GitHub Actions secrets `RAILWAY_TOKEN_DEV` and `RAILWAY_TOKEN_PROD` at https://github.com/gobokobok/content-scout/settings/secrets/actions.
+3. ~~Create two Railway **project tokens**...~~ — done (as GitHub **Environment** secrets on `DEV`/`PROD`, not plain repo secrets; both `ci.yml`/`cd.yml` jobs now declare `environment:` accordingly).
 4. Pick the Apify IG actor (E3-S2 will validate the choice; a posts-scraper with per-result pricing) and note its id in APIFY_IG_ACTOR_ID.
+5. Set `RAILPACK_START_CMD` on `api`/`worker` in the **`production`** environment (see above) — before the first `v*` tag / PROD deploy.

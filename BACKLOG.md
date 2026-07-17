@@ -20,7 +20,8 @@ Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS 
 ## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
 **Epic:** Foundation & Auth
 **Sprint:** 1
-**Status:** blocked (code complete, deploy blocked on human action)
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** none
 ### Goal
@@ -30,12 +31,12 @@ A walking skeleton: FastAPI health endpoint + Next.js placeholder page run local
 - [x] `frontend/` Next.js 15 app (TypeScript, Tailwind, next-intl with `ru` locale) rendering a placeholder page with a Russian string from the locale file
 - [x] `docker-compose.yml` provides Postgres 16 + Redis 7; `scripts/bootstrap.sh` gets a fresh machine to running apps
 - [x] Backend tests run via pytest, frontend lint+typecheck via npm; both wired into `.github/workflows/ci.yml`
-- [ ] Push to `main` deploys backend + frontend to Railway DEV — **partially confirmed**. `deploy-dev` now runs and exits 0 (Railway env-secret fix worked); `https://web-dev-99e3.up.railway.app/` is live and serves the real Russian placeholder page. `https://api-dev-8d6e.up.railway.app/health` still returns Railway's own `{"status":"error","code":404,"message":"Application not found"}` after 6+ minutes — not a slow-build symptom (frontend, on the same run, was already live within that window). Needs a look at the `api` service's build/deploy logs in the Railway dashboard (link printed in the deploy-dev job's log output) — no further diagnosis possible from the CLI/CI side without Railway dashboard or CLI credentials.
+- [x] Push to `main` deploys backend + frontend to Railway DEV — confirmed: `curl https://api-dev-8d6e.up.railway.app/health` → `{"status":"ok","env":"dev"}`; `https://web-dev-99e3.up.railway.app/` returns 200 with the Russian placeholder.
 ### Definition of Done
-- [ ] All AC checked (blocked on the item above)
+- [x] All AC checked
 - [x] Tests written and passing
-- [ ] CI green, deployed to DEV — backend/frontend CI test jobs are green; `deploy-dev` job now succeeds; frontend serves live, api does not (see above)
-- [ ] Smoke test passed — frontend half PASSED, api half still failing
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
 - [x] DONE.md updated
 - [x] BACKLOG.md updated
 ### Smoke test
@@ -50,6 +51,7 @@ backend/src/main.py, backend/src/config.py, backend/tests/test_health.py, backen
 - Docker Desktop wasn't running in the dev sandbox, so `docker-compose.yml`/`scripts/bootstrap.sh` were reviewed but not executed end-to-end; all other pieces (health endpoint, frontend build/lint/typecheck, browser render) were exercised directly.
 - Fixed a pre-existing bug in `.github/workflows/ci.yml`/`cd.yml` (from the prior "wire Railway envs" commit): `npx railway up` resolves to the unrelated npm package `railway` (a TypeScript IaC/sandbox SDK, bin `railway-iac-ts`) rather than Railway's actual CLI, and failed the first real `deploy-dev` run this story triggered (`Could not find .railway/railway.ts`). Changed both workflows to `npx -y @railway/cli up ... --yes`, which is the real package (bin `railway`).
 - `RAILWAY_TOKEN_DEV`/`RAILWAY_TOKEN_PROD` were added as GitHub **Environment** secrets (on Environments named `DEV`/`PROD`), not plain repository secrets — those are only exposed to a job that declares `environment: <name>`. Added that to the `deploy-dev` job in `ci.yml` and the `deploy-prod` job in `cd.yml`.
+- Final blocker: Railway's builder is **Railpack** (not Nixpacks, despite `railway.toml` saying `builder = "nixpacks"` — that setting appears not to be what's actually in effect). Railpack auto-detects a Python start command only from `main.py`/`app.py` at the service's build root; since `api`'s app lives at `backend/src/main.py`, auto-detection failed with "No start command detected." ENV.md's Railway state notes claimed `RAILPACK_START_CMD` was "already set per service," but it wasn't actually present in the `dev` environment — you (the user) set it directly in the Railway dashboard per service (`api`: `uvicorn src.main:app --host 0.0.0.0 --port $PORT`; `worker`: `arq src.worker.WorkerSettings`, which will itself fail until `backend/src/worker.py` exists — expected, out of scope here). **Follow-up needed:** same `RAILPACK_START_CMD` variables must be set on `api`/`worker` in the `production` Railway environment before the first `v*` tag is pushed, or `cd.yml`'s deploy-prod will hit the identical failure.
 ### Handover
 - Backend app factory lives at `backend/src/main.py` (`app = FastAPI(...)`); settings via `backend/src/config.py:get_settings()` (`Settings` — currently `environment`, `cors_origins`; extend here for E1-S2/E1-S3, don't create a parallel settings module).
 - Backend test config (pytest-asyncio `asyncio_mode = "auto"`, ruff, mypy) lives in `backend/pyproject.toml` — new backend stories should rely on this, not add a second config file.
