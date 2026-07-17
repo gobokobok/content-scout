@@ -8,15 +8,17 @@ Epics:
 - **E5 Results Table & Export** — progress UI, sortable table, XLSX export
 - **E6 Shortlist & History** — promote rows, shortlist tab, run/shortlist history
 - **E7 Usage Metering & Admin** — per-user/per-run rollups, admin usage view
+- **E8 Telegram Integration & Monetization** — Telegram Login, bot notifications, Mini App + Stars subscriptions (see docs/ARCHITECTURE.md § Telegram Mini App, D17–D19)
+- **E9 Public API & Engine Integration** — API tokens, webhooks for downstream content-generation products (see docs/ARCHITECTURE.md § Public API, D21)
 
-Post-MVP (not scheduled): script generation from shortlist (target duration setting), VK ID + SMS auth, YouTube/TikTok/Threads platforms, billing/payments, team workspaces, mobile card layout for tables (MVP ships responsive with horizontal-scroll tables per D16).
+Post-MVP (not scheduled, first stories drafted below for E8/E9): script generation from shortlist (target duration setting), VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, mobile card layout for tables (MVP ships responsive with horizontal-scroll tables per D16), RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled).
 
 ---
 
 ## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
 **Epic:** Foundation & Auth
 **Sprint:** 1
-**Status:** ready
+**Status:** in-progress
 **Priority:** high
 **Depends on:** none
 ### Goal
@@ -447,5 +449,148 @@ Admin account on DEV sees the usage table; a regular pilot account gets no admin
 CLAUDE.md, backend/src/api/usage.py, backend/src/models/user.py
 ### Files to create or modify
 backend/src/api/admin.py, backend/tests/test_admin.py, frontend/app/(app)/admin/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E8-S1] Telegram Login
+**Epic:** Telegram Integration & Monetization
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E1-S3
+### Goal
+Users can log in via Telegram (Login Widget on web), as a second `AuthProvider` alongside email+password, ahead of VK ID in priority (D18).
+### Acceptance Criteria
+- [ ] `TelegramAuthProvider` verifies the Telegram Login Widget payload (hash check against bot token) and issues the same JWT as email+password login
+- [ ] First-time Telegram login creates a user + personal workspace, same as registration; existing email-user can link a Telegram account from settings
+- [ ] Login page offers «Войти через Telegram» alongside email+password
+- [ ] No changes required to any call site consuming the auth dependency (interface from E1-S3 holds)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV, log in with a real Telegram account via the widget — lands in an authenticated workspace.
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md (Auth, Telegram Mini App sections), backend/src/auth/*.py
+### Files to create or modify
+backend/src/auth/telegram.py, backend/tests/test_telegram_auth.py, frontend/app/(auth)/login/page.tsx, frontend/messages/ru.json
+### Handover
+—
+
+## [E8-S2] Telegram bot notifications
+**Epic:** Telegram Integration & Monetization
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E8-S1, E3-S1
+### Goal
+A user with a linked Telegram account gets a bot message when their analysis run finishes, with a deep link back into the results.
+### Acceptance Criteria
+- [ ] Bot registered (BotFather); backend sends a message via Bot API on run `done`/`failed` to users with a linked `telegram_chat_id`
+- [ ] Message text in Russian; includes item count and a deep link (`t.me/ContentScoutBot/app?startapp=run_<id>` or a plain web URL until E8-S3 ships the Mini App)
+- [ ] Users without a linked account are unaffected (no error, just skipped)
+- [ ] Notification send failure never fails the run
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Link Telegram on DEV, start a run, get a bot DM when it completes.
+### Files to read
+CLAUDE.md, backend/src/worker.py, backend/src/auth/telegram.py
+### Files to create or modify
+backend/src/services/telegram_notify.py, backend/src/worker.py, backend/tests/test_telegram_notify.py, frontend/app/(app)/settings/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E8-S3] Telegram Mini App + Stars subscriptions
+**Epic:** Telegram Integration & Monetization
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E8-S1, E7-S1
+### Goal
+The existing responsive frontend runs as a Telegram Mini App with `initData` auth, and users can subscribe to a usage plan paid in Telegram Stars.
+### Acceptance Criteria
+- [ ] Frontend loads inside Telegram via the Web App SDK; `initData` verified server-side and exchanged for the same JWT used elsewhere (extends `TelegramAuthProvider`, no login form shown inside Telegram)
+- [ ] Subscription plans defined (included monthly usage-event allowance); `POST` flow creates a Telegram Stars invoice for a plan or a one-off top-up, confirmed via Bot API payment webhook
+- [ ] Plan/usage balance visible on the existing «Использование» page (E7-S1); runs blocked with a clear Russian message when balance is exhausted, with a link to top up
+- [ ] Mini App respects D16 (usable at Telegram's in-app viewport sizes) and D20 (loads whatever domain/proxy stage is currently active — no Mini-App-specific network path)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Open the Mini App from the bot on DEV, buy a plan with test Stars, confirm balance updates and a blocked run unblocks after payment.
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md (Telegram Mini App, Usage Metering sections), backend/src/api/usage.py, backend/src/auth/telegram.py
+### Files to create or modify
+backend/src/api/billing.py, backend/src/models/subscription.py, backend/tests/test_billing.py, frontend/app/(app)/**, frontend/lib/telegram-webapp.ts, frontend/messages/ru.json
+### Handover
+—
+
+## [E9-S1] Public API tokens
+**Epic:** Public API & Engine Integration
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** low
+**Depends on:** E6-S1
+### Goal
+A workspace owner can generate scoped API tokens for programmatic read access to their projects' runs and shortlist, for future external consumers (e.g. a content-generation engine).
+### Acceptance Criteria
+- [ ] `POST /me/api-tokens` creates a token (shown once, stored hashed); `DELETE` revokes; tokens scoped to a workspace
+- [ ] Token auth accepted alongside JWT on read endpoints for runs/content_items/shortlist_items
+- [ ] Simple token management UI in settings
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Create a token on DEV, `curl` a shortlist endpoint with it, confirm it works and revoking breaks it.
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md (Public API & engine integration), backend/src/auth/*.py
+### Files to create or modify
+backend/src/auth/api_token.py, backend/src/api/tokens.py, backend/tests/test_api_tokens.py, frontend/app/(app)/settings/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E9-S2] Webhooks for run/shortlist events
+**Epic:** Public API & Engine Integration
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** low
+**Depends on:** E9-S1
+### Goal
+A workspace can register a webhook URL that receives `run.completed` and `shortlist.updated` events, so an external product (e.g. a football-content-engine-style pipeline) can react without polling.
+### Acceptance Criteria
+- [ ] Webhook registration (URL + shared secret) per workspace; signed payload (HMAC) on delivery
+- [ ] Events fired: `run.completed` (run id, item count), `shortlist.updated` (item id, added/removed)
+- [ ] Delivery retried with backoff on failure; failures logged, never block the triggering action
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Register a webhook pointed at a request-bin on DEV, finish a run, confirm the signed payload arrives.
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md (Public API & engine integration), backend/src/worker.py, backend/src/api/shortlist.py
+### Files to create or modify
+backend/src/services/webhooks.py, backend/src/api/webhooks.py, backend/tests/test_webhooks.py, frontend/app/(app)/settings/**, frontend/messages/ru.json
 ### Handover
 —

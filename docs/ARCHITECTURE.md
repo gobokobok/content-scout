@@ -86,3 +86,27 @@ next-intl, single `ru` locale, all strings in `frontend/messages/ru.json`. Backe
 ## Non-goals (MVP)
 
 Script generation, VK ID/SMS auth, other platforms, billing, team workspaces, video transcription, webhooks/notifications.
+
+## Roadmap beyond MVP
+
+### Telegram Mini App (D17–D19)
+
+No native app planned. The mobile story is: the same Next.js frontend (already mobile-first per D16) runs unmodified inside Telegram as a **Mini App** (`t.me/ContentScoutBot`). Delivery order (E8):
+
+1. **Telegram Login** — new `AuthProvider` implementation (D18) alongside email+password, ahead of the still-deferred VK ID.
+2. **Bot notifications** — link TG account in settings; worker (or a lightweight notifier consuming run-completion events) sends "Анализ готов ✅" with a deep link back into the run.
+3. **Mini App + Telegram Stars** — frontend wrapped with the Telegram Web App SDK; auth via signed `initData` (no login form inside Telegram); subscription plans and pay-per-run priced in Stars, layered on top of the existing `usage_events` ledger (a plan = N included usage units before Stars are charged).
+
+The Mini App still loads the same origin as the web app, so it inherits whatever stage of the RU-reachability plan (below) is active — Telegram does not shield or proxy your domain.
+
+### Russian network reachability (D20)
+
+Staged, infra-only — no application code changes required at any stage, because scraping/LLM calls already live only in the `worker`:
+
+1. **Pilots (now):** no change. Users have VPNs; Railway domains (`*.up.railway.app`) are reachable.
+2. **Public RU launch:** register a custom domain; front Railway with a RU-hosted reverse proxy (small VPS on Timeweb/Selectel running Caddy/nginx, or a RU CDN) so RKN sees a Russian-serving IP for the domain while Railway stays the origin.
+3. **Monetization/scale:** move `web` + `api` + Postgres to RU cloud (Timeweb Cloud, Amvera, or Yandex Cloud) for 242-ФЗ data-localization compliance and RU payment-processor integration; **keep the `worker` running abroad** (Railway or an EU VPS) since it's the only component that calls Apify and Anthropic — both unreliable or unavailable from RU infrastructure/billing. Bridge the split via WireGuard/Tailscale, or by having the worker pull jobs through the public API instead of touching the RU-local DB directly.
+
+### Public API & engine integration (D21)
+
+Workspaces, projects, runs, and shortlist_items already have durable IDs and are exposed as REST resources — the API-first shape of E1–E7 is what makes this cheap later. Post-MVP (E9): scoped API tokens per workspace, and webhooks (`run.completed`, `shortlist.updated`, later `script.ready`) so a downstream content-generation product (in the shape of football-content-engine) can subscribe to a scout project's shortlist and pull items/scripts without any shared codebase — a contract between two products, not a merge.

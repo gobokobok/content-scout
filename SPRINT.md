@@ -22,3 +22,4 @@ Full story definitions live in `BACKLOG.md`.
 - **Sprint 3:** E3-S2, E4-S1, E4-S2 — real Apify scraping, Claude summaries, full pipeline
 - **Sprint 4:** E5-S1, E5-S2, E6-S1 — results table, XLSX export, shortlist
 - **Sprint 5:** E6-S2, E7-S1, E7-S2 — history, usage rollups, admin view → **usable MVP**
+- **Sprint 6+ (post-MVP, not yet ordered):** E8 Telegram Integration & Monetization (Login → notifications → Mini App + Stars), E9 Public API & Engine Integration — see BACKLOG.md and docs/ARCHITECTURE.md § Roadmap beyond MVP
