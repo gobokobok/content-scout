@@ -30,12 +30,12 @@ A walking skeleton: FastAPI health endpoint + Next.js placeholder page run local
 - [x] `frontend/` Next.js 15 app (TypeScript, Tailwind, next-intl with `ru` locale) rendering a placeholder page with a Russian string from the locale file
 - [x] `docker-compose.yml` provides Postgres 16 + Redis 7; `scripts/bootstrap.sh` gets a fresh machine to running apps
 - [x] Backend tests run via pytest, frontend lint+typecheck via npm; both wired into `.github/workflows/ci.yml`
-- [ ] Push to `main` deploys backend + frontend to Railway DEV — secrets now exist (as GitHub **Environment** secrets on `DEV`/`PROD`, not plain repo secrets); workflows updated to declare `environment: DEV`/`environment: PROD` on the deploy jobs so they're visible. Verifying the resulting deploy run.
+- [ ] Push to `main` deploys backend + frontend to Railway DEV — **partially confirmed**. `deploy-dev` now runs and exits 0 (Railway env-secret fix worked); `https://web-dev-99e3.up.railway.app/` is live and serves the real Russian placeholder page. `https://api-dev-8d6e.up.railway.app/health` still returns Railway's own `{"status":"error","code":404,"message":"Application not found"}` after 6+ minutes — not a slow-build symptom (frontend, on the same run, was already live within that window). Needs a look at the `api` service's build/deploy logs in the Railway dashboard (link printed in the deploy-dev job's log output) — no further diagnosis possible from the CLI/CI side without Railway dashboard or CLI credentials.
 ### Definition of Done
 - [ ] All AC checked (blocked on the item above)
 - [x] Tests written and passing
-- [ ] CI green, deployed to DEV — backend/frontend CI jobs are green; `deploy-dev` fails with "Not signed in" (empty token)
-- [ ] Smoke test passed — deferred, see below
+- [ ] CI green, deployed to DEV — backend/frontend CI test jobs are green; `deploy-dev` job now succeeds; frontend serves live, api does not (see above)
+- [ ] Smoke test passed — frontend half PASSED, api half still failing
 - [x] DONE.md updated
 - [x] BACKLOG.md updated
 ### Smoke test
