@@ -18,8 +18,10 @@ content-scout is a SaaS where a user creates a project, adds up to 50 competitor
 | Env | URL | Trigger |
 |---|---|---|
 | local | http://localhost:3000 (web) / :8000 (api) | manual |
-| DEV | Railway (fill in after `railway init`) | push to `main` |
-| PROD | Railway (fill in after `railway init`) | git tag `v*` |
+| DEV | https://web-dev-99e3.up.railway.app / https://api-dev-8d6e.up.railway.app | push to `main` |
+| PROD | https://web-production-1bd7f0.up.railway.app / https://api-production-b1b5.up.railway.app | git tag `v*` |
+
+Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f6 (envs: `dev`, `production`; services: api, worker, web + Postgres, Redis per env). GitHub: https://github.com/gobokobok/content-scout
 
 ## Key docs
 

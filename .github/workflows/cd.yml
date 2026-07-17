@@ -10,6 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Deploy to Railway PROD
-        run: npx railway up --service api && npx railway up --service worker && npx railway up --service web
+        run: |
+          (cd backend && npx railway up --service api --detach)
+          (cd backend && npx railway up --service worker --detach)
+          (cd frontend && npx railway up --service web --detach)
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
