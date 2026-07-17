@@ -63,31 +63,41 @@ backend/src/main.py, backend/src/config.py, backend/tests/test_health.py, backen
 ## [E1-S2] Database schema and migrations
 **Epic:** Foundation & Auth
 **Sprint:** 1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E1-S1
 ### Goal
 Full MVP schema in SQLAlchemy models with Alembic migrations, matching docs/ARCHITECTURE.md.
 ### Acceptance Criteria
-- [ ] Models: users, workspaces, workspace_members, projects, account_lists, accounts, analysis_runs, content_items, shortlist_items, usage_events (fields per docs/ARCHITECTURE.md)
-- [ ] Alembic initialized; one migration creates the full schema; `alembic upgrade head` works on a fresh DB
-- [ ] Constraints enforced in DB: ≤50 accounts per list (app-level check + partial safeguard), unique (account_list_id, normalized_url), run duration 1–7 days
-- [ ] Model factory fixtures for tests
+- [x] Models: users, workspaces, workspace_members, projects, account_lists, accounts, analysis_runs, content_items, shortlist_items, usage_events (fields per docs/ARCHITECTURE.md)
+- [x] Alembic initialized; one migration creates the full schema; `alembic upgrade head` works on a fresh DB — verified on the throwaway test DB and on DEV (revision 3a1974cc55cf)
+- [x] Constraints enforced in DB: ≤50 accounts per list (DB trigger `account_list_cap` as safeguard; primary app-level check lands in E2-S2), unique (account_list_id, normalized_url), run duration 1–7 days (CHECK), plus one-list-per-platform unique and partial-unique active shortlist index
+- [x] Model factory fixtures for tests (`tests/conftest.py`: make_user/workspace/project/account_list/account/run/content_item)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (10 tests, one per constraint/behavior)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Run `alembic upgrade head` against DEV database; tables exist (check via Railway psql).
 ### Files to read
 CLAUDE.md, docs/ARCHITECTURE.md (data model section), backend/src/config.py
 ### Files to create or modify
 backend/src/db.py, backend/src/models/*.py, backend/alembic/**, backend/tests/conftest.py, backend/tests/test_models.py
+### Changelog
+- Backend venv rebuilt with uv-managed Python 3.12 — the E1-S1 venv was on system Python 3.9 (no 3.10+ on the machine; `uv` was available). `scripts/bootstrap.sh` still prefers python3.12/python3 — future improvement: prefer `uv venv --python 3.12`.
+- No local Docker/Postgres on this machine: migration autogenerate + local test runs use a dedicated `content_scout_test` database on the DEV Railway Postgres (via DATABASE_PUBLIC_URL). CI remains the authoritative test gate with its own Postgres service.
+- Api start command now runs migrations on boot (`alembic upgrade head && uvicorn ...`) in both Railway envs — future schema stories deploy themselves.
+- Incident: the dashboard edits that added APIFY/ANTHROPIC keys had wiped the other service variables (DATABASE_URL, REDIS_URL, CORS_ORIGINS, SUMMARY_*, USE_MOCK_PLATFORM, ACCESS_TOKEN_EXPIRE_MINUTES) on api/worker/web — api crashed on boot falling back to localhost DB. All restored via CLI in both envs; lesson: Railway's raw-editor replaces the whole variable set.
 ### Handover
-—
+- Schema is live on DEV at revision 3a1974cc55cf; all 10 tables + `account_list_cap` trigger verified present.
+- Import models from `src.models` (re-exports everything); `Base` carries naming conventions — never define constraints without them.
+- DB access: `src/db.py` — `get_engine()`, `get_sessionmaker()`, `get_session` (FastAPI dependency). `Settings.database_url_async` normalizes Railway's `postgres://` scheme.
+- Tests: `session` fixture = rollback-per-test savepoint session; factories in `tests/conftest.py` accept kwargs overrides. Local runs against the remote test DB take ~2 min; export DATABASE_URL first (see Changelog).
+- ENV vars added: none (DATABASE_URL was already specified in ENV.md).
 
 ## [E1-S3] Email+password auth and personal workspace
 **Epic:** Foundation & Auth

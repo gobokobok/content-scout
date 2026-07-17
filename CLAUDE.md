@@ -36,7 +36,7 @@ Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f
 ## Current sprint and active story
 
 - **Sprint:** 1
-- **Active story:** E1-S2 (see `SPRINT.md`)
+- **Active story:** E1-S3 (see `SPRINT.md`)
 
 ## Hard constraints
 
