@@ -8,10 +8,12 @@ Epics:
 - **E5 Results Table & Export** — progress UI, sortable table, XLSX export
 - **E6 Shortlist & History** — promote rows, shortlist tab, run/shortlist history
 - **E7 Usage Metering & Admin** — per-user/per-run rollups, admin usage view
-- **E8 Telegram Integration & Monetization** — Telegram Login, bot notifications, Mini App + Stars subscriptions (see docs/ARCHITECTURE.md § Telegram Mini App, D17–D19)
+- **E8 Telegram Integration & Monetization** — Telegram Login, bot notifications, Mini App + Stars subscriptions (see docs/ARCHITECTURE.md § Telegram Mini App, D17–D19, D22)
 - **E9 Public API & Engine Integration** — API tokens, webhooks for downstream content-generation products (see docs/ARCHITECTURE.md § Public API, D21)
+- **E10 Content Generation** — scripts + assets from shortlist items, typed пост/карусель/reels (D23), parallel jobs, review & edit, download delivery
+- **E11 Instagram Connection, Publishing & Analytics** — blogger connects own IG account (Graph API, D24), publish/schedule generated content, own-account analytics
 
-Post-MVP (not scheduled, first stories drafted below for E8/E9): script generation from shortlist (target duration setting), VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, mobile card layout for tables (MVP ships responsive with horizontal-scroll tables per D16), RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled).
+Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, mobile card layout for tables (MVP ships responsive with horizontal-scroll tables per D16), RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled).
 
 ---
 
@@ -161,6 +163,36 @@ backend/src/api/accounts.py, backend/src/services/url_normalizer.py, backend/tes
 ### Handover
 —
 
+## [E2-S3] Competitor profile enrichment
+**Epic:** Projects & Competitor Lists
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E2-S2, E3-S2
+### Goal
+The Конкуренты list shows basic live details per account — display name/title, follower count, avatar — fetched when an account is added and refreshed on each analysis run.
+### Acceptance Criteria
+- [ ] `Platform` interface gains `fetch_profile(account) -> ProfileInfo` (display_name, followers, avatar_url); Apify IG profile fetch implements it
+- [ ] Profile fetched async on account add (list shows the row immediately, details fill in); refreshed as part of every run's scraping phase
+- [ ] Конкуренты list displays: аватар, название, @handle, подписчики (formatted ru-RU), последнее обновление
+- [ ] Profile fetches write `apify_result` usage_events like any other scrape
+- [ ] Fetch failure leaves the row usable (handle + «нет данных»), never blocks add/run
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Add a real public IG account on DEV — name, followers, and avatar appear within a minute.
+### Files to read
+CLAUDE.md, backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/api/accounts.py
+### Files to create or modify
+backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/models/account.py (+ migration), backend/tests/test_profile_enrichment.py, frontend/app/(app)/projects/[id]/competitors/**, frontend/messages/ru.json
+### Handover
+—
+
 ## [E3-S1] Run creation, cost estimate, worker skeleton
 **Epic:** Analysis Pipeline
 **Sprint:** unassigned
@@ -172,6 +204,7 @@ User picks a duration (1–7 days), sees a cost estimate, confirms, and a run ex
 ### Acceptance Criteria
 - [ ] `POST /projects/{id}/runs/estimate` returns estimated Apify units + Claude tokens + ₽/$ cost for current list size × duration
 - [ ] `POST /projects/{id}/runs` (after confirm) creates run `pending` and enqueues an arq job; duration outside 1–7 rejected
+- [ ] Run optionally targets a **subset of accounts** (`account_ids` in the request; UI: checkboxes on the competitor list, default = entire list); estimate reflects the subset
 - [ ] Worker advances run: pending → scraping → summarizing → done (mock platform returns fixture content); failures land in `failed` with error message
 - [ ] `GET /runs/{id}` returns status + progress (accounts processed / total); frontend run dialog shows estimate → confirm → live progress
 - [ ] `Platform` interface defined (`fetch_content(account, since) -> [RawContentItem]`); mock implementation registered
@@ -349,8 +382,9 @@ backend/src/services/xlsx_export.py, backend/src/api/export.py, backend/tests/te
 User promotes rows from results to the project shortlist and manages them in the Шорт-лист tab.
 ### Acceptance Criteria
 - [ ] Promote/demote action per results row (star toggle); API creates/removes shortlist_items (project-scoped, references content_item, survives across runs)
+- [ ] **Bulk add:** row checkboxes + «выбрать все» with a «Добавить в шорт-лист» action for the selection (API accepts a list of item ids)
 - [ ] Шорт-лист tab lists shortlisted items with same columns + добавлено (date shortlisted), sortable, removable
-- [ ] Promoting the same item twice is idempotent
+- [ ] Promoting the same item twice is idempotent (single or bulk)
 - [ ] Placeholder "Создать сценарий" button visible but disabled with tooltip "Скоро" (script generation is post-MVP)
 ### Definition of Done
 - [ ] All AC checked
@@ -539,6 +573,35 @@ backend/src/api/billing.py, backend/src/models/subscription.py, backend/tests/te
 ### Handover
 —
 
+## [E8-S4] Add competitor by sharing a link to the bot
+**Epic:** Telegram Integration & Monetization
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E8-S2
+### Goal
+A blogger shares an Instagram profile link from any app straight to the content-scout bot chat, and it lands in a project's competitor list — the mobile-native way to add competitors on the go.
+### Acceptance Criteria
+- [ ] Bot recognizes IG profile/post URLs in incoming messages (reuses url_normalizer; post URLs resolve to the posting account)
+- [ ] If the user has one project, the account is added to it directly with a confirmation reply; with several, the bot replies with inline project buttons to pick
+- [ ] Add respects the 50-account cap and duplicate rules with Russian error replies
+- [ ] Unlinked Telegram users get a reply prompting login/linking first
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Share an IG profile link to the DEV bot from a phone — pick a project via buttons, see the account appear in the web UI.
+### Files to read
+CLAUDE.md, backend/src/services/telegram_notify.py, backend/src/services/url_normalizer.py, backend/src/api/accounts.py
+### Files to create or modify
+backend/src/services/telegram_bot.py (webhook handler), backend/src/api/telegram_webhook.py, backend/tests/test_telegram_bot.py
+### Handover
+—
+
 ## [E9-S1] Public API tokens
 **Epic:** Public API & Engine Integration
 **Sprint:** unassigned
@@ -592,5 +655,177 @@ Register a webhook pointed at a request-bin on DEV, finish a run, confirm the si
 CLAUDE.md, docs/ARCHITECTURE.md (Public API & engine integration), backend/src/worker.py, backend/src/api/shortlist.py
 ### Files to create or modify
 backend/src/services/webhooks.py, backend/src/api/webhooks.py, backend/tests/test_webhooks.py, frontend/app/(app)/settings/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E10-S1] Script generation from shortlist
+**Epic:** Content Generation
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E6-S1, E7-S1
+### Goal
+From the shortlist, the blogger requests script generation for selected items or all, choosing a content type (пост / карусель / reels, D23) and target duration where relevant; scripts generate in parallel without blocking the app.
+### Acceptance Criteria
+- [ ] «Создать сценарий» (replacing the E6-S1 disabled placeholder) works per item, for a selection, or «для всех»; dialog picks тип (default пост) and target duration for reels/carousel-video
+- [ ] Each request enqueues an independent worker job (script_requests table: shortlist_item_id, type, params, status, result); jobs run in parallel; the blogger keeps working — statuses visible on the shortlist rows
+- [ ] Script produced by a stronger Claude model from the item's summary, caption, and metrics; prompt per type in docs/PROMPTS.md; output structured per D23 type (пост: текст поста; карусель: hero + слайды + текст; reels: закадровый текст/оверлеи по таймкодам)
+- [ ] Claude tokens metered as usage_events with a distinct kind (`claude_script_*`); generation blocked when credit balance exhausted (E8-S3 rules)
+- [ ] Scripts history per project (list, view, re-generate) — completes the original spec item 8
+- [ ] TG notification on completion for linked users (reuses E8-S2)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Select 2 shortlist items on DEV, request «карусель» scripts for both — both complete in parallel, results readable in scripts history.
+### Files to read
+CLAUDE.md, docs/PROMPTS.md, docs/ARCHITECTURE.md (Content generation section), backend/src/worker.py, backend/src/api/shortlist.py
+### Files to create or modify
+backend/src/models/script_request.py (+ migration), backend/src/services/scriptwriter.py, backend/src/api/scripts.py, backend/tests/test_scripts.py, docs/PROMPTS.md, frontend/app/(app)/projects/[id]/shortlist/**, frontend/app/(app)/projects/[id]/scripts/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E10-S2] Asset generation and download delivery
+**Epic:** Content Generation
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E10-S1, E9-S2
+### Goal
+Approved scripts turn into ready-to-post assets per D23 — пост (image + text), карусель (hero + slides, optional background music auto-rendering it as a reels video), reels (blogger-uploaded background video + script text overlay) — delivered as a downloadable package (default delivery per D24).
+### Acceptance Criteria
+- [ ] Generation dispatched per type behind a `ContentEngine` interface: internal implementation and/or delegation to a football-content-engine-style external service via the D21 API/webhook contract (engine choice per niche is config)
+- [ ] Карусель with background music renders to an mp4 reels variant; reels type accepts blogger-uploaded assets (bg video) and burns script text overlays
+- [ ] Blogger downloads a per-item package (zip: media + caption text file) from the app; generation costs metered as usage_events
+- [ ] Jobs parallel and non-blocking, statuses on the scripts/содержимое view, TG notification on completion
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Generate a карусель with music from a script on DEV, download the zip — slides + mp4 + caption present and coherent.
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md (Content generation, Public API sections), backend/src/services/scriptwriter.py, backend/src/api/scripts.py
+### Files to create or modify
+backend/src/services/content_engine/ (base + implementations), backend/src/models/generated_asset.py (+ migration), backend/src/api/assets.py, backend/tests/test_content_engine.py, frontend/app/(app)/projects/[id]/scripts/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E10-S3] Review and adjust generated content
+**Epic:** Content Generation
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E10-S2
+### Goal
+Before downloading/publishing, the blogger reviews generated content and adjusts it at the right granularity: edit any text inline, regenerate an individual slide or the whole piece.
+### Acceptance Criteria
+- [ ] Review screen per generated item: пост — image + editable text; карусель — slide-by-slide viewer with per-slide «Перегенерировать» and editable slide/post text; reels — preview with editable overlay texts
+- [ ] Text edits save without regeneration; regeneration (per slide or whole) is a normal metered job that replaces the asset on completion
+- [ ] Version kept simple: latest wins, previous kept until the item is downloaded/published (undo one step)
+- [ ] Mobile-usable per D16 (this is a phone-first workflow)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV regenerate slide 2 of a карусель and edit the post text — download reflects both changes.
+### Files to read
+CLAUDE.md, backend/src/api/assets.py, backend/src/services/content_engine/, frontend/app/(app)/projects/[id]/scripts/**
+### Files to create or modify
+backend/src/api/assets.py, backend/tests/test_asset_review.py, frontend/app/(app)/projects/[id]/review/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E11-S1] Spike: Instagram Graph API publishing feasibility
+**Epic:** Instagram Connection, Publishing & Analytics
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** none
+### Goal
+A timeboxed research spike (no product code) that turns D24 into a concrete go/no-go: what Meta app review requires for content publishing + insights permissions, what the blogger-side requirements are (Business/Creator account, linked FB page — still required?), and what this means for RU-audience bloggers.
+### Acceptance Criteria
+- [ ] Written findings in docs/IG_PUBLISHING.md: required permissions/scopes, app-review steps and expected timeline, per-blogger onboarding flow, supported media types (single post / carousel / reels) and their API constraints, rate limits
+- [ ] Legal/practical assessment for RU context (Meta status in Russia, implications for our entity and for bloggers)
+- [ ] Recommendation: proceed / proceed-later / drop, with the fallback (manual download, D24) explicitly costed against it
+- [ ] DECISIONS.md updated with the outcome
+### Definition of Done
+- [ ] All AC checked
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated (E11-S2/S3 re-scoped or dropped per findings)
+### Smoke test
+n/a — research story; deliverable is the doc + decision entry.
+### Files to read
+CLAUDE.md, DECISIONS.md (D24), docs/ARCHITECTURE.md
+### Files to create or modify
+docs/IG_PUBLISHING.md, DECISIONS.md
+### Handover
+—
+
+## [E11-S2] Connect IG account, publish and schedule
+**Epic:** Instagram Connection, Publishing & Analytics
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** low
+**Depends on:** E11-S1, E10-S3
+### Goal
+Blogger connects their own Instagram Business/Creator account via OAuth (scoped per project — each project represents one own account, per the workspace→project model) and publishes or schedules reviewed content directly from the app.
+### Acceptance Criteria
+- [ ] OAuth connect/disconnect per project; connection status + account preview shown in project settings
+- [ ] «Опубликовать» and «Запланировать» (date/time) on reviewed items for supported types; scheduled publishes executed by the worker; success/failure reported + TG notification
+- [ ] Publish failures leave the asset downloadable (D24 fallback always available)
+- [ ] Token storage encrypted; revocation handled gracefully
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Connect a test Business account on DEV, schedule a post 5 minutes out — it appears on the IG account.
+### Files to read
+CLAUDE.md, docs/IG_PUBLISHING.md, backend/src/api/assets.py, backend/src/worker.py
+### Files to create or modify
+backend/src/services/ig_publisher.py, backend/src/api/ig_connect.py, backend/src/models/ig_connection.py (+ migration), backend/tests/test_ig_publisher.py, frontend/app/(app)/projects/[id]/settings/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E11-S3] Own-account analytics
+**Epic:** Instagram Connection, Publishing & Analytics
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** low
+**Depends on:** E11-S2
+### Goal
+For a connected own account, the project shows an Аналитика tab: follower dynamics and per-post insights (reach, likes, saves, shares) — closing the loop from «что работает у конкурентов» to «что сработало у меня». Standalone-product potential noted in D24.
+### Acceptance Criteria
+- [ ] Daily worker job pulls Graph API insights for connected accounts into a metrics table
+- [ ] Аналитика tab: подписчики over time, recent posts table with insight columns (sortable, same table UX as results), published-via-app items highlighted so scout→engine→publish performance is traceable
+- [ ] Insight pulls metered as usage_events (API calls are free, but track volume for rate-limit budgeting)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Connected DEV account shows follower count history and per-post reach after the daily job runs.
+### Files to read
+CLAUDE.md, docs/IG_PUBLISHING.md, backend/src/services/ig_publisher.py, docs/UI_GUIDELINES.md
+### Files to create or modify
+backend/src/services/ig_insights.py, backend/src/models/account_metric.py (+ migration), backend/src/api/analytics.py, backend/tests/test_ig_insights.py, frontend/app/(app)/projects/[id]/analytics/**, frontend/messages/ru.json
 ### Handover
 —
