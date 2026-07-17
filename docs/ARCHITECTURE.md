@@ -75,9 +75,13 @@ Implementations: `platforms/mock.py` (fixtures, gated by USE_MOCK_PLATFORM), `pl
 
 Email+password (bcrypt) → JWT access token (HS256). Auth logic behind `AuthProvider` interface so VK ID / SMS providers can be added post-MVP (D4). Registration creates user + personal workspace + owner membership in one transaction. All API routes except `/auth/*` and `/health` require a valid token; resources are always scoped through workspace membership (foreign ids → 404).
 
-## Usage metering (monetization-ready)
+## Usage metering and billing (two-layer, D12 + D26)
 
-Every external cost writes a `usage_events` row at the moment it is incurred (D12): one per Apify result fetched, one per Claude call for input and output tokens (quantity = tokens). `unit_cost_usd` is captured at write time from config so historical costs survive price changes. Monetization later = pricing rules over already-collected events; nothing to retrofit.
+**Layer 1 — internal cost ledger (never exposed).** Every external cost writes a `usage_events` row at the moment it is incurred (D12): one per Apify result fetched, one per Claude call for input and output tokens (quantity = tokens). The `kind` enum is designed to grow: `apify_result`, `claude_input_tokens`, `claude_output_tokens` now; `gemini_*`, `storage_gb_month`, `compute_alloc` and others later — anything a run/script/asset job consumes. `unit_cost_usd` is captured at write time from config so historical costs survive price changes. Every event links to its run (or script/asset job), so the true multi-resource cost of any operation is one aggregate query.
+
+**Layer 2 — user-facing credits (E8-S3).** Users buy and spend «токены» (1 токен = $0.01 of user value; a $5 plan grants 500). When an operation completes, its token burn is computed as `ceil(internal_cost_usd × X ÷ 0.01)` where **X is the tier markup factor** (initial: X=10 on the $5 plan, 7 on $20, 5 on $100 — pricing config, adjustable). The credit ledger stores the burn per operation, so the user gets an itemized history: this run consumed 100 токенов, that script 12. **X, internal USD costs, and unit prices must never leak into API responses or the UI** — the user-visible world is tokens only. Estimates before a run (D10) are likewise shown in tokens once billing ships.
+
+Monetization = pricing rules over already-collected Layer-1 events; nothing to retrofit.
 
 ## i18n
 
@@ -111,7 +115,7 @@ Staged, infra-only — no application code changes required at any stage, becaus
 
 The shortlist is the input to a generation pipeline: **script → assets → review → delivery**. Three content types (D23): пост (photo + text, default), карусель (hero + slides + text; optional background music auto-renders it as a reels video), reels (blogger assets + script text overlays). Each generation request is an independent worker job — parallel, non-blocking, metered in usage_events, TG-notified on completion. Asset production sits behind a `ContentEngine` interface so it can run internally or be delegated per-niche to a football-content-engine-style external service through the D21 API/webhook contract.
 
-Delivery default is **download** (zip of media + caption). Direct publishing to Instagram exists only via the official Graph API (D24): blogger's Business/Creator account, OAuth per project (a project models one own account), one-time Meta app review for the SaaS — feasibility spike E11-S1 before any build. No private-API automation ever: blogger account bans are an unacceptable product risk. The same Graph API connection later powers own-account analytics (E11-S3), which is also a plausible standalone product.
+Generated assets (and, earlier, persisted cover thumbnails — IG CDN URLs expire) live in **Cloudflare R2** (D25), adopted at whichever of those needs lands first; storage consumption is metered as Layer-1 usage_events like any other resource. Delivery default is **download** (zip of media + caption). Direct publishing to Instagram exists only via the official Graph API (D24): blogger's Business/Creator account, OAuth per project (a project models one own account), one-time Meta app review for the SaaS — feasibility spike E11-S1 before any build. No private-API automation ever: blogger account bans are an unacceptable product risk. The same Graph API connection later powers own-account analytics (E11-S3), which is also a plausible standalone product.
 
 ### Public API & engine integration (D21)
 

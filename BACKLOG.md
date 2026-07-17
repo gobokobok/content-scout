@@ -449,10 +449,11 @@ backend/src/api/history.py, backend/tests/test_history.py, frontend/app/(app)/pr
 ### Goal
 Usage events roll up into per-run and per-user totals, and the user sees their own consumption.
 ### Acceptance Criteria
-- [ ] usage_events schema finalized: user_id, run_id, kind (apify_result | claude_input_tokens | claude_output_tokens), quantity, unit_cost_usd, created_at
+- [ ] usage_events schema finalized: user_id, run_id, kind, quantity, unit_cost_usd, created_at; `kind` is an extensible enum (apify_result | claude_input_tokens | claude_output_tokens now; designed for gemini_*, storage_gb_month, compute_alloc later per D26) — this is the internal Layer-1 cost ledger
 - [ ] `GET /me/usage?from=&to=` returns totals per kind and cost, per project and overall
 - [ ] Run history (E6-S2) cost column reads from these rollups
 - [ ] Simple "Использование" page in account menu showing current month totals
+- [ ] Pilot phase shows internal USD directly (no billing yet); the endpoint/page structure anticipates the D26 token layer so E8-S3 swaps the displayed unit, not the plumbing — internal USD and unit costs must be trivially removable from user-facing responses at that point
 ### Definition of Done
 - [ ] All AC checked
 - [ ] Tests written and passing
@@ -493,6 +494,37 @@ Admin account on DEV sees the usage table; a regular pilot account gets no admin
 CLAUDE.md, backend/src/api/usage.py, backend/src/models/user.py
 ### Files to create or modify
 backend/src/api/admin.py, backend/tests/test_admin.py, frontend/app/(app)/admin/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E7-S3] Pre-public-launch hardening
+**Epic:** Usage Metering & Admin
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E6-S2
+### Goal
+Close the security/reliability gaps deliberately skipped for pilots (D11) before the product is opened to the public: rate limiting, security headers, and — above all — verified database backups with a tested restore.
+### Acceptance Criteria
+- [ ] PROD Postgres backup verified: Railway backup schedule confirmed/enabled **and** a restore drill performed onto a scratch database, documented in docs/RUNBOOK.md (backup cadence, retention, step-by-step restore)
+- [ ] Per-user rate limits on expensive endpoints (run creation, estimate, auth attempts, export) with Russian 429 messages; limits in config
+- [ ] Security headers on both services: CSP, HSTS, X-Content-Type-Options, Referrer-Policy, frame-ancestors (CSP must allow Telegram webview embedding for the future Mini App, E8-S3)
+- [ ] `pip-audit` + `npm audit` gates added to CI (fail on high severity, documented allowlist for accepted findings)
+- [ ] Structured error responses verified to leak no stack traces/internal details in prod mode
+- [ ] docs/RUNBOOK.md started: backups/restore, incident basics (service restart, reading Railway logs, worker queue draining)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Hammer run-creation on DEV past the limit — 429 in Russian; check response headers on both services; confirm the restore-drill doc reproduces a working scratch DB.
+### Files to read
+CLAUDE.md, DECISIONS.md (D11), backend/src/main.py, .github/workflows/ci.yml
+### Files to create or modify
+backend/src/middleware/rate_limit.py, backend/src/middleware/security_headers.py, backend/tests/test_hardening.py, frontend/next.config.ts (headers), .github/workflows/ci.yml, docs/RUNBOOK.md
 ### Handover
 —
 
@@ -564,8 +596,11 @@ backend/src/services/telegram_notify.py, backend/src/worker.py, backend/tests/te
 The existing responsive frontend runs as a Telegram Mini App with `initData` auth, and users can subscribe to a usage plan paid in Telegram Stars.
 ### Acceptance Criteria
 - [ ] Frontend loads inside Telegram via the Web App SDK; `initData` verified server-side and exchanged for the same JWT used elsewhere (extends `TelegramAuthProvider`, no login form shown inside Telegram)
-- [ ] Subscription plans defined (included monthly usage-event allowance); `POST` flow creates a Telegram Stars invoice for a plan or a one-off top-up, confirmed via Bot API payment webhook
-- [ ] Plan/usage balance visible on the existing «Использование» page (E7-S1); runs blocked with a clear Russian message when balance is exhausted, with a link to top up
+- [ ] Subscription plans grant token balances per D26 (initial: $5 → 500 токенов / X=10, $20 / X=7, $100 / X=5; plans + X-factors in pricing config, adjustable without code changes); `POST` flow creates a Telegram Stars invoice for a plan or a one-off top-up, confirmed via Bot API payment webhook
+- [ ] Credit ledger: each completed run/script debits `ceil(internal_cost_usd × X ÷ 0.01)` tokens, recorded per operation; «Использование» shows balance + itemized per-run/per-script token consumption («анализ от 12.08 — 100 токенов»)
+- [ ] X-factors, internal USD costs, and unit prices appear in **no** API response or UI string (test asserts this on the usage/billing endpoints); user-facing world is tokens only
+- [ ] Run cost estimate dialog (D10) shows the estimate in tokens for subscribed users
+- [ ] Runs/generation blocked with a clear Russian message when the balance is exhausted, with a link to top up
 - [ ] Mini App respects D16 (usable at Telegram's in-app viewport sizes) and D20 (loads whatever domain/proxy stage is currently active — no Mini-App-specific network path)
 ### Definition of Done
 - [ ] All AC checked
