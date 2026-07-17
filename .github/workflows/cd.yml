@@ -1,0 +1,15 @@
+name: CD (PROD)
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Railway PROD
+        run: npx railway up --service api && npx railway up --service worker && npx railway up --service web
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}

@@ -1,0 +1,22 @@
+# Pinned during E1-S1 setup; add nothing without a DECISIONS.md entry.
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+asyncpg
+alembic
+pydantic-settings
+arq
+redis
+passlib[bcrypt]
+pyjwt
+httpx
+apify-client
+anthropic
+openpyxl
+pillow
+
+# dev/test
+pytest
+pytest-asyncio
+ruff
+mypy

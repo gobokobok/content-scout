@@ -1,0 +1,9 @@
+# Railway PROD environment — mirrors railway.toml; deployed only on git tags v*.
+# Distinct JWT_SECRET, own Postgres/Redis plugins. USE_MOCK_PLATFORM must be false.
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+healthcheckPath = "/health"
+restartPolicyType = "on_failure"

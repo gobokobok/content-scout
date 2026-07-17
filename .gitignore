@@ -1,0 +1,31 @@
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# node / next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+npm-debug.log*
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
+
+# build artifacts
+dist/
+*.egg-info/

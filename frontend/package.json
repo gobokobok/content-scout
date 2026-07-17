@@ -1,0 +1,13 @@
+{
+  "name": "content-scout-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "content-scout frontend — scaffolded properly in E1-S1 (create-next-app, TypeScript, Tailwind, next-intl, TanStack Table)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  }
+}

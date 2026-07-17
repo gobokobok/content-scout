@@ -1,0 +1,15 @@
+# Railway DEV environment — service configs are set per-service in the Railway
+# dashboard after `railway init`; this file documents build/start commands.
+#
+# Services:
+#   api    — root: backend/, start: uvicorn src.main:app --host 0.0.0.0 --port $PORT
+#   worker — root: backend/, start: arq src.worker.WorkerSettings
+#   web    — root: frontend/, build: npm run build, start: npm run start
+# Plugins: PostgreSQL, Redis
+
+[build]
+builder = "nixpacks"
+
+[deploy]
+healthcheckPath = "/health"
+restartPolicyType = "on_failure"

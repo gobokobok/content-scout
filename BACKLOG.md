@@ -1,0 +1,451 @@
+# BACKLOG — content-scout
+
+Epics:
+- **E1 Foundation & Auth** — scaffold, DB schema, email+password auth, personal workspace, i18n, CI/CD to DEV
+- **E2 Projects & Competitor Lists** — project CRUD, IG URL lists (max 50), persistence
+- **E3 Analysis Pipeline** — run creation, worker, Apify IG scraping, metrics
+- **E4 AI Summaries** — Claude Haiku caption+cover summaries, usage capture
+- **E5 Results Table & Export** — progress UI, sortable table, XLSX export
+- **E6 Shortlist & History** — promote rows, shortlist tab, run/shortlist history
+- **E7 Usage Metering & Admin** — per-user/per-run rollups, admin usage view
+
+Post-MVP (not scheduled): script generation from shortlist (target duration setting), VK ID + SMS auth, YouTube/TikTok/Threads platforms, billing/payments, team workspaces.
+
+---
+
+## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
+**Epic:** Foundation & Auth
+**Sprint:** 1
+**Status:** ready
+**Priority:** high
+**Depends on:** none
+### Goal
+A walking skeleton: FastAPI health endpoint + Next.js placeholder page run locally via bootstrap script and auto-deploy to Railway DEV on push to main.
+### Acceptance Criteria
+- [ ] `backend/` FastAPI app with `GET /health` returning `{"status":"ok","env":...}`
+- [ ] `frontend/` Next.js 15 app (TypeScript, Tailwind, next-intl with `ru` locale) rendering a placeholder page with a Russian string from the locale file
+- [ ] `docker-compose.yml` provides Postgres 16 + Redis 7; `scripts/bootstrap.sh` gets a fresh machine to running apps
+- [ ] Backend tests run via pytest, frontend lint+typecheck via npm; both wired into `.github/workflows/ci.yml`
+- [ ] Push to `main` deploys backend + frontend to Railway DEV
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Open DEV frontend URL — Russian placeholder renders. `curl <dev-api>/health` returns ok.
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md, docs/TECH_STACK.md, ENV.md
+### Files to create or modify
+backend/src/main.py, backend/src/config.py, backend/tests/test_health.py, backend/requirements.txt, backend/Dockerfile, frontend/** (Next.js scaffold), frontend/messages/ru.json, docker-compose.yml, scripts/bootstrap.sh, .github/workflows/ci.yml
+### Handover
+—
+
+## [E1-S2] Database schema and migrations
+**Epic:** Foundation & Auth
+**Sprint:** 1
+**Status:** ready
+**Priority:** high
+**Depends on:** E1-S1
+### Goal
+Full MVP schema in SQLAlchemy models with Alembic migrations, matching docs/ARCHITECTURE.md.
+### Acceptance Criteria
+- [ ] Models: users, workspaces, workspace_members, projects, account_lists, accounts, analysis_runs, content_items, shortlist_items, usage_events (fields per docs/ARCHITECTURE.md)
+- [ ] Alembic initialized; one migration creates the full schema; `alembic upgrade head` works on a fresh DB
+- [ ] Constraints enforced in DB: ≤50 accounts per list (app-level check + partial safeguard), unique (account_list_id, normalized_url), run duration 1–7 days
+- [ ] Model factory fixtures for tests
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run `alembic upgrade head` against DEV database; tables exist (check via Railway psql).
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md (data model section), backend/src/config.py
+### Files to create or modify
+backend/src/db.py, backend/src/models/*.py, backend/alembic/**, backend/tests/conftest.py, backend/tests/test_models.py
+### Handover
+—
+
+## [E1-S3] Email+password auth and personal workspace
+**Epic:** Foundation & Auth
+**Sprint:** 1
+**Status:** ready
+**Priority:** high
+**Depends on:** E1-S2
+### Goal
+Users can register and log in (JWT); registration auto-creates a personal workspace; frontend has Russian login/register pages and an authenticated shell.
+### Acceptance Criteria
+- [ ] `POST /auth/register` (email+password, bcrypt), `POST /auth/login` → JWT access token, `GET /auth/me`
+- [ ] Registration creates a personal workspace and membership row in the same transaction
+- [ ] Auth dependency rejects missing/invalid tokens with 401; all non-auth routes require it
+- [ ] Frontend: /login and /register pages (Russian), token stored, authenticated layout with logout; unauthenticated users redirected to /login
+- [ ] Auth provider kept behind an interface so VK ID can be added later without touching call sites
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Register a user on DEV, log out, log back in, see the authenticated shell in Russian.
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md (auth section), backend/src/models/user.py, frontend/messages/ru.json
+### Files to create or modify
+backend/src/auth/*.py, backend/src/api/auth.py, backend/tests/test_auth.py, frontend/app/(auth)/login/page.tsx, frontend/app/(auth)/register/page.tsx, frontend/lib/api.ts, frontend/messages/ru.json
+### Handover
+—
+
+## [E2-S1] Project CRUD
+**Epic:** Projects & Competitor Lists
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E1-S3
+### Goal
+A logged-in user can create, rename, list, and archive projects inside their workspace.
+### Acceptance Criteria
+- [ ] API: create/list/get/update/archive project, scoped to the caller's workspace (404 for foreign projects)
+- [ ] Frontend: workspace home lists projects with "Создать проект"; project page shell with tabs (Конкуренты / Результаты / Шорт-лист / История)
+- [ ] Archived projects hidden from default list
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Create a project on DEV, rename it, see it in the list; open it and see the four tabs.
+### Files to read
+CLAUDE.md, backend/src/models/project.py, backend/src/api/auth.py, frontend/lib/api.ts
+### Files to create or modify
+backend/src/api/projects.py, backend/tests/test_projects.py, frontend/app/(app)/projects/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E2-S2] Competitor list management (IG, max 50)
+**Epic:** Projects & Competitor Lists
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E2-S1
+### Goal
+Within a project, the user manages the Instagram competitor list: paste/add URLs or @handles, validated and normalized, capped at 50, persisted.
+### Acceptance Criteria
+- [ ] API: add entries (single or bulk paste), remove entry, list entries — on the project's IG `account_list` (auto-created)
+- [ ] URL/handle normalization to canonical `instagram.com/<handle>`; invalid entries rejected with per-line Russian error messages; duplicates deduped
+- [ ] 51st entry rejected with a clear error; counter "N / 50" shown in UI
+- [ ] Data model supports one list per platform (IG active; YouTube/TikTok/Threads platform enum values exist but are disabled in UI)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Paste 5 IG URLs (one invalid, one duplicate) on DEV — 3 saved, errors shown in Russian, counter reads 3 / 50.
+### Files to read
+CLAUDE.md, backend/src/models/account_list.py, backend/src/api/projects.py, frontend/app/(app)/projects/**
+### Files to create or modify
+backend/src/api/accounts.py, backend/src/services/url_normalizer.py, backend/tests/test_accounts.py, frontend/app/(app)/projects/[id]/competitors/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E3-S1] Run creation, cost estimate, worker skeleton
+**Epic:** Analysis Pipeline
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E2-S2
+### Goal
+User picks a duration (1–7 days), sees a cost estimate, confirms, and a run executes asynchronously through its full lifecycle using a mock scraper.
+### Acceptance Criteria
+- [ ] `POST /projects/{id}/runs/estimate` returns estimated Apify units + Claude tokens + ₽/$ cost for current list size × duration
+- [ ] `POST /projects/{id}/runs` (after confirm) creates run `pending` and enqueues an arq job; duration outside 1–7 rejected
+- [ ] Worker advances run: pending → scraping → summarizing → done (mock platform returns fixture content); failures land in `failed` with error message
+- [ ] `GET /runs/{id}` returns status + progress (accounts processed / total); frontend run dialog shows estimate → confirm → live progress
+- [ ] `Platform` interface defined (`fetch_content(account, since) -> [RawContentItem]`); mock implementation registered
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV, start a run with the mock platform flag; watch status advance to done within a minute.
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md (run lifecycle), backend/src/models/analysis_run.py, backend/src/api/projects.py
+### Files to create or modify
+backend/src/worker.py, backend/src/platforms/base.py, backend/src/platforms/mock.py, backend/src/services/estimator.py, backend/src/api/runs.py, backend/tests/test_runs.py, frontend/app/(app)/projects/[id]/run-dialog.tsx, frontend/messages/ru.json
+### Handover
+—
+
+## [E3-S2] Apify Instagram integration and metrics
+**Epic:** Analysis Pipeline
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E3-S1
+### Goal
+Real IG scraping: the worker fetches each account's content for the window via Apify, normalizes it into content_items, and computes derived metrics.
+### Acceptance Criteria
+- [ ] `InstagramPlatform` implements `Platform` using the Apify actor (actor id from env); raw payload stored in `content_items.raw` (JSONB)
+- [ ] Normalized fields: published_at, type (reel/post/carousel), title (caption first line, truncated), url, likes, views (NULL for post/carousel), comments
+- [ ] Derived: days_since_published, views_per_day, likes_per_day (computed at read time or run finish — per ARCHITECTURE.md)
+- [ ] Apify units consumed recorded as `usage_events` per account fetch
+- [ ] Per-account failures (private/deleted account) don't fail the run; account marked failed with reason, run completes partial
+- [ ] Apify client wrapped with timeout + retry; integration test against recorded fixture (no live Apify in CI)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run analysis on DEV against 2 real public IG accounts, 3 days — content_items rows appear with plausible metrics; usage_events rows exist.
+### Files to read
+CLAUDE.md, backend/src/platforms/base.py, backend/src/worker.py, backend/src/models/content_item.py, docs/ARCHITECTURE.md
+### Files to create or modify
+backend/src/platforms/instagram.py, backend/src/services/metrics.py, backend/tests/test_instagram_platform.py, backend/tests/fixtures/apify_ig_sample.json
+### Handover
+—
+
+## [E4-S1] Claude summarization service
+**Epic:** AI Summaries
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E3-S2
+### Goal
+A service that produces a 1–2 sentence Russian summary of a content item from its caption + cover image using Claude Haiku.
+### Acceptance Criteria
+- [ ] `summarize(items) -> summaries` batches requests to claude-haiku-4-5 with caption text + cover image (fetched from IG CDN URL, resized ≤1024px)
+- [ ] Prompt in docs/PROMPTS.md; output: 1–2 sentences, Russian, describes what the content is about (no engagement commentary)
+- [ ] Missing caption and unfetchable image handled (summarize from whichever exists; both missing → "Описание недоступно")
+- [ ] Token usage per call recorded as usage_events
+- [ ] Retries with backoff on rate limits; a failed summary never fails the run (item gets fallback text)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Trigger summarization for one real item on DEV; summary is Russian, 1–2 sentences, relevant to the post.
+### Files to read
+CLAUDE.md, docs/PROMPTS.md, backend/src/models/content_item.py, backend/src/services/usage.py (if exists)
+### Files to create or modify
+backend/src/services/summarizer.py, backend/tests/test_summarizer.py, docs/PROMPTS.md
+### Handover
+—
+
+## [E4-S2] Summarization in the run pipeline
+**Epic:** AI Summaries
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E4-S1
+### Goal
+The worker's `summarizing` phase runs the summarizer over all items of a run with bounded concurrency and progress reporting.
+### Acceptance Criteria
+- [ ] After scraping, run enters `summarizing`; items processed in batches with bounded concurrency (config)
+- [ ] Progress (items summarized / total) exposed on `GET /runs/{id}` and shown in UI
+- [ ] Run-level token totals rolled up onto analysis_runs (total_input_tokens, total_output_tokens, total_cost)
+- [ ] Re-running summarization is idempotent (skips items that already have summaries)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Full run on DEV (2 accounts, 3 days): every item has a Russian summary; run shows token totals.
+### Files to read
+CLAUDE.md, backend/src/worker.py, backend/src/services/summarizer.py, backend/src/api/runs.py
+### Files to create or modify
+backend/src/worker.py, backend/src/services/usage.py, backend/tests/test_pipeline.py
+### Handover
+—
+
+## [E5-S1] Results table
+**Epic:** Results Table & Export
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E4-S2
+### Goal
+The Результаты tab shows the completed run's content as a table sortable by every column.
+### Acceptance Criteria
+- [ ] Columns: аккаунт, дата и время публикации, тип, заголовок, ссылка (opens IG in new tab), краткое описание, лайки, просмотры, дней с публикации, просмотров/день, лайков/день
+- [ ] Server-side sort + pagination via `GET /runs/{id}/items?sort=&order=&page=`; every column sortable both directions
+- [ ] Views columns show "—" (not 0) for post/carousel types; sort treats them as NULLs last
+- [ ] Type shown as Russian labels with icons (Reels / Пост / Карусель)
+- [ ] Run selector on the tab (defaults to latest completed run)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV open a finished run, sort by просмотров/день descending, click a link — IG post opens.
+### Files to read
+CLAUDE.md, backend/src/api/runs.py, docs/UI_GUIDELINES.md, frontend/app/(app)/projects/[id]/**
+### Files to create or modify
+backend/src/api/items.py, backend/tests/test_items_api.py, frontend/app/(app)/projects/[id]/results/**, frontend/components/results-table.tsx, frontend/messages/ru.json
+### Handover
+—
+
+## [E5-S2] XLSX export
+**Epic:** Results Table & Export
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E5-S1
+### Goal
+One click exports the current run's full results table to an .xlsx file with Russian headers.
+### Acceptance Criteria
+- [ ] `GET /runs/{id}/export.xlsx` streams a workbook (openpyxl): all rows, Russian headers matching the UI, link column as real hyperlinks, frozen header row, respects current sort
+- [ ] Filename `content-scout_<project>_<run-date>.xlsx`
+- [ ] "Экспорт в Excel" button on the results tab
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Export a DEV run, open in Excel/Numbers — headers Russian, links clickable, data matches UI.
+### Files to read
+CLAUDE.md, backend/src/api/items.py, frontend/app/(app)/projects/[id]/results/**
+### Files to create or modify
+backend/src/services/xlsx_export.py, backend/src/api/export.py, backend/tests/test_export.py, frontend/components/results-table.tsx
+### Handover
+—
+
+## [E6-S1] Shortlist
+**Epic:** Shortlist & History
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E5-S1
+### Goal
+User promotes rows from results to the project shortlist and manages them in the Шорт-лист tab.
+### Acceptance Criteria
+- [ ] Promote/demote action per results row (star toggle); API creates/removes shortlist_items (project-scoped, references content_item, survives across runs)
+- [ ] Шорт-лист tab lists shortlisted items with same columns + добавлено (date shortlisted), sortable, removable
+- [ ] Promoting the same item twice is idempotent
+- [ ] Placeholder "Создать сценарий" button visible but disabled with tooltip "Скоро" (script generation is post-MVP)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Promote 2 rows on DEV, open Шорт-лист — both there; remove one — gone; results row star reflects state.
+### Files to read
+CLAUDE.md, backend/src/models/shortlist_item.py, backend/src/api/items.py, frontend/components/results-table.tsx
+### Files to create or modify
+backend/src/api/shortlist.py, backend/tests/test_shortlist.py, frontend/app/(app)/projects/[id]/shortlist/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E6-S2] Run and shortlist history
+**Epic:** Shortlist & History
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E6-S1
+### Goal
+The История tab shows all past runs (date, duration, accounts, items found, status, cost) and past shortlist activity; any past run's results can be reopened.
+### Acceptance Criteria
+- [ ] Run history list with: started_at, период (days), кол-во аккаунтов, найдено публикаций, статус, стоимость; click opens that run in the results tab
+- [ ] Shortlist history: added/removed events with timestamps
+- [ ] Failed runs show their error message in Russian
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV with ≥2 runs, open История, click the older run — its results render.
+### Files to read
+CLAUDE.md, backend/src/api/runs.py, frontend/app/(app)/projects/[id]/**
+### Files to create or modify
+backend/src/api/history.py, backend/tests/test_history.py, frontend/app/(app)/projects/[id]/history/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E7-S1] Usage rollups
+**Epic:** Usage Metering & Admin
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E4-S2
+### Goal
+Usage events roll up into per-run and per-user totals, and the user sees their own consumption.
+### Acceptance Criteria
+- [ ] usage_events schema finalized: user_id, run_id, kind (apify_result | claude_input_tokens | claude_output_tokens), quantity, unit_cost_usd, created_at
+- [ ] `GET /me/usage?from=&to=` returns totals per kind and cost, per project and overall
+- [ ] Run history (E6-S2) cost column reads from these rollups
+- [ ] Simple "Использование" page in account menu showing current month totals
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+After a DEV run, Использование page shows non-zero Apify results and Claude tokens for this month.
+### Files to read
+CLAUDE.md, backend/src/models/usage_event.py, backend/src/services/usage.py
+### Files to create or modify
+backend/src/api/usage.py, backend/tests/test_usage.py, frontend/app/(app)/usage/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E7-S2] Admin usage view
+**Epic:** Usage Metering & Admin
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** low
+**Depends on:** E7-S1
+### Goal
+An admin (flag on user) can see usage across all pilot users to understand cost per user before pricing is designed.
+### Acceptance Criteria
+- [ ] `is_admin` flag; admin-only `GET /admin/usage` — per-user totals (runs, Apify units, tokens, cost) for a date range
+- [ ] Minimal admin page (table, date filter); non-admins get 403 / no nav entry
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Admin account on DEV sees the usage table; a regular pilot account gets no admin nav and 403 on the API.
+### Files to read
+CLAUDE.md, backend/src/api/usage.py, backend/src/models/user.py
+### Files to create or modify
+backend/src/api/admin.py, backend/tests/test_admin.py, frontend/app/(app)/admin/**, frontend/messages/ru.json
+### Handover
+—
