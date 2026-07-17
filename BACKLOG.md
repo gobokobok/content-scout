@@ -63,7 +63,7 @@ backend/src/main.py, backend/src/config.py, backend/tests/test_health.py, backen
 ## [E1-S2] Database schema and migrations
 **Epic:** Foundation & Auth
 **Sprint:** 1
-**Status:** ready
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E1-S1
 ### Goal
