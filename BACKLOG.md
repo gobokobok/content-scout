@@ -20,8 +20,7 @@ Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS 
 ## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
 **Epic:** Foundation & Auth
 **Sprint:** 1
-**Status:** done
-**Completed:** 2026-07-18
+**Status:** blocked (code complete, deploy blocked on human action)
 **Priority:** high
 **Depends on:** none
 ### Goal
@@ -31,12 +30,12 @@ A walking skeleton: FastAPI health endpoint + Next.js placeholder page run local
 - [x] `frontend/` Next.js 15 app (TypeScript, Tailwind, next-intl with `ru` locale) rendering a placeholder page with a Russian string from the locale file
 - [x] `docker-compose.yml` provides Postgres 16 + Redis 7; `scripts/bootstrap.sh` gets a fresh machine to running apps
 - [x] Backend tests run via pytest, frontend lint+typecheck via npm; both wired into `.github/workflows/ci.yml`
-- [x] Push to `main` deploys backend + frontend to Railway DEV
+- [ ] Push to `main` deploys backend + frontend to Railway DEV — **blocked**: `RAILWAY_TOKEN_DEV`/`RAILWAY_TOKEN_PROD` GitHub Actions secrets don't exist yet (`gh secret list` is empty). This is the pending step 3 from ENV.md's "Human actions required before Sprint 1" — nothing left to fix in code.
 ### Definition of Done
-- [x] All AC checked
+- [ ] All AC checked (blocked on the item above)
 - [x] Tests written and passing
-- [x] CI green, deployed to DEV
-- [x] Smoke test passed
+- [ ] CI green, deployed to DEV — backend/frontend CI jobs are green; `deploy-dev` fails with "Not signed in" (empty token)
+- [ ] Smoke test passed — deferred, see below
 - [x] DONE.md updated
 - [x] BACKLOG.md updated
 ### Smoke test
