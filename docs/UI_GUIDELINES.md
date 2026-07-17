@@ -33,6 +33,15 @@
 3. Progress state on Результаты tab: status in Russian (В очереди / Сбор данных 4/12 / Создание описаний 80/120) with progress bar, polling every 2s
 4. Failure → red banner with error_message and «Повторить»
 
+## Responsive / mobile (D16)
+
+- Mobile-first Tailwind: base styles target 375px, `md:`/`lg:` add desktop layout. No fixed pixel widths on layout containers.
+- Every screen must be **usable** (not just rendered) at 375px: tap targets ≥44px, forms full-width, dialogs become full-screen sheets on mobile.
+- Project tabs (Конкуренты / Результаты / Шорт-лист / История) collapse to a horizontally scrollable tab bar on mobile.
+- **Tables (results, shortlist, history):** MVP behavior on small screens is horizontal scroll *inside the table container* (page never scrolls sideways) with a sticky first column (Аккаунт) and sticky header. Post-MVP polish: card layout per row on mobile (title + summary + key metrics), tracked as its own backlog story.
+- Run dialog, progress bar, and «Экспорт в Excel» / «Запустить анализ» actions must all work on mobile.
+- Definition of done for any UI story includes a check at 375px viewport (dev tools or browser preview `resize_window` mobile preset).
+
 ## Visual style
 - Tailwind; clean SaaS dashboard, light theme for MVP. Dense-but-readable data table (the table IS the product).
 - Loading: skeleton rows. Empty states with a next-action hint («Добавьте аккаунты конкурентов, чтобы запустить первый анализ»).

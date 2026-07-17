@@ -19,3 +19,4 @@ Binding decisions. Add an entry before deviating from any of these.
 | D13 | 2026-07-17 | Constraints: ≤50 accounts per list, run window 1–7 days, 3 lists per project (one per platform) | Product spec |
 | D14 | 2026-07-17 | Views for IG photo posts/carousels are NULL (rendered "—"), never 0 | IG doesn't expose them; 0 would corrupt sorts and per-day metrics |
 | D15 | 2026-07-17 | Script generation (item 7 of spec) is post-MVP; UI shows a disabled placeholder on shortlist | User marked it not-MVP |
+| D16 | 2026-07-17 | UI is **responsive from day 1** (Tailwind mobile-first, every screen usable at 375px). MVP: results/shortlist tables scroll horizontally with sticky first column on mobile; post-MVP polish: card layout for tables on small screens | User requirement — mobile-friendly UI matters eventually; retrofitting responsiveness is far more expensive than building it in |

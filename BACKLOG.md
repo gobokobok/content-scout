@@ -9,7 +9,7 @@ Epics:
 - **E6 Shortlist & History** — promote rows, shortlist tab, run/shortlist history
 - **E7 Usage Metering & Admin** — per-user/per-run rollups, admin usage view
 
-Post-MVP (not scheduled): script generation from shortlist (target duration setting), VK ID + SMS auth, YouTube/TikTok/Threads platforms, billing/payments, team workspaces.
+Post-MVP (not scheduled): script generation from shortlist (target duration setting), VK ID + SMS auth, YouTube/TikTok/Threads platforms, billing/payments, team workspaces, mobile card layout for tables (MVP ships responsive with horizontal-scroll tables per D16).
 
 ---
 

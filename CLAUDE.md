@@ -42,6 +42,7 @@ Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f
 
 - No new dependencies without a `DECISIONS.md` entry.
 - All UI strings go through next-intl; no hardcoded user-facing text. Russian is the only locale for MVP.
+- Every screen must be usable at 375px width (D16): mobile-first Tailwind, no fixed-width layouts; wide tables scroll horizontally inside their own container, never the page.
 - Every external cost (Apify results, Claude tokens) must be recorded as a `usage_events` row at the moment it is incurred — never retrofitted.
 - Platform-specific scraping/metrics code lives behind the `Platform` interface (`backend/src/platforms/`); nothing outside it may import Apify directly.
 - IG photo posts/carousels have no public view counts — views columns render "—", never 0, for those types.
