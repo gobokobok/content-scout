@@ -9,6 +9,22 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E3-S1] Run creation, cost estimate, worker skeleton — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `src/platforms/base.py:Platform`/`RawContentItem`; `src/platforms/__init__.py:get_platform(PlatformSlug)` currently maps IG to `MockPlatform` — E3-S2 swaps this to real `InstagramPlatform`, no other call site changes. `USE_MOCK_PLATFORM` env var has no effect yet (documented, starts mattering in E3-S2).
+- `src/services/estimator.py:estimate_run`, `src/services/runs.py:resolve_target_accounts` (shared by API + worker), `src/services/queue.py:enqueue_run`.
+- `src/worker.py:process_run(session, run)` (lifecycle core, testable) / `run_analysis(ctx, run_id)` (arq entrypoint) / `WorkerSettings`. **This deploy brings the `worker` Railway service up for the first time** (it was crash-looping since E1-S1 with no `worker.py`).
+- `src/api/runs.py`: `POST /projects/{id}/runs/estimate`, `POST /projects/{id}/runs`, `GET /runs/{id}`.
+- New migration `b2c1a4f9d7e3`: `analysis_runs.account_ids` (nullable `ARRAY(Uuid)`, NULL = whole list).
+- Frontend: `app/(app)/projects/[id]/run-dialog.tsx` (estimate → confirm → 2s-poll progress); Конкуренты tab gained per-row/select-all checkboxes + "Запустить анализ" button.
+- ENV vars added: none new to Railway; `Settings` gained `redis_url` + 5 estimator constants (local defaults).
+**Smoke test:** PASSED — on DEV: opened a project's Конкуренты tab with accounts added, left all selected, clicked «Запустить анализ», saw the estimate (Apify units / Claude tokens / cost) for the full list × chosen duration, confirmed, and watched the dialog poll through Сбор публикаций → Формирование описаний → Готово within a few seconds (mock platform); confirmed the `worker` Railway service is up and healthy (previously crash-looping).
+**Promoted to backlog:**
+- (none)
+
+---
+
 ## [E2-S2] Competitor list management (IG, max 50) — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**

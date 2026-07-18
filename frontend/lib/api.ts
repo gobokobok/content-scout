@@ -77,6 +77,34 @@ export interface AddAccountsResponse {
   total: number;
 }
 
+export interface EstimateResponse {
+  apify_units: number;
+  claude_input_tokens: number;
+  claude_output_tokens: number;
+  estimated_cost_usd: string;
+  accounts_count: number;
+}
+
+export interface RunResponse {
+  id: string;
+  project_id: string;
+  status: "pending" | "scraping" | "summarizing" | "done" | "failed";
+  duration_days: number;
+  progress_accounts: number;
+  progress_items: number;
+  error_message: string | null;
+  estimated_cost_usd: string | null;
+  total_cost_usd: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface RunRequest {
+  duration_days: number;
+  account_ids?: string[];
+}
+
 export const api = {
   register: (email: string, password: string) =>
     request<TokenResponse>("/auth/register", {
@@ -109,4 +137,15 @@ export const api = {
     }),
   removeAccount: (projectId: string, accountId: string) =>
     request<void>(`/projects/${projectId}/accounts/${accountId}`, { method: "DELETE" }),
+  estimateRun: (projectId: string, body: RunRequest) =>
+    request<EstimateResponse>(`/projects/${projectId}/runs/estimate`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  createRun: (projectId: string, body: RunRequest) =>
+    request<RunResponse>(`/projects/${projectId}/runs`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getRun: (runId: string) => request<RunResponse>(`/runs/${runId}`),
 };

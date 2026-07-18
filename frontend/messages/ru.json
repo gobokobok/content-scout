@@ -56,6 +56,29 @@
     "remove": "Удалить",
     "genericError": "Произошла ошибка. Попробуйте ещё раз.",
     "addedCount": "Добавлено: {count}",
-    "loading": "Загрузка…"
+    "loading": "Загрузка…",
+    "selectAll": "Выбрать все",
+    "runButton": "Запустить анализ",
+    "selectedCount": "Выбрано: {count}"
+  },
+  "RunDialog": {
+    "title": "Новый анализ",
+    "durationLabel": "Период анализа (дней)",
+    "accountsLabel": "Аккаунтов: {count}",
+    "estimateLoading": "Расчёт стоимости…",
+    "estimateApify": "Единиц Apify: {units}",
+    "estimateTokens": "Токенов Claude: {input} / {output}",
+    "estimateCost": "Ориентировочная стоимость: ${cost}",
+    "confirmButton": "Подтвердить и запустить",
+    "starting": "Запуск…",
+    "cancel": "Отмена",
+    "close": "Закрыть",
+    "statusPending": "Ожидание…",
+    "statusScraping": "Сбор публикаций…",
+    "statusSummarizing": "Формирование описаний…",
+    "statusDone": "Готово",
+    "statusFailed": "Ошибка",
+    "progress": "Обработано аккаунтов: {done}",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз."
   }
 }

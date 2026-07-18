@@ -3,7 +3,17 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, Enum, ForeignKey, Numeric, String
+from sqlalchemy import (
+    ARRAY,
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Numeric,
+    String,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base, CreatedAt, UuidPk
@@ -26,6 +36,8 @@ class AnalysisRun(UuidPk, CreatedAt, Base):
     )
     requested_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     duration_days: Mapped[int] = mapped_column(nullable=False)
+    # NULL = every active account in the project's IG list; otherwise an explicit subset.
+    account_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(Uuid()), nullable=True)
     status: Mapped[RunStatus] = mapped_column(
         Enum(RunStatus, native_enum=False, length=20),
         default=RunStatus.pending,
