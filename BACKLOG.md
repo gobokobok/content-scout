@@ -558,24 +558,25 @@ backend/src/api/history.py, backend/tests/test_history.py, frontend/app/(app)/pr
 ## [E7-S1] Usage rollups
 **Epic:** Usage Metering & Admin
 **Sprint:** 5
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E4-S2
 ### Goal
 Usage events roll up into per-run and per-user totals, and the user sees their own consumption.
 ### Acceptance Criteria
-- [ ] usage_events schema finalized: user_id, run_id, kind, quantity, unit_cost_usd, created_at; `kind` is an extensible enum (apify_result | claude_input_tokens | claude_output_tokens now; designed for gemini_*, storage_gb_month, compute_alloc later per D26) — this is the internal Layer-1 cost ledger
-- [ ] `GET /me/usage?from=&to=` returns totals per kind and cost, per project and overall
-- [ ] Run history (E6-S2) cost column reads from these rollups
-- [ ] Simple "Использование" page in account menu showing current month totals
-- [ ] Pilot phase shows internal USD directly (no billing yet); the endpoint/page structure anticipates the D26 token layer so E8-S3 swaps the displayed unit, not the plumbing — internal USD and unit costs must be trivially removable from user-facing responses at that point
+- [x] usage_events schema finalized: user_id, run_id, kind, quantity, unit_cost_usd, created_at; `kind` is an extensible enum (apify_result | claude_input_tokens | claude_output_tokens now; designed for gemini_*, storage_gb_month, compute_alloc later per D26) — this is the internal Layer-1 cost ledger
+- [x] `GET /me/usage?from=&to=` returns totals per kind and cost, per project and overall
+- [x] Run history (E6-S2) cost column reads from these rollups
+- [x] Simple "Использование" page in account menu showing current month totals
+- [x] Pilot phase shows internal USD directly (no billing yet); the endpoint/page structure anticipates the D26 token layer so E8-S3 swaps the displayed unit, not the plumbing — internal USD and unit costs must be trivially removable from user-facing responses at that point
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 After a DEV run, Использование page shows non-zero Apify results and Claude tokens for this month.
 ### Files to read
@@ -583,7 +584,14 @@ CLAUDE.md, backend/src/models/usage_event.py, backend/src/services/usage.py
 ### Files to create or modify
 backend/src/api/usage.py, backend/tests/test_usage.py, frontend/app/(app)/usage/**, frontend/messages/ru.json
 ### Handover
-—
+- `GET /me/usage?from=&to=` → `UsageOut` — aggregates `usage_events` by `kind` for the authenticated user in the time window (`backend/src/api/usage.py`)
+- `UsageOut`: `from_`, `to`, `total_cost_usd`, `by_kind: list[KindTotal]`; `KindTotal`: `kind`, `quantity`, `cost_usd`
+- `KindTotalResponse` + `UsageResponse` added to `frontend/lib/api.ts`; `api.getMyUsage(from, to)` method
+- `frontend/app/(app)/usage/page.tsx` — current-month usage table (Ресурс / Количество / Стоимость + Итого footer)
+- "Использование" link added to app header in `frontend/app/(app)/layout.tsx`
+- `Usage` and `App.usage` i18n keys added to `ru.json`
+- 5 new tests in `backend/tests/test_usage.py` (empty, totals, date range, user isolation, shape)
+- No ENV vars added; no DB migrations needed (schema was already correct)
 
 ## [E7-S2] Admin usage view
 **Epic:** Usage Metering & Admin

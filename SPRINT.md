@@ -61,7 +61,7 @@ Full story definitions live in `BACKLOG.md`.
 | Story | Title | Status |
 |---|---|---|
 | E6-S2 | Run and shortlist history | done |
-| E7-S1 | Usage rollups | pending |
+| E7-S1 | Usage rollups | done |
 | E7-S2 | Admin usage view | pending |
 
 ## Sprint plan (projection, adjust at each /sprint-review)

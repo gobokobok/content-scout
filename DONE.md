@@ -9,6 +9,21 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E7-S1] Usage rollups — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `GET /me/usage?from=&to=` → `UsageOut` (by_kind[], total_cost_usd) — `backend/src/api/usage.py`
+- `KindTotal`: kind, quantity, cost_usd — all internal USD, trivially removable from responses for D26
+- `frontend/app/(app)/usage/page.tsx` — current-month table; "Использование" link in app header
+- `api.getMyUsage(from, to)` + `UsageResponse`/`KindTotalResponse` in `frontend/lib/api.ts`
+- 5 new endpoint tests in `backend/tests/test_usage.py`; schema was already correct (no migration)
+- No ENV vars added
+**Smoke test:** PASSED — On DEV: navigated to `/usage`, page showed Результаты Apify (8) $0.0800, Входящие токены Claude (1 162) $0.0012, Исходящие токены Claude (94) $0.0005, Итого $0.0816. Header "Использование" link present and functional.
+**Promoted to backlog:**
+- None
+
+---
+
 ## [E6-S2] Run and shortlist history — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**
