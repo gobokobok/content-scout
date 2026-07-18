@@ -92,12 +92,15 @@ async def _summarize_item(
 
     for attempt in range(_MAX_ATTEMPTS):
         try:
-            response = await client.messages.create(
-                model=settings.summary_model,
-                max_tokens=150,
-                temperature=0.2,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": content_blocks}],
+            response = await asyncio.wait_for(
+                client.messages.create(
+                    model=settings.summary_model,
+                    max_tokens=150,
+                    temperature=0.2,
+                    system=SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": content_blocks}],
+                ),
+                timeout=30.0,
             )
         except Exception:  # noqa: BLE001 — retried here; falls back to placeholder after
             if attempt < _MAX_ATTEMPTS - 1:
