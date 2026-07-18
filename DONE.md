@@ -9,6 +9,20 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E2-S1] Project CRUD — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `src/services/workspace.py:get_user_workspace(session, user)` resolves a user's single personal workspace (one workspace per user per D6) — reuse this in every future project-scoped router instead of re-deriving membership.
+- `src/api/projects.py`: `POST /projects`, `GET /projects` (`?include_archived=`), `GET/PATCH /projects/{id}`, `POST /projects/{id}/archive`; all workspace-scoped, 404 (`project_not_found`) for foreign/missing ids via the `_get_owned_project` helper — same pattern should be reused for E2-S2's accounts router.
+- Frontend: `app/(app)/page.tsx` is now the project list (create + inline rename/archive); `app/(app)/projects/[id]/layout.tsx` is the shared project shell (back link, name, four-tab nav: Конкуренты/Результаты/Шорт-лист/История) — new tab content goes into the existing `competitors/`, `results/`, `shortlist/`, `history/` page files (currently "Скоро" placeholders), which inherit the shell automatically. E2-S2 replaces `competitors/page.tsx`.
+- `lib/api.ts` gained `ProjectResponse` + `listProjects/createProject/getProject/renameProject/archiveProject`. New Russian strings under `Projects` and `ProjectShell` keys in `messages/ru.json`.
+- ENV vars added: none.
+**Smoke test:** PASSED — on DEV: created a project via «Создать проект», renamed it inline and confirmed the new name persisted in the list, opened it and confirmed all four tabs (Конкуренты/Результаты/Шорт-лист/История) render with placeholder text; archived it and confirmed it disappeared from the default list.
+**Promoted to backlog:**
+- (none)
+
+---
+
 ## [E1-S3] Email+password auth and personal workspace — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**

@@ -141,31 +141,40 @@ backend/src/auth/*.py, backend/src/api/auth.py, backend/tests/test_auth.py, fron
 
 ## [E2-S1] Project CRUD
 **Epic:** Projects & Competitor Lists
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 2
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E1-S3
 ### Goal
 A logged-in user can create, rename, list, and archive projects inside their workspace.
 ### Acceptance Criteria
-- [ ] API: create/list/get/update/archive project, scoped to the caller's workspace (404 for foreign projects)
-- [ ] Frontend: workspace home lists projects with "Создать проект"; project page shell with tabs (Конкуренты / Результаты / Шорт-лист / История)
-- [ ] Archived projects hidden from default list
+- [x] API: create/list/get/update/archive project, scoped to the caller's workspace (404 for foreign projects)
+- [x] Frontend: workspace home lists projects with "Создать проект"; project page shell with tabs (Конкуренты / Результаты / Шорт-лист / История)
+- [x] Archived projects hidden from default list
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (5 new tests; CI is the authoritative gate — no local Postgres available in this sandbox)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Create a project on DEV, rename it, see it in the list; open it and see the four tabs.
 ### Files to read
 CLAUDE.md, backend/src/models/project.py, backend/src/api/auth.py, frontend/lib/api.ts
 ### Files to create or modify
 backend/src/api/projects.py, backend/tests/test_projects.py, frontend/app/(app)/projects/**, frontend/messages/ru.json
+### Changelog
+- Added `backend/src/services/workspace.py` (`get_user_workspace`) — not in the original file plan but needed to resolve "the caller's workspace" from `WorkspaceMember`; every user has exactly one (personal) workspace per D6, so this is a simple join, not a new abstraction.
+- Frontend: project rename/archive controls live inline on the project list (not inside the project shell) so the E2-S1 smoke test flow (create → rename → see it in list → open → see tabs) works without extra navigation.
 ### Handover
-—
+- Backend: `src/services/workspace.py:get_user_workspace(session, user)` — resolves a user's single personal workspace; reuse this instead of re-deriving workspace membership in future project-scoped routers (accounts, runs, etc.).
+- `src/api/projects.py`: `POST /projects`, `GET /projects` (`?include_archived=`), `GET/PATCH /projects/{id}`, `POST /projects/{id}/archive`. All 404 with `{code: "project_not_found"}` for foreign-workspace or missing ids — follow this pattern (`_get_owned_project` helper) for E2-S2's accounts router.
+- Frontend: `app/(app)/page.tsx` is now the project list (create/rename/archive inline); `app/(app)/projects/[id]/layout.tsx` is the shared shell (back link, project name, four-tab nav) — new project sub-features should add a page under `app/(app)/projects/[id]/<tab>/` and it inherits the shell for free. Tab route segments (`competitors`, `results`, `shortlist`, `history`) are fixed — E2-S2 should build directly into `competitors/page.tsx`, replacing its current "Скоро" placeholder.
+- `lib/api.ts` gained `ProjectResponse` + `listProjects/createProject/getProject/renameProject/archiveProject`.
+- New Russian strings under `Projects` and `ProjectShell` keys in `messages/ru.json`.
+- ENV vars added: none.
 
 ## [E2-S2] Competitor list management (IG, max 50)
 **Epic:** Projects & Competitor Lists

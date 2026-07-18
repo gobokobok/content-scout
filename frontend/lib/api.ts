@@ -56,6 +56,13 @@ export interface UserResponse {
   email: string;
 }
 
+export interface ProjectResponse {
+  id: string;
+  name: string;
+  created_at: string;
+  archived_at: string | null;
+}
+
 export const api = {
   register: (email: string, password: string) =>
     request<TokenResponse>("/auth/register", {
@@ -68,4 +75,15 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<UserResponse>("/auth/me"),
+  listProjects: () => request<ProjectResponse[]>("/projects"),
+  createProject: (name: string) =>
+    request<ProjectResponse>("/projects", { method: "POST", body: JSON.stringify({ name }) }),
+  getProject: (id: string) => request<ProjectResponse>(`/projects/${id}`),
+  renameProject: (id: string, name: string) =>
+    request<ProjectResponse>(`/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  archiveProject: (id: string) =>
+    request<ProjectResponse>(`/projects/${id}/archive`, { method: "POST" }),
 };

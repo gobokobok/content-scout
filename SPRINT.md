@@ -14,9 +14,19 @@
 | E1-S2 | Database schema and migrations | done |
 | E1-S3 | Email+password auth and personal workspace | done |
 
-**Sprint 1 complete.** Next up is Sprint 2 — start with `/start-story E2-S1`.
+**Sprint 1 complete.**
 
 Full story definitions live in `BACKLOG.md`.
+
+## Sprint 2 — Projects & competitor lists, run lifecycle with mock data
+
+**Stories (in order):**
+
+| Story | Title | Status |
+|---|---|---|
+| E2-S1 | Project CRUD | done |
+| E2-S2 | Competitor list management (IG, max 50) | backlog |
+| E3-S1 | Run creation, cost estimate, worker skeleton | backlog |
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 

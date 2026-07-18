@@ -22,5 +22,29 @@
   "App": {
     "loading": "Загрузка…",
     "logout": "Выйти"
+  },
+  "Projects": {
+    "title": "Проекты",
+    "empty": "У вас пока нет проектов.",
+    "createButton": "Создать проект",
+    "namePlaceholder": "Название проекта",
+    "createSubmit": "Создать",
+    "createCancel": "Отмена",
+    "rename": "Переименовать",
+    "archive": "Архивировать",
+    "loading": "Загрузка…",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз."
+  },
+  "ProjectShell": {
+    "back": "← Все проекты",
+    "tabCompetitors": "Конкуренты",
+    "tabResults": "Результаты",
+    "tabShortlist": "Шорт-лист",
+    "tabHistory": "История",
+    "notFound": "Проект не найден.",
+    "comingSoonCompetitors": "Управление списком конкурентов появится в следующей версии.",
+    "comingSoonResults": "Здесь появятся результаты анализа.",
+    "comingSoonShortlist": "Здесь появится шорт-лист.",
+    "comingSoonHistory": "Здесь появится история запусков."
   }
 }
