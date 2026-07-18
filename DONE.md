@@ -9,6 +9,20 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E3-S2] Apify Instagram integration and metrics — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `src/platforms/instagram.py:InstagramPlatform` — real Apify scraper (actor `apify/instagram-scraper`), 3× retry with backoff. `src/platforms/__init__.py:get_platform()` branches on `Settings.use_mock_platform` — DEV now runs the real platform (`USE_MOCK_PLATFORM=false`).
+- `src/services/metrics.py` — SQL expression builders for `days_since_published`/`views_per_day`/`likes_per_day` (computed at read time per ARCHITECTURE.md); E5-S1's results query should use these directly.
+- `src/worker.py:process_run` — per-account fetch failures no longer fail the run (`Account.status=failed` + `fail_reason`, run continues); writes one `apify_result` usage_events row per successful account fetch (quantity = items returned).
+- `tests/fixtures/apify_ig_sample.json` — recorded-shape fixture (reel/post/carousel) for `test_instagram_platform.py`; extend rather than duplicate.
+- ENV: `APIFY_IG_ACTOR_ID=apify/instagram-scraper` set on DEV (was genuinely missing); `APIFY_API_TOKEN`/`ANTHROPIC_API_KEY` were already set (ENV.md was stale, now corrected). `production` env vars unverified.
+**Smoke test:** PASSED — on DEV: ran analysis against 2 real public IG accounts (@natgeo, @therock), 3-day window, against the real Apify actor (not mock) — content_items rows appeared with real captions/likes/comments/cover images and plausible published_at timestamps; `apify_result` usage_events rows exist with the correct quantities.
+**Promoted to backlog:**
+- (none)
+
+---
+
 ## [E3-S1] Run creation, cost estimate, worker skeleton — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**

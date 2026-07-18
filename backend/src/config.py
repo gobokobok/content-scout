@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     jwt_secret: str = "local-dev-secret-do-not-use-in-prod"
     access_token_expire_minutes: int = 1440
 
+    use_mock_platform: bool = True
+    apify_api_token: str = ""
+    apify_ig_actor_id: str = ""
+
     # E3-S1: mock platform only (InstagramPlatform lands in E3-S2). Estimate constants are
     # provisional and config-driven so real Apify/Claude pricing can be dropped in without a
     # code change (D26 spirit — never hardcode prices call sites care about).

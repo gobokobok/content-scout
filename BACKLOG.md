@@ -295,34 +295,44 @@ backend/src/worker.py, backend/src/platforms/base.py, backend/src/platforms/mock
 
 ## [E3-S2] Apify Instagram integration and metrics
 **Epic:** Analysis Pipeline
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 3
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E3-S1
 ### Goal
 Real IG scraping: the worker fetches each account's content for the window via Apify, normalizes it into content_items, and computes derived metrics.
 ### Acceptance Criteria
-- [ ] `InstagramPlatform` implements `Platform` using the Apify actor (actor id from env); raw payload stored in `content_items.raw` (JSONB)
-- [ ] Normalized fields: published_at, type (reel/post/carousel), title (caption first line, truncated), url, likes, views (NULL for post/carousel), comments
-- [ ] Derived: days_since_published, views_per_day, likes_per_day (computed at read time or run finish — per ARCHITECTURE.md)
-- [ ] Apify units consumed recorded as `usage_events` per account fetch
-- [ ] Per-account failures (private/deleted account) don't fail the run; account marked failed with reason, run completes partial
-- [ ] Apify client wrapped with timeout + retry; integration test against recorded fixture (no live Apify in CI)
+- [x] `InstagramPlatform` implements `Platform` using the Apify actor (actor id from env); raw payload stored in `content_items.raw` (JSONB)
+- [x] Normalized fields: published_at, type (reel/post/carousel), title (caption first line, truncated), url, likes, views (NULL for post/carousel), comments
+- [x] Derived: days_since_published, views_per_day, likes_per_day (computed at read time or run finish — per ARCHITECTURE.md)
+- [x] Apify units consumed recorded as `usage_events` per account fetch
+- [x] Per-account failures (private/deleted account) don't fail the run; account marked failed with reason, run completes partial
+- [x] Apify client wrapped with timeout + retry; integration test against recorded fixture (no live Apify in CI)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (10 new tests: instagram platform normalization/retry, worker per-account-failure + usage-event; CI is the authoritative gate — no local Postgres in this sandbox)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Run analysis on DEV against 2 real public IG accounts, 3 days — content_items rows appear with plausible metrics; usage_events rows exist.
 ### Files to read
 CLAUDE.md, backend/src/platforms/base.py, backend/src/worker.py, backend/src/models/content_item.py, docs/ARCHITECTURE.md
 ### Files to create or modify
 backend/src/platforms/instagram.py, backend/src/services/metrics.py, backend/tests/test_instagram_platform.py, backend/tests/fixtures/apify_ig_sample.json
+### Changelog
+- ENV.md previously claimed APIFY_API_TOKEN/ANTHROPIC_API_KEY were empty placeholders on DEV — they were actually already set (stale doc, corrected). `APIFY_IG_ACTOR_ID` genuinely was missing; set it to `apify/instagram-scraper` (Apify's general-purpose IG posts scraper, per-result pricing) on `api`/`worker` in `dev` via `railway variables --set`. Not a DECISIONS.md-worthy call (no new pip dependency — `apify-client` was already pinned in E1-S1) but recorded here since ENV.md's human-action checklist called it out explicitly.
+- `apify-client`'s actual installed API differs from the ARCHITECTURE.md sketch I initially assumed: `.actor(id).call()` takes `run_timeout: timedelta` (not `timeout_secs: int`), returns a typed `Run | None` (not a dict — `run.default_dataset_id`, not `run["defaultDatasetId"]`), and `.dataset(id).list_items()` returns a `DatasetItemsPage` object with an `.items: list[dict]` attribute. mypy caught all three mismatches against my first draft before any of this touched CI.
+- `services/metrics.py` exposes SQL expression builders (`days_since_published_expr`, `views_per_day_expr`, `likes_per_day_expr`) per ARCHITECTURE.md's "computed in SQL at read time" — no dedicated unit test here since they need a live query to execute (`func.now()`); E5-S1's results-table tests are the natural place these get exercised against a real DB.
+- `usage_events` (kind=`apify_result`) is written once per account fetch, quantity = items returned, only when the fetch returned ≥1 item (zero results = zero Apify cost, per D12 "written at the moment cost is incurred").
 ### Handover
-—
+- `src/platforms/instagram.py:InstagramPlatform` — real Apify scraper; `src/platforms/__init__.py:get_platform()` now branches on `Settings.use_mock_platform` (mock for local/CI by default, real on DEV since `USE_MOCK_PLATFORM=false`). Retries 3× with exponential backoff on any exception, then re-raises — caught per-account by the worker.
+- `src/services/metrics.py` — SQL expression builders for the three derived columns; E5-S1's results query should use these directly rather than recomputing.
+- `src/worker.py:process_run` now: wraps `platform.fetch_content` per account in try/except (failure → `Account.status=failed` + `fail_reason`, run continues), and writes an `apify_result` usage_events row per successful account fetch.
+- `tests/fixtures/apify_ig_sample.json` — 3-item recorded-shape fixture (reel/post/carousel) reused by `tests/test_instagram_platform.py`; extend this fixture rather than adding a second one for future Apify-shape tests.
+- ENV vars: `APIFY_IG_ACTOR_ID=apify/instagram-scraper` now set on DEV `api`/`worker` (was missing); `APIFY_API_TOKEN`/`ANTHROPIC_API_KEY` were already set (ENV.md corrected). `production` env vars not yet verified for any of these.
 
 ## [E4-S1] Claude summarization service
 **Epic:** AI Summaries

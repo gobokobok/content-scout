@@ -1,12 +1,21 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from arq.connections import RedisSettings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
 from src.db import get_sessionmaker
-from src.models import AnalysisRun, ContentItem, PlatformSlug, RunStatus
+from src.models import (
+    KIND_APIFY_RESULT,
+    AccountStatus,
+    AnalysisRun,
+    ContentItem,
+    PlatformSlug,
+    RunStatus,
+    UsageEvent,
+)
 from src.platforms import get_platform
 from src.services.runs import resolve_target_accounts
 
@@ -21,10 +30,19 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         accounts = await resolve_target_accounts(session, run.project_id, run.account_ids)
         since = run.started_at - timedelta(days=run.duration_days)
         platform = get_platform(PlatformSlug.instagram)
+        settings = get_settings()
 
         items_found = 0
         for account in accounts:
-            raw_items = await platform.fetch_content(account, since)
+            try:
+                raw_items = await platform.fetch_content(account, since)
+            except Exception as exc:  # noqa: BLE001 — a bad account must not fail the whole run
+                account.status = AccountStatus.failed
+                account.fail_reason = str(exc)[:500]
+                run.progress_accounts += 1
+                await session.commit()
+                continue
+
             for raw in raw_items:
                 session.add(
                     ContentItem(
@@ -44,6 +62,18 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
                     )
                 )
                 items_found += 1
+
+            if raw_items:
+                session.add(
+                    UsageEvent(
+                        user_id=run.requested_by,
+                        run_id=run.id,
+                        kind=KIND_APIFY_RESULT,
+                        quantity=len(raw_items),
+                        unit_cost_usd=Decimal(str(settings.apify_unit_cost_usd)),
+                    )
+                )
+
             run.progress_accounts += 1
             run.progress_items = items_found
             await session.commit()

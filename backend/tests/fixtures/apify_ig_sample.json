@@ -1,0 +1,36 @@
+[
+  {
+    "id": "3200000000000000001",
+    "shortCode": "Cxyz0001",
+    "type": "Video",
+    "url": "https://www.instagram.com/reel/Cxyz0001/",
+    "caption": "A day in the life\nMore text on the second line",
+    "timestamp": "2026-07-15T10:00:00.000Z",
+    "displayUrl": "https://scontent.cdninstagram.com/mock1.jpg",
+    "likesCount": 1500,
+    "commentsCount": 42,
+    "videoViewCount": 20000
+  },
+  {
+    "id": "3200000000000000002",
+    "shortCode": "Cxyz0002",
+    "type": "Image",
+    "url": "https://www.instagram.com/p/Cxyz0002/",
+    "caption": "Single photo post",
+    "timestamp": "2026-07-16T08:30:00.000Z",
+    "displayUrl": "https://scontent.cdninstagram.com/mock2.jpg",
+    "likesCount": 800,
+    "commentsCount": 10
+  },
+  {
+    "id": "3200000000000000003",
+    "shortCode": "Cxyz0003",
+    "type": "Sidecar",
+    "url": "https://www.instagram.com/p/Cxyz0003/",
+    "caption": null,
+    "timestamp": "2026-07-17T12:00:00.000Z",
+    "displayUrl": "https://scontent.cdninstagram.com/mock3.jpg",
+    "likesCount": 300,
+    "commentsCount": 5
+  }
+]

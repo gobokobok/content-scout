@@ -28,9 +28,21 @@ Full story definitions live in `BACKLOG.md`.
 | E2-S2 | Competitor list management (IG, max 50) | done |
 | E3-S1 | Run creation, cost estimate, worker skeleton | done |
 
+**Sprint 2 complete.**
+
+## Sprint 3 — Real Apify scraping, Claude summaries, full pipeline
+
+**Stories (in order):**
+
+| Story | Title | Status |
+|---|---|---|
+| E3-S2 | Apify Instagram integration and metrics | done |
+| E4-S1 | Claude summarization service | backlog |
+| E4-S2 | Summarization in the run pipeline | backlog |
+
 ## Sprint plan (projection, adjust at each /sprint-review)
 
-- **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (next: E2-S1)
+- **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)
 - **Sprint 3:** E3-S2, E4-S1, E4-S2 — real Apify scraping, Claude summaries, full pipeline
 - **Sprint 4:** E5-S1, E5-S2, E6-S1 — results table, XLSX export, shortlist
 - **Sprint 5:** E6-S2, E7-S1, E7-S2 — history, usage rollups, admin view → **usable MVP**
