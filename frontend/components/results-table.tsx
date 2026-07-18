@@ -34,6 +34,48 @@ function truncate(s: string | null, max: number): string {
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }
 
+function TextExpandCell({ text }: { text: string | null }) {
+  const [open, setOpen] = useState(false);
+  if (!text) return <span>—</span>;
+  const needsExpand = text.length > 60;
+  return (
+    <>
+      <span className="flex items-center gap-1">
+        <span>{truncate(text, 60)}</span>
+        {needsExpand && (
+          <button
+            onClick={() => setOpen(true)}
+            className="ml-1 shrink-0 rounded px-1 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            title="Показать полностью"
+          >
+            ⊞
+          </button>
+        )}
+      </span>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="relative max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setOpen(false)}
+              className="absolute right-4 top-4 text-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              aria-label="Закрыть"
+            >
+              ✕
+            </button>
+            <p className="pr-8 text-sm leading-relaxed whitespace-pre-wrap">{text}</p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function ResultsTable({
   items,
   sort,
@@ -142,9 +184,7 @@ export function ResultsTable({
     {
       id: "title",
       header: t("colTitle"),
-      cell: ({ row }) => (
-        <span title={row.original.title ?? undefined}>{truncate(row.original.title, 60)}</span>
-      ),
+      cell: ({ row }) => <TextExpandCell text={row.original.title} />,
     },
     {
       id: "url",
@@ -163,11 +203,7 @@ export function ResultsTable({
     {
       id: "summary",
       header: t("colSummary"),
-      cell: ({ row }) => (
-        <span title={row.original.summary ?? undefined}>
-          {truncate(row.original.summary, 60)}
-        </span>
-      ),
+      cell: ({ row }) => <TextExpandCell text={row.original.summary} />,
     },
     {
       id: "likes",

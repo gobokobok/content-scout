@@ -335,6 +335,65 @@ backend/src/platforms/instagram.py, backend/src/services/metrics.py, backend/tes
 - `tests/fixtures/apify_ig_sample.json` — 3-item recorded-shape fixture (reel/post/carousel) reused by `tests/test_instagram_platform.py`; extend this fixture rather than adding a second one for future Apify-shape tests.
 - ENV vars: `APIFY_IG_ACTOR_ID=apify/instagram-scraper` now set on DEV `api`/`worker` (was missing); `APIFY_API_TOKEN`/`ANTHROPIC_API_KEY` were already set (ENV.md corrected). `production` env vars not yet verified for any of these.
 
+## [E3-S3] Worker run resume logic
+**Epic:** Analysis Pipeline
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E3-S2
+### Goal
+A stuck or failed run in `summarizing` state can be resumed without re-scraping, so recovery from worker crashes does not waste Apify units or create duplicate content rows.
+### Acceptance Criteria
+- [ ] `process_run` checks the run's current status on entry: if already `summarizing`, skip the scraping phase entirely and go straight to the pending-items query
+- [ ] Re-enqueuing a run that crashed mid-summarization resumes from the first unsummarized item (idempotency already in the summarizer; this story wires the entry-point guard)
+- [ ] A run in `done` or `failed` is a no-op when re-enqueued (logged, no state change)
+- [ ] Unit test: a run pre-seeded to `summarizing` with some items already summarized — re-invoking `process_run` summarizes only the remaining items and reaches `done`
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Manually set a DEV run to `summarizing` with partial summaries, re-enqueue it — only the unsummarized items get processed, run reaches `done`.
+### Files to read
+CLAUDE.md, backend/src/worker.py, backend/src/services/summarizer.py
+### Files to create or modify
+backend/src/worker.py, backend/tests/test_worker.py
+### Handover
+—
+
+## [E3-S4] Two-phase run cost confirmation
+**Epic:** Analysis Pipeline
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E3-S3
+### Goal
+Before Claude summarization begins, the user sees the actual scraped publication count and the real token cost, and must confirm before the expensive phase runs — eliminating cost surprises from high-volume accounts.
+### Acceptance Criteria
+- [ ] Run lifecycle splits into two worker phases: Phase 1 = scrape only (Apify, cheap); Phase 2 = summarize (Claude, expensive). A new `scraped` run status marks the boundary.
+- [ ] After Phase 1, `GET /runs/{id}` returns `status=scraped`, `progress_items` (actual count), and `estimated_summarization_cost` (tokens × rate); the run dialog shows "Найдено N публикаций. Стоимость описаний: ~X токенов. Продолжить?"
+- [ ] User confirms (or cancels — run stays in `scraped` with items accessible for browsing without summaries); confirmation enqueues Phase 2
+- [ ] `max_items_per_run` config cap (default 500): if scrape returns more, items are truncated to the cap before Phase 2 and a warning is shown
+- [ ] Estimate constant `avg_items_per_account_per_day` bumped to `8.0` (was `1.2` — wildly underestimated in real-world smoke test)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run 3 accounts on DEV: after scraping the dialog shows actual item count and token estimate; cancel — run stays browseable; confirm on a second run — summarization completes correctly.
+### Files to read
+CLAUDE.md, backend/src/worker.py, backend/src/api/runs.py, frontend/app/(app)/projects/[id]/run-dialog.tsx
+### Files to create or modify
+backend/src/worker.py, backend/src/api/runs.py, backend/src/models/analysis_run.py (+ migration for `scraped` status + `estimated_summarization_cost`), backend/tests/test_worker.py, frontend/app/(app)/projects/[id]/run-dialog.tsx, frontend/messages/ru.json
+### Handover
+—
+
 ## [E4-S1] Claude summarization service
 **Epic:** AI Summaries
 **Sprint:** 3
