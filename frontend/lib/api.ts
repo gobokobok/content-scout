@@ -121,6 +121,21 @@ export interface ContentItemResponse {
   days_since_published: number;
   views_per_day: number | null;
   likes_per_day: number | null;
+  in_shortlist: boolean;
+}
+
+export interface ShortlistItemResponse {
+  id: string;
+  content_item_id: string;
+  account_handle: string;
+  published_at: string;
+  type: "reel" | "post" | "carousel" | "video" | "short";
+  title: string | null;
+  url: string;
+  summary: string | null;
+  likes: number | null;
+  views: number | null;
+  added_at: string;
 }
 
 export interface ItemsPageResponse {
@@ -194,6 +209,17 @@ export const api = {
     request<ItemsPageResponse>(
       `/runs/${runId}/items?sort=${params.sort}&order=${params.order}&page=${params.page}`,
     ),
+  listShortlist: (projectId: string) =>
+    request<ShortlistItemResponse[]>(`/projects/${projectId}/shortlist/items`),
+  addToShortlist: (projectId: string, itemIds: string[]) =>
+    request<void>(`/projects/${projectId}/shortlist/items`, {
+      method: "POST",
+      body: JSON.stringify({ item_ids: itemIds }),
+    }),
+  removeFromShortlist: (projectId: string, contentItemId: string) =>
+    request<void>(`/projects/${projectId}/shortlist/items/${contentItemId}`, {
+      method: "DELETE",
+    }),
   downloadRunXlsx: async (
     runId: string,
     sort: ItemSortField,

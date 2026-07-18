@@ -486,8 +486,8 @@ backend/src/services/xlsx_export.py, backend/src/api/export.py, backend/tests/te
 
 ## [E6-S1] Shortlist
 **Epic:** Shortlist & History
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 4
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E5-S1
 ### Goal

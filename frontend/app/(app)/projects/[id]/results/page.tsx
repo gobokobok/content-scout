@@ -84,6 +84,35 @@ export default function ResultsTabPage() {
     setPage(1);
   }
 
+  async function handleShortlistToggle(contentItemId: string, add: boolean) {
+    try {
+      if (add) {
+        await api.addToShortlist(params.id, [contentItemId]);
+      } else {
+        await api.removeFromShortlist(params.id, contentItemId);
+      }
+      // Refetch current page so in_shortlist reflects updated state
+      if (selectedRunId) {
+        const res = await api.listRunItems(selectedRunId, { sort, order, page });
+        setItemsPage({ items: res.items, total: res.total });
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+    }
+  }
+
+  async function handleBulkShortlist(contentItemIds: string[]) {
+    try {
+      await api.addToShortlist(params.id, contentItemIds);
+      if (selectedRunId) {
+        const res = await api.listRunItems(selectedRunId, { sort, order, page });
+        setItemsPage({ items: res.items, total: res.total });
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+    }
+  }
+
   async function handleExport() {
     if (!selectedRunId) return;
     setExporting(true);
@@ -169,9 +198,12 @@ export default function ResultsTabPage() {
         <>
           <ResultsTable
             items={itemsPage.items}
+            projectId={params.id}
             sort={sort}
             order={order}
             onSortChange={onSortChange}
+            onShortlistToggle={handleShortlistToggle}
+            onBulkShortlist={handleBulkShortlist}
           />
           <div className="flex items-center justify-between gap-2">
             <button

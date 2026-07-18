@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.db import get_session
-from src.models import Account, AnalysisRun, ContentItem
+from src.models import Account, AnalysisRun, ContentItem, ShortlistItem
 from src.services.metrics import (
     days_since_published_expr,
     likes_per_day_expr,
@@ -56,6 +56,7 @@ class ContentItemOut(BaseModel):
     days_since_published: float
     views_per_day: float | None
     likes_per_day: float | None
+    in_shortlist: bool = False
 
 
 class ItemsPageOut(BaseModel):
@@ -85,11 +86,22 @@ async def list_run_items(
     order: Literal["asc", "desc"] = "desc",
     page: Annotated[int, Query(ge=1)] = 1,
 ) -> ItemsPageOut:
-    await _get_run(session, user, run_id)
+    run = await _get_run(session, user, run_id)
 
     days_expr = days_since_published_expr()
     views_per_day = views_per_day_expr()
     likes_per_day = likes_per_day_expr()
+
+    shortlist_exists = (
+        select(ShortlistItem.id)
+        .where(
+            ShortlistItem.content_item_id == ContentItem.id,
+            ShortlistItem.project_id == run.project_id,
+            ShortlistItem.removed_at.is_(None),
+        )
+        .correlate(ContentItem)
+        .exists()
+    )
 
     sort_columns: dict[SortField, Any] = {
         "account": Account.handle,
@@ -118,6 +130,7 @@ async def list_run_items(
             days_expr.label("days_since_published"),
             views_per_day.label("views_per_day"),
             likes_per_day.label("likes_per_day"),
+            shortlist_exists.label("in_shortlist"),
         )
         .join(Account, ContentItem.account_id == Account.id)
         .where(ContentItem.run_id == run_id)
@@ -141,8 +154,9 @@ async def list_run_items(
             days_since_published=days,
             views_per_day=vpd,
             likes_per_day=lpd,
+            in_shortlist=bool(in_sl),
         )
-        for item, handle, days, vpd, lpd in rows
+        for item, handle, days, vpd, lpd, in_sl in rows
     ]
 
     return ItemsPageOut(items=items, total=total or 0, page=page, page_size=PAGE_SIZE)

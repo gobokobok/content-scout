@@ -7,6 +7,7 @@ from src.api.export import router as export_router
 from src.api.items import router as items_router
 from src.api.projects import router as projects_router
 from src.api.runs import router as runs_router
+from src.api.shortlist import router as shortlist_router
 from src.config import get_settings
 
 settings = get_settings()
@@ -18,6 +19,7 @@ app.include_router(accounts_router)
 app.include_router(runs_router)
 app.include_router(items_router)
 app.include_router(export_router)
+app.include_router(shortlist_router)
 
 app.add_middleware(
     CORSMiddleware,

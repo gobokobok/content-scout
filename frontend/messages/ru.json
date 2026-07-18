@@ -113,6 +113,34 @@
     "nextPage": "Вперёд →",
     "pageInfo": "Стр. {page} из {totalPages}",
     "exportButton": "Экспорт в Excel",
-    "exporting": "Экспорт…"
+    "exporting": "Экспорт…",
+    "selectAll": "Выбрать все",
+    "selectedCount": "Выбрано: {count}",
+    "addSelectedToShortlist": "Добавить в шорт-лист",
+    "adding": "Добавление…",
+    "addToShortlist": "Добавить в шорт-лист",
+    "removeFromShortlist": "Убрать из шорт-листа"
+  },
+  "Shortlist": {
+    "title": "Шорт-лист",
+    "empty": "Шорт-лист пуст. Добавьте публикации на вкладке «Результаты».",
+    "loading": "Загрузка…",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз.",
+    "createScript": "Создать сценарий",
+    "comingSoon": "Скоро",
+    "remove": "Убрать",
+    "openLink": "Открыть",
+    "typeReel": "Reels",
+    "typePost": "Пост",
+    "typeCarousel": "Карусель",
+    "colAccount": "Аккаунт",
+    "colAddedAt": "Добавлено",
+    "colType": "Тип",
+    "colTitle": "Заголовок",
+    "colUrl": "Ссылка",
+    "colSummary": "Описание",
+    "colLikes": "Лайки",
+    "colViews": "Просмотры",
+    "colActions": ""
   }
 }
