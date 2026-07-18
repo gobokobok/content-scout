@@ -2,5 +2,25 @@
   "HomePage": {
     "title": "content-scout",
     "placeholder": "Скоро здесь появится ваша рабочая область."
+  },
+  "Auth": {
+    "loginTitle": "Вход",
+    "registerTitle": "Регистрация",
+    "emailLabel": "Почта",
+    "passwordLabel": "Пароль",
+    "loginButton": "Войти",
+    "loggingIn": "Выполняется вход…",
+    "registerButton": "Зарегистрироваться",
+    "registering": "Регистрация…",
+    "noAccount": "Ещё нет аккаунта?",
+    "haveAccount": "Уже есть аккаунт?",
+    "registerLink": "Зарегистрироваться",
+    "loginLink": "Войти",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз.",
+    "passwordTooShort": "Пароль должен быть не короче {min} символов."
+  },
+  "App": {
+    "loading": "Загрузка…",
+    "logout": "Выйти"
   }
 }

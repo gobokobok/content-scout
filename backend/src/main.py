@@ -1,11 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.auth import router as auth_router
 from src.config import get_settings
 
 settings = get_settings()
 
 app = FastAPI(title="content-scout api")
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,

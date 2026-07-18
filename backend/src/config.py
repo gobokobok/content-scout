@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     environment: str = "local"
     cors_origins: str = "http://localhost:3000"
     database_url: str = "postgresql+asyncpg://scout:scout@localhost:5432/content_scout"
+    jwt_secret: str = "local-dev-secret-do-not-use-in-prod"
+    access_token_expire_minutes: int = 1440
 
     @property
     def cors_origins_list(self) -> list[str]:

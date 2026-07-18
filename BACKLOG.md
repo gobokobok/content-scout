@@ -102,7 +102,7 @@ backend/src/db.py, backend/src/models/*.py, backend/alembic/**, backend/tests/co
 ## [E1-S3] Email+password auth and personal workspace
 **Epic:** Foundation & Auth
 **Sprint:** 1
-**Status:** ready
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E1-S2
 ### Goal

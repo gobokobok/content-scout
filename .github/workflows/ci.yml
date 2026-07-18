@@ -33,6 +33,7 @@ jobs:
       - run: pip install -r requirements.txt
       - run: ruff check src tests && ruff format --check src tests
         continue-on-error: false
+      - run: mypy src
       - run: pytest
         env:
           ENVIRONMENT: test
