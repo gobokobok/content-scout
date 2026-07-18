@@ -108,6 +108,7 @@ async def test_list_items_default_sort_and_shape(session: AsyncSession) -> None:
             "days_since_published",
             "views_per_day",
             "likes_per_day",
+            "in_shortlist",
         }
 
 
