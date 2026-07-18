@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.accounts import router as accounts_router
 from src.api.auth import router as auth_router
+from src.api.export import router as export_router
 from src.api.items import router as items_router
 from src.api.projects import router as projects_router
 from src.api.runs import router as runs_router
@@ -16,6 +17,7 @@ app.include_router(projects_router)
 app.include_router(accounts_router)
 app.include_router(runs_router)
 app.include_router(items_router)
+app.include_router(export_router)
 
 app.add_middleware(
     CORSMiddleware,

@@ -194,4 +194,31 @@ export const api = {
     request<ItemsPageResponse>(
       `/runs/${runId}/items?sort=${params.sort}&order=${params.order}&page=${params.page}`,
     ),
+  downloadRunXlsx: async (
+    runId: string,
+    sort: ItemSortField,
+    order: "asc" | "desc",
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const token = getToken();
+    const headers = new Headers();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    const res = await fetch(
+      `${API_URL}/runs/${runId}/export.xlsx?sort=${sort}&order=${order}`,
+      { headers },
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      const detail = body?.detail;
+      throw new ApiError(
+        res.status,
+        detail?.code ?? "unknown_error",
+        detail?.message_ru ?? "Произошла ошибка. Попробуйте ещё раз.",
+      );
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("content-disposition") ?? "";
+    const match = cd.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `content-scout_${runId}.xlsx`;
+    return { blob, filename };
+  },
 };

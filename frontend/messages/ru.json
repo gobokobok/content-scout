@@ -111,6 +111,8 @@
     "typeCarousel": "Карусель",
     "prevPage": "← Назад",
     "nextPage": "Вперёд →",
-    "pageInfo": "Стр. {page} из {totalPages}"
+    "pageInfo": "Стр. {page} из {totalPages}",
+    "exportButton": "Экспорт в Excel",
+    "exporting": "Экспорт…"
   }
 }

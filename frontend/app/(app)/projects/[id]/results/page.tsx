@@ -31,6 +31,7 @@ export default function ResultsTabPage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [runDialogOpen, setRunDialogOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const loadRuns = useCallback(async () => {
     try {
@@ -83,6 +84,24 @@ export default function ResultsTabPage() {
     setPage(1);
   }
 
+  async function handleExport() {
+    if (!selectedRunId) return;
+    setExporting(true);
+    try {
+      const { blob, filename } = await api.downloadRunXlsx(selectedRunId, sort, order);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function onRunSelected(id: string) {
     setSelectedRunId(id);
     setPage(1);
@@ -109,14 +128,25 @@ export default function ResultsTabPage() {
             ))}
           </select>
         </div>
-        {accountsCount > 0 && (
-          <button
-            onClick={() => setRunDialogOpen(true)}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
-          >
-            {t("runButton")}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {selectedRun?.status === "done" && itemsPage && itemsPage.items.length > 0 && (
+            <button
+              onClick={() => void handleExport()}
+              disabled={exporting}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-gray-700"
+            >
+              {exporting ? t("exporting") : t("exportButton")}
+            </button>
+          )}
+          {accountsCount > 0 && (
+            <button
+              onClick={() => setRunDialogOpen(true)}
+              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
+            >
+              {t("runButton")}
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
