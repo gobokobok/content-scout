@@ -36,7 +36,6 @@ function truncate(s: string | null, max: number): string {
 
 export function ResultsTable({
   items,
-  projectId,
   sort,
   order,
   onSortChange,
@@ -44,7 +43,6 @@ export function ResultsTable({
   onBulkShortlist,
 }: {
   items: ContentItemResponse[];
-  projectId: string;
   sort: ItemSortField;
   order: "asc" | "desc";
   onSortChange: (field: ItemSortField) => void;
@@ -96,7 +94,11 @@ export function ResultsTable({
           checked={selected.has(row.original.id)}
           onChange={(e) => {
             const next = new Set(selected);
-            e.target.checked ? next.add(row.original.id) : next.delete(row.original.id);
+            if (e.target.checked) {
+              next.add(row.original.id);
+            } else {
+              next.delete(row.original.id);
+            }
             setSelected(next);
           }}
           className="cursor-pointer"

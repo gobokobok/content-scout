@@ -22,7 +22,10 @@ export default function ResultsTabPage() {
 
   const [runs, setRuns] = useState<RunResponse[] | null>(null);
   const [accounts, setAccounts] = useState<AccountResponse[] | null>(null);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("run");
+  });
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<ItemSortField>(DEFAULT_SORT);
   const [order, setOrder] = useState<"asc" | "desc">("desc");
@@ -198,7 +201,6 @@ export default function ResultsTabPage() {
         <>
           <ResultsTable
             items={itemsPage.items}
-            projectId={params.id}
             sort={sort}
             order={order}
             onSortChange={onSortChange}

@@ -521,8 +521,8 @@ backend/src/api/shortlist.py, backend/tests/test_shortlist.py, frontend/app/(app
 
 ## [E6-S2] Run and shortlist history
 **Epic:** Shortlist & History
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 5
+**Status:** in-progress
 **Priority:** medium
 **Depends on:** E6-S1
 ### Goal

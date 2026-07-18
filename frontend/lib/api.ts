@@ -138,6 +138,17 @@ export interface ShortlistItemResponse {
   added_at: string;
 }
 
+export interface ShortlistHistoryItemResponse {
+  id: string;
+  content_item_id: string;
+  account_handle: string;
+  type: "reel" | "post" | "carousel" | "video" | "short";
+  title: string | null;
+  url: string;
+  added_at: string;
+  removed_at: string | null;
+}
+
 export interface ItemsPageResponse {
   items: ContentItemResponse[];
   total: number;
@@ -220,6 +231,8 @@ export const api = {
     request<void>(`/projects/${projectId}/shortlist/items/${contentItemId}`, {
       method: "DELETE",
     }),
+  listShortlistHistory: (projectId: string) =>
+    request<ShortlistHistoryItemResponse[]>(`/projects/${projectId}/history/shortlist`),
   downloadRunXlsx: async (
     runId: string,
     sort: ItemSortField,
