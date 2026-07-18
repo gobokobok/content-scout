@@ -139,9 +139,7 @@ async def create_run(
 
 
 @router.get("/projects/{project_id}/runs", response_model=list[RunOut])
-async def list_runs(
-    project_id: uuid.UUID, user: CurrentUser, session: SessionDep
-) -> list[RunOut]:
+async def list_runs(project_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> list[RunOut]:
     await _get_project(session, user, project_id)
     runs = await session.scalars(
         select(AnalysisRun)
