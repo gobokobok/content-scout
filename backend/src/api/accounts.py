@@ -1,0 +1,174 @@
+import uuid
+from datetime import datetime
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.auth.dependency import CurrentUser
+from src.db import get_session
+from src.models import MAX_ACCOUNTS_PER_LIST, Account, AccountList, PlatformSlug
+from src.services.projects import ProjectNotFoundError, get_owned_project
+from src.services.url_normalizer import InvalidAccountUrlError, normalize_instagram_input
+
+router = APIRouter(prefix="/projects/{project_id}/accounts", tags=["accounts"])
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+PROJECT_NOT_FOUND = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND,
+    detail={"code": "project_not_found", "message_ru": "Проект не найден."},
+)
+ACCOUNT_NOT_FOUND = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND,
+    detail={"code": "account_not_found", "message_ru": "Аккаунт не найден."},
+)
+
+
+class AccountOut(BaseModel):
+    id: uuid.UUID
+    handle: str
+    normalized_url: str
+    status: str
+    created_at: datetime
+
+    @classmethod
+    def from_model(cls, account: Account) -> "AccountOut":
+        return cls(
+            id=account.id,
+            handle=account.handle,
+            normalized_url=account.normalized_url,
+            status=account.status.value,
+            created_at=account.created_at,
+        )
+
+
+class AddAccountsIn(BaseModel):
+    entries: list[str] = Field(min_length=1, max_length=MAX_ACCOUNTS_PER_LIST)
+
+
+class AddAccountError(BaseModel):
+    input: str
+    message_ru: str
+
+
+class AddAccountsOut(BaseModel):
+    added: list[AccountOut]
+    errors: list[AddAccountError]
+    total: int
+
+
+async def _get_project(session: AsyncSession, user: CurrentUser, project_id: uuid.UUID):
+    try:
+        return await get_owned_project(session, user, project_id)
+    except ProjectNotFoundError:
+        raise PROJECT_NOT_FOUND from None
+
+
+async def _get_or_create_ig_list(session: AsyncSession, project_id: uuid.UUID) -> AccountList:
+    account_list = await session.scalar(
+        select(AccountList).where(
+            AccountList.project_id == project_id, AccountList.platform == PlatformSlug.instagram
+        )
+    )
+    if account_list is None:
+        account_list = AccountList(project_id=project_id, platform=PlatformSlug.instagram)
+        session.add(account_list)
+        await session.flush()
+    return account_list
+
+
+@router.get("", response_model=list[AccountOut])
+async def list_accounts(
+    project_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> list[AccountOut]:
+    await _get_project(session, user, project_id)
+    account_list = await session.scalar(
+        select(AccountList).where(
+            AccountList.project_id == project_id, AccountList.platform == PlatformSlug.instagram
+        )
+    )
+    if account_list is None:
+        return []
+    accounts = (
+        await session.scalars(
+            select(Account)
+            .where(Account.account_list_id == account_list.id)
+            .order_by(Account.created_at)
+        )
+    ).all()
+    return [AccountOut.from_model(a) for a in accounts]
+
+
+@router.post("", response_model=AddAccountsOut, status_code=status.HTTP_201_CREATED)
+async def add_accounts(
+    project_id: uuid.UUID, body: AddAccountsIn, user: CurrentUser, session: SessionDep
+) -> AddAccountsOut:
+    await _get_project(session, user, project_id)
+    account_list = await _get_or_create_ig_list(session, project_id)
+
+    existing = (
+        await session.scalars(select(Account).where(Account.account_list_id == account_list.id))
+    ).all()
+    existing_urls = {a.normalized_url for a in existing}
+    slots_left = MAX_ACCOUNTS_PER_LIST - len(existing)
+
+    added: list[AccountOut] = []
+    errors: list[AddAccountError] = []
+    seen_in_batch: set[str] = set()
+
+    for raw in body.entries:
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            normalized = normalize_instagram_input(line)
+        except InvalidAccountUrlError as exc:
+            errors.append(AddAccountError(input=line, message_ru=exc.message_ru))
+            continue
+
+        if normalized.normalized_url in existing_urls or normalized.normalized_url in seen_in_batch:
+            continue  # duplicate — silently deduped per AC
+
+        if slots_left <= 0:
+            errors.append(
+                AddAccountError(
+                    input=line,
+                    message_ru=f"Достигнут лимит {MAX_ACCOUNTS_PER_LIST} аккаунтов на список.",
+                )
+            )
+            continue
+
+        account = Account(
+            account_list_id=account_list.id,
+            input_url=line,
+            normalized_url=normalized.normalized_url,
+            handle=normalized.handle,
+        )
+        session.add(account)
+        await session.flush()
+        added.append(AccountOut.from_model(account))
+        seen_in_batch.add(normalized.normalized_url)
+        slots_left -= 1
+
+    await session.commit()
+    total = len(existing) + len(added)
+    return AddAccountsOut(added=added, errors=errors, total=total)
+
+
+@router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_account(
+    project_id: uuid.UUID, account_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> None:
+    await _get_project(session, user, project_id)
+    account = await session.scalar(
+        select(Account)
+        .join(AccountList, AccountList.id == Account.account_list_id)
+        .where(Account.id == account_id, AccountList.project_id == project_id)
+    )
+    if account is None:
+        raise ACCOUNT_NOT_FOUND
+    await session.delete(account)
+    await session.commit()

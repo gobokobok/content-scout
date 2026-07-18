@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.dependency import CurrentUser
 from src.db import get_session
 from src.models import Project
+from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.workspace import get_user_workspace
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -49,13 +50,10 @@ class ProjectOut(BaseModel):
 async def _get_owned_project(
     session: AsyncSession, user: CurrentUser, project_id: uuid.UUID
 ) -> Project:
-    workspace = await get_user_workspace(session, user)
-    project = await session.scalar(
-        select(Project).where(Project.id == project_id, Project.workspace_id == workspace.id)
-    )
-    if project is None:
-        raise PROJECT_NOT_FOUND
-    return project
+    try:
+        return await get_owned_project(session, user, project_id)
+    except ProjectNotFoundError:
+        raise PROJECT_NOT_FOUND from None
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)

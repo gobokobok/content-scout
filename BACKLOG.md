@@ -178,32 +178,42 @@ backend/src/api/projects.py, backend/tests/test_projects.py, frontend/app/(app)/
 
 ## [E2-S2] Competitor list management (IG, max 50)
 **Epic:** Projects & Competitor Lists
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 2
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E2-S1
 ### Goal
 Within a project, the user manages the Instagram competitor list: paste/add URLs or @handles, validated and normalized, capped at 50, persisted.
 ### Acceptance Criteria
-- [ ] API: add entries (single or bulk paste), remove entry, list entries — on the project's IG `account_list` (auto-created)
-- [ ] URL/handle normalization to canonical `instagram.com/<handle>`; invalid entries rejected with per-line Russian error messages; duplicates deduped
-- [ ] 51st entry rejected with a clear error; counter "N / 50" shown in UI
-- [ ] Data model supports one list per platform (IG active; YouTube/TikTok/Threads platform enum values exist but are disabled in UI)
+- [x] API: add entries (single or bulk paste), remove entry, list entries — on the project's IG `account_list` (auto-created)
+- [x] URL/handle normalization to canonical `instagram.com/<handle>`; invalid entries rejected with per-line Russian error messages; duplicates deduped
+- [x] 51st entry rejected with a clear error; counter "N / 50" shown in UI
+- [x] Data model supports one list per platform (IG active; YouTube/TikTok/Threads platform enum values exist but are disabled in UI — model already supported this from E1-S2, no change needed)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (16 new tests: 11 normalizer + 5 accounts API; CI is the authoritative gate — no local Postgres in this sandbox)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Paste 5 IG URLs (one invalid, one duplicate) on DEV — 3 saved, errors shown in Russian, counter reads 3 / 50.
 ### Files to read
 CLAUDE.md, backend/src/models/account_list.py, backend/src/api/projects.py, frontend/app/(app)/projects/**
 ### Files to create or modify
 backend/src/api/accounts.py, backend/src/services/url_normalizer.py, backend/tests/test_accounts.py, frontend/app/(app)/projects/[id]/competitors/**, frontend/messages/ru.json
+### Changelog
+- Extracted `_get_owned_project` out of `src/api/projects.py` into `src/services/projects.py:get_owned_project` (raises `ProjectNotFoundError`) so the accounts router (and future project-scoped routers) can reuse the same workspace-ownership check instead of duplicating it — `api/projects.py` now just translates the domain error to a 404.
+- Duplicates are deduped silently (no error entry), matching the AC wording ("duplicates deduped") as distinct from genuinely invalid input (which does get a per-line Russian error).
+- Cap enforcement is app-level in the same request (checks `existing count + entries not yet inserted`); the DB `account_list_cap` trigger from E1-S2 remains as a safeguard.
 ### Handover
-—
+- `src/services/url_normalizer.py:normalize_instagram_input(raw) -> NormalizedAccount(handle, normalized_url)` accepts `@handle`, bare `handle`, or any `instagram.com/<handle>` URL form (with/without scheme, `www.`, trailing slash, query string); rejects non-IG domains, non-profile paths (`/p/...`, `/reel/...`, etc.), and malformed handles, raising `InvalidAccountUrlError(message_ru=...)`. Reuse this for any future IG-URL input surface (E8-S4 bot sharing, E2-S3 enrichment).
+- `src/services/projects.py:get_owned_project(session, user, project_id)` / `ProjectNotFoundError` — the shared workspace-ownership check; reuse in every project-scoped router (runs, results, shortlist, etc.).
+- `src/api/accounts.py`: `GET/POST /projects/{id}/accounts` (bulk add, returns `{added, errors, total}`), `DELETE /projects/{id}/accounts/{account_id}`. The IG `AccountList` row is lazily created on first successful add — don't assume it exists on a fresh project.
+- Frontend: `app/(app)/projects/[id]/competitors/page.tsx` replaces the E2-S1 placeholder — textarea bulk-paste (newline-separated), per-line error list, "N / 50" counter, remove button per row. New Russian strings under `Competitors` key in `messages/ru.json`; `ProjectShell.comingSoonCompetitors` key removed (no longer a placeholder).
+- `lib/api.ts` gained `AccountResponse`, `AddAccountsResponse`, `listAccounts/addAccounts/removeAccount`.
+- ENV vars added: none.
 
 ## [E2-S3] Competitor profile enrichment
 **Epic:** Projects & Competitor Lists

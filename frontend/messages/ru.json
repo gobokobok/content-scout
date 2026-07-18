@@ -43,9 +43,19 @@
     "tabShortlist": "Шорт-лист",
     "tabHistory": "История",
     "notFound": "Проект не найден.",
-    "comingSoonCompetitors": "Управление списком конкурентов появится в следующей версии.",
     "comingSoonResults": "Здесь появятся результаты анализа.",
     "comingSoonShortlist": "Здесь появится шорт-лист.",
     "comingSoonHistory": "Здесь появится история запусков."
+  },
+  "Competitors": {
+    "counter": "{count} / {max}",
+    "empty": "Список конкурентов пуст. Вставьте ссылки на профили Instagram ниже.",
+    "textareaPlaceholder": "Ссылки на профили Instagram или @имена пользователей, по одному на строку",
+    "addButton": "Добавить",
+    "adding": "Добавление…",
+    "remove": "Удалить",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз.",
+    "addedCount": "Добавлено: {count}",
+    "loading": "Загрузка…"
   }
 }

@@ -25,7 +25,7 @@ Full story definitions live in `BACKLOG.md`.
 | Story | Title | Status |
 |---|---|---|
 | E2-S1 | Project CRUD | done |
-| E2-S2 | Competitor list management (IG, max 50) | backlog |
+| E2-S2 | Competitor list management (IG, max 50) | done |
 | E3-S1 | Run creation, cost estimate, worker skeleton | backlog |
 
 ## Sprint plan (projection, adjust at each /sprint-review)

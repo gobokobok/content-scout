@@ -63,6 +63,20 @@ export interface ProjectResponse {
   archived_at: string | null;
 }
 
+export interface AccountResponse {
+  id: string;
+  handle: string;
+  normalized_url: string;
+  status: string;
+  created_at: string;
+}
+
+export interface AddAccountsResponse {
+  added: AccountResponse[];
+  errors: { input: string; message_ru: string }[];
+  total: number;
+}
+
 export const api = {
   register: (email: string, password: string) =>
     request<TokenResponse>("/auth/register", {
@@ -86,4 +100,13 @@ export const api = {
     }),
   archiveProject: (id: string) =>
     request<ProjectResponse>(`/projects/${id}/archive`, { method: "POST" }),
+  listAccounts: (projectId: string) =>
+    request<AccountResponse[]>(`/projects/${projectId}/accounts`),
+  addAccounts: (projectId: string, entries: string[]) =>
+    request<AddAccountsResponse>(`/projects/${projectId}/accounts`, {
+      method: "POST",
+      body: JSON.stringify({ entries }),
+    }),
+  removeAccount: (projectId: string, accountId: string) =>
+    request<void>(`/projects/${projectId}/accounts/${accountId}`, { method: "DELETE" }),
 };

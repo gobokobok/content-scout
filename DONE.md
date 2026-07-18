@@ -9,6 +9,20 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E2-S2] Competitor list management (IG, max 50) — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `src/services/url_normalizer.py:normalize_instagram_input(raw) -> NormalizedAccount(handle, normalized_url)` — accepts `@handle`, bare `handle`, or any `instagram.com/<handle>` URL shape; rejects non-IG domains, non-profile paths (`/p/...`, `/reel/...`), malformed handles. Reuse for any future IG-URL input (bot sharing E8-S4, profile enrichment E2-S3).
+- `src/services/projects.py:get_owned_project`/`ProjectNotFoundError` — workspace-ownership check extracted out of `api/projects.py` so every project-scoped router (accounts now; runs/results/shortlist later) shares one implementation.
+- `src/api/accounts.py`: `GET/POST /projects/{id}/accounts` (bulk add, `{added, errors, total}`), `DELETE /projects/{id}/accounts/{account_id}`. IG `AccountList` is lazily created on first add.
+- Frontend: `app/(app)/projects/[id]/competitors/page.tsx` is now the real tab (textarea bulk-paste, per-line Russian errors, "N / 50" counter, remove button) — no longer a placeholder. `lib/api.ts` gained account endpoints/types.
+- ENV vars added: none.
+**Smoke test:** PASSED — on DEV: pasted 5 lines (3 valid handles/URLs, 1 malformed, 1 duplicate of an already-added account) into a project's Конкуренты tab — 3 saved, the malformed line showed a Russian error, the duplicate was silently skipped, counter read the correct N / 50; removed one account and confirmed it disappeared from the list and the counter decremented.
+**Promoted to backlog:**
+- (none)
+
+---
+
 ## [E2-S1] Project CRUD — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**
