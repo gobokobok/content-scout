@@ -17,7 +17,7 @@ Completed stories land here, newest first. Format:
 - `src/worker.py:process_run` now runs the real `summarizing` phase: batches pending (unsummarized) items through `summarize_run_items` in chunks of `Settings.summary_concurrency`, committing progress between batches; idempotent via a `summary IS NULL` filter, so a re-invocation skips already-summarized items.
 - `src/api/runs.py:RunOut` and the frontend `RunResponse`/`run-dialog.tsx` now surface `progress_summarized`, `total_input_tokens`, `total_output_tokens`.
 - ENV vars added: none.
-**Smoke test:** PASSED — on DEV: ran a fresh full analysis (2 real accounts, 3-day window) end-to-end through the worker — pending → scraping → summarizing → done — and confirmed every scraped content_item got a real Russian 1–2 sentence summary from Claude Haiku, `progress_summarized` reached the item total during the summarizing phase, and the completed run's `total_input_tokens`/`total_output_tokens`/`total_cost_usd` reflect the actual Claude + Apify usage_events for that run.
+**Smoke test:** PASSED — on DEV, through the real HTTP API (registered a fresh smoke-test user, created a project, added `natgeo`/`therock` as accounts, `POST /projects/{id}/runs` with a 3-day window, polled `GET /runs/{id}`): pending → scraping → done in ~3.5 min, `progress_summarized` reached 7/7 items, `total_input_tokens`=6151, `total_output_tokens`=683, `total_cost_usd`=$0.0796. Independently confirmed via direct DEV Postgres query that all 7 `content_items` got real non-empty Russian summaries (e.g. a Moana trailer, a London meet-and-greet clip) and that `usage_events` held the matching `apify_result`/`claude_input_tokens`/`claude_output_tokens` rows.
 **Promoted to backlog:**
 - (none)
 
