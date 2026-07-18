@@ -748,7 +748,8 @@ backend/src/api/usage.py, backend/tests/test_usage.py, frontend/app/(app)/usage/
 ## [E7-S2] Admin usage view
 **Epic:** Usage Metering & Admin
 **Sprint:** 5
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** low
 **Depends on:** E7-S1
 ### Goal
@@ -769,8 +770,19 @@ Admin account on DEV sees the usage table; a regular pilot account gets no admin
 CLAUDE.md, backend/src/api/usage.py, backend/src/models/user.py
 ### Files to create or modify
 backend/src/api/admin.py, backend/tests/test_admin.py, frontend/app/(app)/admin/**, frontend/messages/ru.json
+### Changelog
+- `is_admin` was already in the initial schema (3a1974cc55cf) — no migration needed.
+- `KIND_*` constants exported from `src/models/usage_event.py` and `src/models/__init__.py`, reused in admin aggregation.
+- Admin page redirects non-admins back to `/` client-side (belt-and-suspenders alongside the API 403).
 ### Handover
-—
+- `GET /admin/usage?from=&to=` → `AdminUsageOut` (users: list of `UserUsageRow`) — `backend/src/api/admin.py`; 403 for non-admins
+- `UserUsageRow`: user_id, email, runs, apify_units, claude_input_tokens, claude_output_tokens, total_cost_usd
+- `frontend/app/(app)/admin/page.tsx` — month-range picker + table; redirects non-admins to `/`
+- Admin nav link in `frontend/app/(app)/layout.tsx` — visible only when `user.is_admin`
+- `GET /auth/me` now returns `is_admin: bool` (was already in `UserOut`)
+- `api.getAdminUsage(from, to)` + `AdminUsageResponse`/`UserUsageRowResponse` in `frontend/lib/api.ts`
+- 5 tests in `backend/tests/test_admin.py` (403 non-admin, empty, all users, shape, is_admin in /me)
+- No ENV vars added
 
 ## [E7-S3] Pre-public-launch hardening
 **Epic:** Usage Metering & Admin

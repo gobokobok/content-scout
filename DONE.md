@@ -9,6 +9,23 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E7-S2] Admin usage view — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `GET /admin/usage?from=&to=` → `AdminUsageOut` (users: list[UserUsageRow]) — `backend/src/api/admin.py`; 403 for non-admins
+- `UserUsageRow`: user_id, email, runs, apify_units, claude_input_tokens, claude_output_tokens, total_cost_usd — sorted by cost desc
+- `is_admin` on `User` model was already in the initial schema; `GET /auth/me` exposes it via `UserOut.is_admin`
+- `frontend/app/(app)/admin/page.tsx` — month-range picker, per-user usage table, client-side redirect for non-admins
+- Admin nav link in `frontend/app/(app)/layout.tsx` — shown only when `user.is_admin`
+- `api.getAdminUsage(from, to)` + `AdminUsageResponse`/`UserUsageRowResponse` in `frontend/lib/api.ts`
+- 5 tests in `backend/tests/test_admin.py` (403 non-admin, empty window, shows all users, response shape, is_admin in /me)
+- No ENV vars added
+**Smoke test:** DEFERRED — requires setting `is_admin=true` on a DEV user directly in Postgres, then visiting `/admin` on DEV.
+**Promoted to backlog:**
+- None
+
+---
+
 ## [E7-S1] Usage rollups — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**
