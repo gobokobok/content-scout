@@ -9,6 +9,21 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E6-S1] Shortlist — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `POST /projects/{project_id}/shortlist` — bulk add (idempotent: restores soft-deleted, skips active); `DELETE /projects/{project_id}/shortlist/{content_item_id}` — soft-delete via `removed_at`; `GET /projects/{project_id}/shortlist` — list active (`backend/src/api/shortlist.py`)
+- `ShortlistItem` model + Alembic migration; partial unique index `uq_shortlist_items_active` on `(project_id, content_item_id) WHERE removed_at IS NULL`
+- `in_shortlist: bool` on `ContentItemOut` / `ContentItemResponse` via correlated subquery in `GET /runs/{run_id}/items`
+- `frontend/components/results-table.tsx` — ★/☆ toggle per row + select-all checkboxes + bulk add bar
+- `frontend/app/(app)/projects/[id]/shortlist/page.tsx` — full shortlist tab (columns: account, добавлено, тип, заголовок, ссылка, описание, лайки, просмотры, убрать); "Создать сценарий" disabled with tooltip "Скоро"
+- `backend/tests/test_shortlist.py` — 6 tests covering add/list/idempotent/remove/re-add/in_shortlist flag
+**Smoke test:** PASSED — On DEV (`https://web-dev-99e3.up.railway.app/projects/082ae7c5-.../results`): clicked ☆ on 2 rows → both turned ★; opened Шорт-лист tab → both items appeared; clicked Убрать on row 1 → removed; returned to Результаты → row 1 shows ☆, row 2 still shows ★.
+**Promoted to backlog:**
+- None
+
+---
+
 ## [E5-S2] XLSX export — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**

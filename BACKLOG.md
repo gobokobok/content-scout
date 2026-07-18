@@ -487,24 +487,25 @@ backend/src/services/xlsx_export.py, backend/src/api/export.py, backend/tests/te
 ## [E6-S1] Shortlist
 **Epic:** Shortlist & History
 **Sprint:** 4
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E5-S1
 ### Goal
 User promotes rows from results to the project shortlist and manages them in the Шорт-лист tab.
 ### Acceptance Criteria
-- [ ] Promote/demote action per results row (star toggle); API creates/removes shortlist_items (project-scoped, references content_item, survives across runs)
-- [ ] **Bulk add:** row checkboxes + «выбрать все» with a «Добавить в шорт-лист» action for the selection (API accepts a list of item ids)
-- [ ] Шорт-лист tab lists shortlisted items with same columns + добавлено (date shortlisted), sortable, removable
-- [ ] Promoting the same item twice is idempotent (single or bulk)
-- [ ] Placeholder "Создать сценарий" button visible but disabled with tooltip "Скоро" (script generation is post-MVP)
+- [x] Promote/demote action per results row (star toggle); API creates/removes shortlist_items (project-scoped, references content_item, survives across runs)
+- [x] **Bulk add:** row checkboxes + «выбрать все» with a «Добавить в шорт-лист» action for the selection (API accepts a list of item ids)
+- [x] Шорт-лист tab lists shortlisted items with same columns + добавлено (date shortlisted), sortable, removable
+- [x] Promoting the same item twice is idempotent (single or bulk)
+- [x] Placeholder "Создать сценарий" button visible but disabled with tooltip "Скоро" (script generation is post-MVP)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Promote 2 rows on DEV, open Шорт-лист — both there; remove one — gone; results row star reflects state.
 ### Files to read
@@ -512,7 +513,11 @@ CLAUDE.md, backend/src/models/shortlist_item.py, backend/src/api/items.py, front
 ### Files to create or modify
 backend/src/api/shortlist.py, backend/tests/test_shortlist.py, frontend/app/(app)/projects/[id]/shortlist/**, frontend/messages/ru.json
 ### Handover
-—
+- `POST /projects/{project_id}/shortlist` — bulk add (idempotent); `DELETE /projects/{project_id}/shortlist/{content_item_id}` — soft-delete; `GET /projects/{project_id}/shortlist` — list active items (`backend/src/api/shortlist.py`)
+- `ShortlistItem` model with soft-delete pattern (`removed_at IS NULL` for active); partial unique index `uq_shortlist_items_active`
+- `in_shortlist: bool` added to `ContentItemOut` / `ContentItemResponse` via correlated subquery in items endpoint
+- `frontend/components/results-table.tsx` — ★/☆ per-row toggle + select-all + bulk add bar
+- `frontend/app/(app)/projects/[id]/shortlist/page.tsx` — full shortlist tab with remove action; "Создать сценарий" disabled placeholder
 
 ## [E6-S2] Run and shortlist history
 **Epic:** Shortlist & History

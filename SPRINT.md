@@ -50,7 +50,7 @@ Full story definitions live in `BACKLOG.md`.
 |---|---|---|
 | E5-S1 | Results table | done |
 | E5-S2 | XLSX export | done |
-| E6-S1 | Shortlist | backlog |
+| E6-S1 | Shortlist | done |
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 
