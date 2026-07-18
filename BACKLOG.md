@@ -417,8 +417,8 @@ backend/src/worker.py, backend/src/services/usage.py, backend/tests/test_pipelin
 
 ## [E5-S1] Results table
 **Epic:** Results Table & Export
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 4
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E4-S2
 ### Goal

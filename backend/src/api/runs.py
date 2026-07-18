@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
@@ -135,6 +136,19 @@ async def create_run(
 
     await enqueue_run(run.id)
     return RunOut.from_model(run)
+
+
+@router.get("/projects/{project_id}/runs", response_model=list[RunOut])
+async def list_runs(
+    project_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> list[RunOut]:
+    await _get_project(session, user, project_id)
+    runs = await session.scalars(
+        select(AnalysisRun)
+        .where(AnalysisRun.project_id == project_id)
+        .order_by(AnalysisRun.created_at.desc())
+    )
+    return [RunOut.from_model(run) for run in runs]
 
 
 @router.get("/runs/{run_id}", response_model=RunOut)

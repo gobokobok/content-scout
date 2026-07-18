@@ -108,6 +108,41 @@ export interface RunRequest {
   account_ids?: string[];
 }
 
+export interface ContentItemResponse {
+  id: string;
+  account_handle: string;
+  published_at: string;
+  type: "reel" | "post" | "carousel" | "video" | "short";
+  title: string | null;
+  url: string;
+  summary: string | null;
+  likes: number | null;
+  views: number | null;
+  days_since_published: number;
+  views_per_day: number | null;
+  likes_per_day: number | null;
+}
+
+export interface ItemsPageResponse {
+  items: ContentItemResponse[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export type ItemSortField =
+  | "account"
+  | "published_at"
+  | "type"
+  | "title"
+  | "url"
+  | "summary"
+  | "likes"
+  | "views"
+  | "days_since_published"
+  | "views_per_day"
+  | "likes_per_day";
+
 export const api = {
   register: (email: string, password: string) =>
     request<TokenResponse>("/auth/register", {
@@ -151,4 +186,12 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getRun: (runId: string) => request<RunResponse>(`/runs/${runId}`),
+  listRuns: (projectId: string) => request<RunResponse[]>(`/projects/${projectId}/runs`),
+  listRunItems: (
+    runId: string,
+    params: { sort: ItemSortField; order: "asc" | "desc"; page: number },
+  ) =>
+    request<ItemsPageResponse>(
+      `/runs/${runId}/items?sort=${params.sort}&order=${params.order}&page=${params.page}`,
+    ),
 };
