@@ -215,6 +215,37 @@ backend/src/api/accounts.py, backend/src/services/url_normalizer.py, backend/tes
 - `lib/api.ts` gained `AccountResponse`, `AddAccountsResponse`, `listAccounts/addAccounts/removeAccount`.
 - ENV vars added: none.
 
+## [E3-S5] Switch scraping backend to HikerAPI
+**Epic:** Analysis Pipeline
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** low
+**Depends on:** E3-S2
+### Goal
+Replace the Apify `instagram-scraper` actor with HikerAPI to reduce per-result cost (~3–10×), improve reel view count reliability, and remove Apify as a dependency.
+### Acceptance Criteria
+- [ ] `HikerApiPlatform` implements the existing `Platform` interface (`fetch_content(account, since) -> list[RawContentItem]`) — no call sites outside `src/platforms/` change
+- [ ] Reel `views` field populated reliably (HikerAPI returns `videoViewCount` consistently)
+- [ ] Cost per result benchmarked against current $0.0027/result Apify rate and documented in story changelog
+- [ ] `apify_result` usage_events kind reused or renamed; `apify_unit_cost_usd` config replaced with `scraper_unit_cost_usd`
+- [ ] `USE_HIKER_API` env var (or rename `USE_MOCK_PLATFORM` → platform selector) controls which implementation is active
+- [ ] Existing Apify integration tests kept and a new HikerAPI fixture-based test added
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run 2 accounts on DEV with HikerAPI — reels show view counts, cost per result logged and matches HikerAPI invoice.
+### Files to read
+CLAUDE.md, backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/config.py, DECISIONS.md
+### Files to create or modify
+backend/src/platforms/hikerapi.py (new), backend/src/platforms/__init__.py, backend/src/config.py, backend/tests/test_hikerapi_platform.py, ENV.md, DECISIONS.md
+### Handover
+—
+
 ## [E2-S3] Competitor profile enrichment
 **Epic:** Projects & Competitor Lists
 **Sprint:** unassigned
