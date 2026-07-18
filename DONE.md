@@ -9,6 +9,21 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E4-S1] Claude summarization service — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `src/services/summarizer.py:summarize_run_items(session, items, *, user_id, run_id)` is the only entry point — sets `ContentItem.summary` on each item in place and adds `claude_input_tokens`/`claude_output_tokens` usage_events rows; caller commits. Bounded concurrency via `Settings.summary_concurrency` (default 5).
+- `FALLBACK_TEXT = "Описание недоступно"`; missing caption+image skip the API call entirely, an unfetchable image degrades to a text-only call, and 3 failed attempts (backoff) also fall back — a failed summary never raises.
+- Prompt is docs/PROMPTS.md "Content summary (E4-S1)"; `SYSTEM_PROMPT` in the service mirrors it verbatim.
+- `Settings` gained `anthropic_api_key`, `summary_model` (`claude-haiku-4-5-20251001`), `summary_concurrency` (5); reuses E3-S1's `claude_input_token_cost_usd`/`claude_output_token_cost_usd` for `unit_cost_usd`.
+- E4-S2 wires this into the worker's `summarizing` phase (currently a pass-through) — call it with the run's content_items.
+- ENV vars added: none new (`ANTHROPIC_API_KEY`/`SUMMARY_MODEL`/`SUMMARY_CONCURRENCY` already set on DEV).
+**Smoke test:** PASSED — not yet reachable through the UI (worker wiring is E4-S2), so verified directly against DEV: ran `summarize_run_items` against a real content_item from the E3-S2 live run (a real @therock post about a Guinness World Record) using DEV's `ANTHROPIC_API_KEY` and DEV Postgres. Got back a genuine 2-sentence Russian summary describing the content (not its popularity), persisted to `content_items.summary`, with `claude_input_tokens`/`claude_output_tokens` usage_events rows recorded (1162 / 94 tokens) alongside the existing `apify_result` events for the same run.
+**Promoted to backlog:**
+- (none)
+
+---
+
 ## [E3-S2] Apify Instagram integration and metrics — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**

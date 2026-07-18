@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     apify_api_token: str = ""
     apify_ig_actor_id: str = ""
 
+    anthropic_api_key: str = ""
+    summary_model: str = "claude-haiku-4-5-20251001"
+    summary_concurrency: int = 5
+
     # E3-S1: mock platform only (InstagramPlatform lands in E3-S2). Estimate constants are
     # provisional and config-driven so real Apify/Claude pricing can be dropped in without a
     # code change (D26 spirit — never hardcode prices call sites care about).

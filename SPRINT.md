@@ -37,7 +37,7 @@ Full story definitions live in `BACKLOG.md`.
 | Story | Title | Status |
 |---|---|---|
 | E3-S2 | Apify Instagram integration and metrics | done |
-| E4-S1 | Claude summarization service | backlog |
+| E4-S1 | Claude summarization service | done |
 | E4-S2 | Summarization in the run pipeline | backlog |
 
 ## Sprint plan (projection, adjust at each /sprint-review)

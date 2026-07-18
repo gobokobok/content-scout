@@ -337,33 +337,42 @@ backend/src/platforms/instagram.py, backend/src/services/metrics.py, backend/tes
 
 ## [E4-S1] Claude summarization service
 **Epic:** AI Summaries
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 3
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E3-S2
 ### Goal
 A service that produces a 1–2 sentence Russian summary of a content item from its caption + cover image using Claude Haiku.
 ### Acceptance Criteria
-- [ ] `summarize(items) -> summaries` batches requests to claude-haiku-4-5 with caption text + cover image (fetched from IG CDN URL, resized ≤1024px)
-- [ ] Prompt in docs/PROMPTS.md; output: 1–2 sentences, Russian, describes what the content is about (no engagement commentary)
-- [ ] Missing caption and unfetchable image handled (summarize from whichever exists; both missing → "Описание недоступно")
-- [ ] Token usage per call recorded as usage_events
-- [ ] Retries with backoff on rate limits; a failed summary never fails the run (item gets fallback text)
+- [x] `summarize(items) -> summaries` batches requests to claude-haiku-4-5 with caption text + cover image (fetched from IG CDN URL, resized ≤1024px)
+- [x] Prompt in docs/PROMPTS.md; output: 1–2 sentences, Russian, describes what the content is about (no engagement commentary)
+- [x] Missing caption and unfetchable image handled (summarize from whichever exists; both missing → "Описание недоступно")
+- [x] Token usage per call recorded as usage_events
+- [x] Retries with backoff on rate limits; a failed summary never fails the run (item gets fallback text)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (4 new tests; CI is the authoritative gate — no local Postgres in this sandbox)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Trigger summarization for one real item on DEV; summary is Russian, 1–2 sentences, relevant to the post.
 ### Files to read
 CLAUDE.md, docs/PROMPTS.md, backend/src/models/content_item.py, backend/src/services/usage.py (if exists)
 ### Files to create or modify
 backend/src/services/summarizer.py, backend/tests/test_summarizer.py, docs/PROMPTS.md
+### Changelog
+- `summarize_run_items(session, items, *, user_id, run_id)` writes directly to `item.summary` and to `usage_events` (not a pure function returning summaries) — this satisfies the "token usage per call recorded as usage_events" AC without needing a second pass, and keeps the DB write co-located with the API call that produced it (per D12: written at the moment cost is incurred). E4-S2 (worker wiring) calls this function over a run's items rather than reimplementing persistence.
+- Image fetch (`httpx`) + resize (`Pillow`, already a pinned dependency since E1-S1) live in `_fetch_image_block`; any fetch/decode failure falls back to a text-only call rather than failing the item.
+- Retry is a flat 3-attempt exponential backoff around the whole API call (matches `InstagramPlatform`'s pattern from E3-S2) rather than distinguishing rate-limit vs. other errors — simpler and sufficient given a failed summary always degrades to the fallback string, never fails the run.
 ### Handover
-—
+- `src/services/summarizer.py:summarize_run_items(session, items, *, user_id, run_id)` — the only entry point; bounded concurrency via `Settings.summary_concurrency` (default 5). Sets `ContentItem.summary` on each item in place and adds `claude_input_tokens`/`claude_output_tokens` `UsageEvent` rows — caller must still `session.commit()`.
+- `FALLBACK_TEXT = "Описание недоступно"` exported for tests/comparisons elsewhere.
+- Prompt lives in `docs/PROMPTS.md` under "Content summary (E4-S1)"; `SYSTEM_PROMPT` in the service mirrors it verbatim — update the doc first, then the constant.
+- `Settings` gained `anthropic_api_key`, `summary_model` (default `claude-haiku-4-5-20251001`), `summary_concurrency` (default 5); reuses the `claude_input_token_cost_usd`/`claude_output_token_cost_usd` estimator constants from E3-S1 for `unit_cost_usd`.
+- ENV vars: none new to Railway (`ANTHROPIC_API_KEY`/`SUMMARY_MODEL`/`SUMMARY_CONCURRENCY` were already set on DEV per E3-S2's ENV.md correction).
 
 ## [E4-S2] Summarization in the run pipeline
 **Epic:** AI Summaries
