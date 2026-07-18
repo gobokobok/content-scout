@@ -22,10 +22,7 @@ export default function ResultsTabPage() {
 
   const [runs, setRuns] = useState<RunResponse[] | null>(null);
   const [accounts, setAccounts] = useState<AccountResponse[] | null>(null);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return new URLSearchParams(window.location.search).get("run");
-  });
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<ItemSortField>(DEFAULT_SORT);
   const [order, setOrder] = useState<"asc" | "desc">("desc");
@@ -40,8 +37,9 @@ export default function ResultsTabPage() {
     try {
       const loaded = await api.listRuns(params.id);
       setRuns(loaded);
+      const urlRunId = new URLSearchParams(window.location.search).get("run");
       const latestDone = loaded.find((r) => r.status === "done");
-      setSelectedRunId((current) => current ?? latestDone?.id ?? loaded[0]?.id ?? null);
+      setSelectedRunId((current) => current ?? urlRunId ?? latestDone?.id ?? loaded[0]?.id ?? null);
     } catch (err) {
       setError(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
