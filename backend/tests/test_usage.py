@@ -60,7 +60,10 @@ async def make_usage_event(
 
 
 def _url(from_: datetime, to: datetime) -> str:
-    return f"/me/usage?from={from_.isoformat()}&to={to.isoformat()}"
+    # URL-encode + in timezone offset (+00:00 → %2B00:00) so FastAPI parses correctly
+    f = from_.isoformat().replace("+", "%2B")
+    t = to.isoformat().replace("+", "%2B")
+    return f"/me/usage?from={f}&to={t}"
 
 
 async def test_rollup_run_totals_sums_all_kinds_into_cost_and_claude_kinds_into_tokens(
