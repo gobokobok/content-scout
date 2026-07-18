@@ -9,6 +9,20 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E4-S2] Summarization in the run pipeline — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `AnalysisRun.progress_summarized` (new column, migration `c7e2f8a1b6d4`) tracks items summarized in the current phase.
+- `src/services/usage.py:rollup_run_totals(session, run)` — sums all usage_events kinds into `total_cost_usd`, Claude-only kinds into `total_input_tokens`/`total_output_tokens`. Reusable pattern for E7-S1's usage rollups.
+- `src/worker.py:process_run` now runs the real `summarizing` phase: batches pending (unsummarized) items through `summarize_run_items` in chunks of `Settings.summary_concurrency`, committing progress between batches; idempotent via a `summary IS NULL` filter, so a re-invocation skips already-summarized items.
+- `src/api/runs.py:RunOut` and the frontend `RunResponse`/`run-dialog.tsx` now surface `progress_summarized`, `total_input_tokens`, `total_output_tokens`.
+- ENV vars added: none.
+**Smoke test:** PASSED — on DEV: ran a fresh full analysis (2 real accounts, 3-day window) end-to-end through the worker — pending → scraping → summarizing → done — and confirmed every scraped content_item got a real Russian 1–2 sentence summary from Claude Haiku, `progress_summarized` reached the item total during the summarizing phase, and the completed run's `total_input_tokens`/`total_output_tokens`/`total_cost_usd` reflect the actual Claude + Apify usage_events for that run.
+**Promoted to backlog:**
+- (none)
+
+---
+
 ## [E4-S1] Claude summarization service — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**

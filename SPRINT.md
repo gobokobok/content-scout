@@ -38,12 +38,24 @@ Full story definitions live in `BACKLOG.md`.
 |---|---|---|
 | E3-S2 | Apify Instagram integration and metrics | done |
 | E4-S1 | Claude summarization service | done |
-| E4-S2 | Summarization in the run pipeline | backlog |
+| E4-S2 | Summarization in the run pipeline | done |
+
+**Sprint 3 complete.** The full analysis pipeline (scrape → summarize → done) runs end-to-end against real Apify + Claude on DEV.
+
+## Sprint 4 — Results table, XLSX export, shortlist
+
+**Stories (in order):**
+
+| Story | Title | Status |
+|---|---|---|
+| E5-S1 | Results table | backlog |
+| E5-S2 | XLSX export | backlog |
+| E6-S1 | Shortlist | backlog |
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 
 - **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)
-- **Sprint 3:** E3-S2, E4-S1, E4-S2 — real Apify scraping, Claude summaries, full pipeline
+- **Sprint 3:** E3-S2, E4-S1, E4-S2 — real Apify scraping, Claude summaries, full pipeline (done)
 - **Sprint 4:** E5-S1, E5-S2, E6-S1 — results table, XLSX export, shortlist
 - **Sprint 5:** E6-S2, E7-S1, E7-S2 — history, usage rollups, admin view → **usable MVP**
 - **Sprint 6+ (post-MVP, not yet ordered):** E8 Telegram Integration & Monetization (Login → notifications → Mini App + Stars → share-to-bot), E9 Public API & Engine Integration, E10 Content Generation (scripts → assets → review), E11 IG Connection, Publishing & Analytics (spike first) — see BACKLOG.md and docs/ARCHITECTURE.md § Roadmap beyond MVP

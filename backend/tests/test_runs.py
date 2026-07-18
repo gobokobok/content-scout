@@ -90,6 +90,9 @@ async def test_create_run_enqueues_job(mock_enqueue: AsyncMock, session: AsyncSe
         body = resp.json()
         assert body["status"] == RunStatus.pending.value
         assert body["duration_days"] == 5
+        assert body["progress_summarized"] == 0
+        assert body["total_input_tokens"] == 0
+        assert body["total_output_tokens"] == 0
 
     mock_enqueue.assert_awaited_once()
 

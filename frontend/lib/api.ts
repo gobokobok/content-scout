@@ -92,9 +92,12 @@ export interface RunResponse {
   duration_days: number;
   progress_accounts: number;
   progress_items: number;
+  progress_summarized: number;
   error_message: string | null;
   estimated_cost_usd: string | null;
   total_cost_usd: string | null;
+  total_input_tokens: number;
+  total_output_tokens: number;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;

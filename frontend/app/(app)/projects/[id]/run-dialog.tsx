@@ -153,9 +153,26 @@ export function RunDialog({
         {run && (
           <div className="flex flex-col gap-3">
             <p className="text-base font-medium">{statusKey && t(statusKey)}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t("progress", { done: run.progress_accounts })}
-            </p>
+            {run.status === "summarizing" ? (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t("summarizeProgress", {
+                  done: run.progress_summarized,
+                  total: run.progress_items,
+                })}
+              </p>
+            ) : (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t("progress", { done: run.progress_accounts })}
+              </p>
+            )}
+            {run.status === "done" && (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t("tokenTotals", {
+                  input: run.total_input_tokens,
+                  output: run.total_output_tokens,
+                })}
+              </p>
+            )}
             {run.status === "failed" && run.error_message && (
               <p className="text-sm text-red-600 dark:text-red-400">{run.error_message}</p>
             )}

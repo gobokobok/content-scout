@@ -79,6 +79,8 @@
     "statusDone": "Готово",
     "statusFailed": "Ошибка",
     "progress": "Обработано аккаунтов: {done}",
+    "summarizeProgress": "Обработано публикаций: {done} / {total}",
+    "tokenTotals": "Токенов Claude: {input} / {output}",
     "genericError": "Произошла ошибка. Попробуйте ещё раз."
   }
 }

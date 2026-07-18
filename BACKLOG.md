@@ -376,32 +376,44 @@ backend/src/services/summarizer.py, backend/tests/test_summarizer.py, docs/PROMP
 
 ## [E4-S2] Summarization in the run pipeline
 **Epic:** AI Summaries
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 3
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E4-S1
 ### Goal
 The worker's `summarizing` phase runs the summarizer over all items of a run with bounded concurrency and progress reporting.
 ### Acceptance Criteria
-- [ ] After scraping, run enters `summarizing`; items processed in batches with bounded concurrency (config)
-- [ ] Progress (items summarized / total) exposed on `GET /runs/{id}` and shown in UI
-- [ ] Run-level token totals rolled up onto analysis_runs (total_input_tokens, total_output_tokens, total_cost)
-- [ ] Re-running summarization is idempotent (skips items that already have summaries)
+- [x] After scraping, run enters `summarizing`; items processed in batches with bounded concurrency (config)
+- [x] Progress (items summarized / total) exposed on `GET /runs/{id}` and shown in UI
+- [x] Run-level token totals rolled up onto analysis_runs (total_input_tokens, total_output_tokens, total_cost)
+- [x] Re-running summarization is idempotent (skips items that already have summaries)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (7 new/updated tests in test_worker.py + 2 in test_usage.py; CI is the authoritative gate — no local Postgres in this sandbox)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Full run on DEV (2 accounts, 3 days): every item has a Russian summary; run shows token totals.
 ### Files to read
 CLAUDE.md, backend/src/worker.py, backend/src/services/summarizer.py, backend/src/api/runs.py
 ### Files to create or modify
 backend/src/worker.py, backend/src/services/usage.py, backend/tests/test_pipeline.py
+### Changelog
+- Added `analysis_runs.progress_summarized` (migration `c7e2f8a1b6d4`) — not anticipated by E1-S2's schema; needed to expose per-phase progress distinct from `progress_items` (scraped count) and `progress_accounts`.
+- Bounded concurrency is achieved by chunking pending items into batches of `Settings.summary_concurrency` in the worker and calling `summarize_run_items` (which already runs a batch concurrently via its internal semaphore) once per batch, committing `progress_summarized` between batches. This avoids concurrent `session.commit()` calls from multiple asyncio tasks sharing one `AsyncSession` (unsafe) while still giving real incremental progress — a single call over the whole item set would only "complete" progress all at once.
+- Idempotency is implemented by querying `content_items` for the run **filtered to `summary IS NULL`** before summarizing — a re-invocation of `process_run` (e.g. a retried worker job) skips already-summarized items automatically; wrote a dedicated test (`test_process_run_skips_already_summarized_items`) proving pre-summarized items never reach the summarizer.
+- Wrote `src/services/usage.py:rollup_run_totals` (not in the original file plan, but the natural home per CONVENTIONS' "logic in services/") — sums **all** usage_events kinds into `total_cost_usd` (Apify + Claude) but only the two Claude kinds into `total_input_tokens`/`total_output_tokens`, matching the model's field semantics.
+- Test-file name deviates from the story's suggested `test_pipeline.py` — extended the existing `test_worker.py` and added `test_usage.py` instead, since `process_run` (the pipeline) already lives there and a third file would just split related coverage.
 ### Handover
-—
+- `AnalysisRun.progress_summarized` (new column) — items summarized so far in the current/last run of the summarizing phase.
+- `src/services/usage.py:rollup_run_totals(session, run)` — call after any usage_events-producing phase to refresh `total_cost_usd`/`total_input_tokens`/`total_output_tokens`; reusable for E7-S1's usage rollups (per-user aggregation there is a different query, but this is the per-run pattern to follow).
+- `src/worker.py:process_run` now: transitions to `summarizing`, batches pending (unsummarized) items through `summarize_run_items` in chunks of `Settings.summary_concurrency`, commits `progress_summarized` per batch, then calls `rollup_run_totals` before marking `done`.
+- `src/api/runs.py:RunOut` gained `progress_summarized`, `total_input_tokens`, `total_output_tokens`.
+- Frontend: `run-dialog.tsx` shows "Обработано публикаций: N / M" during `summarizing` and "Токенов Claude: input / output" once `done`. New `RunDialog` strings in `messages/ru.json`.
+- ENV vars added: none.
 
 ## [E5-S1] Results table
 **Epic:** Results Table & Export

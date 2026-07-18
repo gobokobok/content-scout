@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from arq.connections import RedisSettings
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
@@ -18,6 +19,8 @@ from src.models import (
 )
 from src.platforms import get_platform
 from src.services.runs import resolve_target_accounts
+from src.services.summarizer import summarize_run_items
+from src.services.usage import rollup_run_totals
 
 
 async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
@@ -78,10 +81,25 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             run.progress_items = items_found
             await session.commit()
 
-        # Real summarization lands in E4-S1/E4-S2; this phase is a pass-through for now.
         run.status = RunStatus.summarizing
         await session.commit()
 
+        # Only unsummarized items — makes re-running summarization on the same run idempotent.
+        pending_items = list(
+            await session.scalars(
+                select(ContentItem).where(
+                    ContentItem.run_id == run.id, ContentItem.summary.is_(None)
+                )
+            )
+        )
+        batch_size = max(1, settings.summary_concurrency)
+        for start in range(0, len(pending_items), batch_size):
+            batch = pending_items[start : start + batch_size]
+            await summarize_run_items(session, batch, user_id=run.requested_by, run_id=run.id)
+            run.progress_summarized += len(batch)
+            await session.commit()
+
+        await rollup_run_totals(session, run)
         run.status = RunStatus.done
         run.finished_at = datetime.now(UTC)
         await session.commit()

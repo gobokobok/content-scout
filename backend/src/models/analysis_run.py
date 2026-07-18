@@ -45,6 +45,7 @@ class AnalysisRun(UuidPk, CreatedAt, Base):
     )
     progress_accounts: Mapped[int] = mapped_column(default=0, nullable=False)
     progress_items: Mapped[int] = mapped_column(default=0, nullable=False)
+    progress_summarized: Mapped[int] = mapped_column(default=0, nullable=False)
     error_message: Mapped[str | None] = mapped_column(String(1000))
     estimated_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
     total_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))

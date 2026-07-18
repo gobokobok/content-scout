@@ -57,9 +57,12 @@ class RunOut(BaseModel):
     duration_days: int
     progress_accounts: int
     progress_items: int
+    progress_summarized: int
     error_message: str | None
     estimated_cost_usd: Decimal | None
     total_cost_usd: Decimal | None
+    total_input_tokens: int
+    total_output_tokens: int
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
@@ -73,9 +76,12 @@ class RunOut(BaseModel):
             duration_days=run.duration_days,
             progress_accounts=run.progress_accounts,
             progress_items=run.progress_items,
+            progress_summarized=run.progress_summarized,
             error_message=run.error_message,
             estimated_cost_usd=run.estimated_cost_usd,
             total_cost_usd=run.total_cost_usd,
+            total_input_tokens=run.total_input_tokens,
+            total_output_tokens=run.total_output_tokens,
             created_at=run.created_at,
             started_at=run.started_at,
             finished_at=run.finished_at,
