@@ -21,7 +21,8 @@
   },
   "App": {
     "loading": "Загрузка…",
-    "logout": "Выйти"
+    "logout": "Выйти",
+    "usage": "Использование"
   },
   "Projects": {
     "title": "Проекты",
@@ -152,6 +153,21 @@
     "status_summarizing": "Формирование описаний",
     "status_done": "Готово",
     "status_failed": "Ошибка"
+  },
+  "Usage": {
+    "title": "Использование",
+    "loading": "Загрузка…",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз.",
+    "currentMonth": "Текущий месяц",
+    "totalCost": "Итого",
+    "kindApifyResult": "Результаты Apify",
+    "kindClaudeInputTokens": "Входящие токены Claude",
+    "kindClaudeOutputTokens": "Исходящие токены Claude",
+    "colResource": "Ресурс",
+    "colQuantity": "Количество",
+    "colCost": "Стоимость (USD)",
+    "empty": "За этот период использования не было.",
+    "navLink": "Использование"
   },
   "Shortlist": {
     "title": "Шорт-лист",

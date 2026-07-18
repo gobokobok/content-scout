@@ -557,8 +557,8 @@ backend/src/api/history.py, backend/tests/test_history.py, frontend/app/(app)/pr
 
 ## [E7-S1] Usage rollups
 **Epic:** Usage Metering & Admin
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 5
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E4-S2
 ### Goal

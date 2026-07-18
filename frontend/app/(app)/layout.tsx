@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";
@@ -30,6 +31,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <span className="text-lg font-semibold">content-scout</span>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-600 dark:text-gray-400">{user.email}</span>
+          <Link
+            href="/usage"
+            className="text-sm text-gray-600 hover:underline dark:text-gray-400"
+          >
+            {t("usage")}
+          </Link>
           <button
             onClick={() => {
               logout();

@@ -138,6 +138,19 @@ export interface ShortlistItemResponse {
   added_at: string;
 }
 
+export interface KindTotalResponse {
+  kind: string;
+  quantity: number;
+  cost_usd: string;
+}
+
+export interface UsageResponse {
+  from_: string;
+  to: string;
+  total_cost_usd: string;
+  by_kind: KindTotalResponse[];
+}
+
 export interface ShortlistHistoryItemResponse {
   id: string;
   content_item_id: string;
@@ -233,6 +246,10 @@ export const api = {
     }),
   listShortlistHistory: (projectId: string) =>
     request<ShortlistHistoryItemResponse[]>(`/projects/${projectId}/history/shortlist`),
+  getMyUsage: (from: Date, to: Date) =>
+    request<UsageResponse>(
+      `/me/usage?from=${from.toISOString()}&to=${to.toISOString()}`,
+    ),
   downloadRunXlsx: async (
     runId: string,
     sort: ItemSortField,
