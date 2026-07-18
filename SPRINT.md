@@ -49,7 +49,7 @@ Full story definitions live in `BACKLOG.md`.
 | Story | Title | Status |
 |---|---|---|
 | E5-S1 | Results table | done |
-| E5-S2 | XLSX export | backlog |
+| E5-S2 | XLSX export | done |
 | E6-S1 | Shortlist | backlog |
 
 ## Sprint plan (projection, adjust at each /sprint-review)

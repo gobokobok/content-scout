@@ -9,6 +9,20 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E5-S2] XLSX export — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `GET /runs/{run_id}/export.xlsx?sort=&order=` — `backend/src/api/export.py`; all rows, openpyxl workbook, frozen header
+- `backend/src/services/xlsx_export.py` — `build_xlsx()` helper; URL column as hyperlinks; tz-aware datetimes stripped for Excel compat
+- "Экспорт в Excel" button added to results page toolbar (`frontend/app/(app)/projects/[id]/results/page.tsx`); only visible when a done run with items is selected
+- `api.downloadRunXlsx(runId, sort, order)` in `frontend/lib/api.ts` — blob fetch → programmatic `<a download>` click
+- RFC 5987 `filename*=UTF-8''<percent-encoded>` used in `Content-Disposition` to handle Cyrillic project names (bug found+fixed during smoke test)
+**Smoke test:** PASSED — Curl'd `GET /runs/{id}/export.xlsx` on DEV with browser token; HTTP 200; `content-disposition: attachment; filename*=UTF-8''content-scout_%D0%9A%D0%BE%D0%BD%D0%BA%D1%83%D1%80%D0%B5%D0%BD%D1%82%D0%BD%D1%8B%D0%B9_%D0%B0%D0%BD%D0%B0%D0%BB%D0%B8%D0%B7_2026-07-18.xlsx`; openpyxl validation: sheet "Результаты", 8 rows (7 data), Russian headers, real hyperlink on URL cell.
+**Promoted to backlog:**
+- None
+
+---
+
 ## [E5-S1] Results table — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**

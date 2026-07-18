@@ -453,23 +453,24 @@ backend/src/api/items.py, backend/tests/test_items_api.py, frontend/app/(app)/pr
 
 ## [E5-S2] XLSX export
 **Epic:** Results Table & Export
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 4
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** medium
 **Depends on:** E5-S1
 ### Goal
 One click exports the current run's full results table to an .xlsx file with Russian headers.
 ### Acceptance Criteria
-- [ ] `GET /runs/{id}/export.xlsx` streams a workbook (openpyxl): all rows, Russian headers matching the UI, link column as real hyperlinks, frozen header row, respects current sort
-- [ ] Filename `content-scout_<project>_<run-date>.xlsx`
-- [ ] "Экспорт в Excel" button on the results tab
+- [x] `GET /runs/{id}/export.xlsx` streams a workbook (openpyxl): all rows, Russian headers matching the UI, link column as real hyperlinks, frozen header row, respects current sort
+- [x] Filename `content-scout_<project>_<run-date>.xlsx`
+- [x] "Экспорт в Excel" button on the results tab
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Export a DEV run, open in Excel/Numbers — headers Russian, links clickable, data matches UI.
 ### Files to read
@@ -477,7 +478,11 @@ CLAUDE.md, backend/src/api/items.py, frontend/app/(app)/projects/[id]/results/**
 ### Files to create or modify
 backend/src/services/xlsx_export.py, backend/src/api/export.py, backend/tests/test_export.py, frontend/components/results-table.tsx
 ### Handover
-—
+- `GET /runs/{run_id}/export.xlsx?sort=&order=` in `backend/src/api/export.py` — streams openpyxl workbook; all rows (no pagination); RFC 5987 UTF-8 `filename*=` header for Cyrillic project names
+- `backend/src/services/xlsx_export.py` — `build_xlsx(items, project_name, run_created_at)` helper; frozen header row; URL column as real hyperlinks
+- "Экспорт в Excel" button in results page toolbar; visible only when run is done and items exist; triggers blob fetch → `a.download` click
+- `api.downloadRunXlsx(runId, sort, order)` added to `frontend/lib/api.ts`
+- Bug found+fixed: project names with Cyrillic characters caused `UnicodeEncodeError` in the `Content-Disposition` header — fixed by using `filename*=UTF-8''<quoted>` (RFC 5987)
 
 ## [E6-S1] Shortlist
 **Epic:** Shortlist & History
