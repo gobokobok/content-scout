@@ -429,7 +429,8 @@ backend/src/worker.py, backend/src/api/runs.py, backend/src/models/analysis_run.
 ## [E3-S6] Worker resilience and parallel scraping
 **Epic:** Analysis Pipeline
 **Sprint:** 6
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** critical
 **Depends on:** E4-S2
 ### Goal
@@ -454,8 +455,21 @@ DEV run with 8+ accounts completes well past the 5-minute mark; wall time reflec
 CLAUDE.md, backend/src/worker.py, backend/src/services/summarizer.py, backend/src/models/content_item.py
 ### Files to create or modify
 backend/src/worker.py, backend/src/config.py, backend/src/services/summarizer.py, backend/src/models/content_item.py (+ migration), backend/tests/test_worker.py
+### Changelog
+- `asyncio.shield(session.commit())` used inside `except asyncio.CancelledError:` to guard the cleanup commit against re-cancellation.
+- Parallel scraping collects all fetch results via `asyncio.gather` first, then applies DB writes sequentially in the parent task (avoids sharing `AsyncSession` across tasks).
+- `ON CONFLICT DO NOTHING` via `pg_insert(ContentItem).on_conflict_do_nothing(index_elements=["run_id", "external_id"])` — `items_found` counter still increments regardless, which is fine for UX progress display.
+- `AsyncAnthropic` and `httpx.AsyncClient` created once per run before the summarizing loop; explicitly closed after (minor resource leak on cancellation during summarizing is acceptable for a timed-out worker).
+- Unique constraint name: `uq_content_items_run_id_external_id` (follows NAMING_CONVENTION).
 ### Handover
-—
+- `WorkerSettings.job_timeout = get_settings().worker_job_timeout_secs` (default 3600) — arq will cancel jobs beyond this limit
+- `process_run` now catches `asyncio.CancelledError` separately from `Exception`; marks run `failed` with «Превышено время выполнения», commits via `asyncio.shield`, re-raises
+- Accounts scrape in parallel under `settings.scrape_concurrency` (default 5) semaphore; DB writes happen in the parent task after gather completes
+- `pg_insert(ContentItem).on_conflict_do_nothing(index_elements=["run_id", "external_id"])` prevents duplicate rows on arq job re-delivery
+- Migration `e5a3f2c9b1d7`: `uq_content_items_run_id_external_id` unique constraint on `content_items(run_id, external_id)`
+- `summarize_run_items` now accepts optional `client: AsyncAnthropic | None` and `http_client: httpx.AsyncClient | None`; when provided, reuses them across all items in the batch (avoids per-item/per-batch client recreation)
+- `Settings` gained `worker_job_timeout_secs` (int, default 3600) and `scrape_concurrency` (int, default 5)
+- 3 new tests: cancellation → run failed, parallel scrape → same rows as sequential, duplicate insert → no-op
 
 ## [E4-S1] Claude summarization service
 **Epic:** AI Summaries

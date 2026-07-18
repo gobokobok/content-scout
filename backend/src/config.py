@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     jwt_secret: str = "local-dev-secret-do-not-use-in-prod"
     access_token_expire_minutes: int = 1440
 
+    worker_job_timeout_secs: int = 3600
+    scrape_concurrency: int = 5
+
     use_mock_platform: bool = True
     apify_api_token: str = ""
     apify_ig_actor_id: str = ""

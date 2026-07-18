@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,9 @@ class ContentType(enum.StrEnum):
 
 class ContentItem(UuidPk, CreatedAt, Base):
     __tablename__ = "content_items"
+    __table_args__ = (
+        UniqueConstraint("run_id", "external_id", name="uq_content_items_run_id_external_id"),
+    )
 
     run_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("analysis_runs.id"), nullable=False, index=True

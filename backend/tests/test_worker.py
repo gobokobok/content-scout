@@ -1,6 +1,8 @@
+import asyncio
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -181,3 +183,87 @@ async def test_process_run_skips_already_summarized_items(session: AsyncSession)
     assert pre_summarized.id not in summarized_ids
     await session.refresh(pre_summarized)
     assert pre_summarized.summary == "уже готово"
+
+
+async def test_process_run_cancellation_marks_failed(session: AsyncSession) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    run = await make_run(session, project=project, duration_days=1)
+    await session.commit()
+
+    # Use an event to confirm the task is inside the blocking sleep before we cancel.
+    inside = asyncio.Event()
+
+    async def _blocking_fetch(account, since):
+        inside.set()
+        await asyncio.sleep(60)
+        return []
+
+    class _BlockingPlatform:
+        async def fetch_content(self, account, since):
+            return await _blocking_fetch(account, since)
+
+    with patch("src.worker.get_platform", return_value=_BlockingPlatform()):
+        task = asyncio.create_task(process_run(session, run))
+        await inside.wait()  # guaranteed to be at asyncio.sleep(60) now
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert run.status == RunStatus.failed
+    assert run.error_message == "Превышено время выполнения"
+    assert run.finished_at is not None
+
+
+async def test_process_run_parallel_scrape_same_rows_as_sequential(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    await make_account(session, account_list=account_list)
+    await make_account(session, account_list=account_list)
+    run = await make_run(session, project=project, duration_days=1)
+    await session.commit()
+
+    with patch("src.worker.summarize_run_items", side_effect=_fake_summarize):
+        await process_run(session, run)
+
+    assert run.status == RunStatus.done
+    items = (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
+    # Mock platform returns 3 items per account; 3 accounts = 9 items total
+    assert len(items) == 9
+
+
+async def test_process_run_duplicate_insert_is_noop(session: AsyncSession) -> None:
+    """ON CONFLICT DO NOTHING: re-delivering the arq job must not duplicate content_items."""
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    run = await make_run(session, project=project, duration_days=1)
+    await session.commit()
+
+    with patch("src.worker.summarize_run_items", side_effect=_fake_summarize):
+        await process_run(session, run)
+
+    first_count = len(
+        (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
+    )
+    assert first_count == 3  # Mock returns 3 items per account
+
+    # Reset to scraping so process_run will re-enter the scraping phase
+    run.status = RunStatus.pending
+    run.started_at = None
+    run.progress_accounts = 0
+    run.progress_items = 0
+    run.progress_summarized = 0
+    await session.commit()
+
+    with patch("src.worker.summarize_run_items", side_effect=_fake_summarize):
+        await process_run(session, run)
+
+    second_count = len(
+        (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
+    )
+    assert second_count == first_count  # No duplicates

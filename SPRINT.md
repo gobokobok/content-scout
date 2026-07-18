@@ -81,7 +81,7 @@ Full story definitions live in `BACKLOG.md`.
 | # | Story | Title | Status |
 |---|---|---|---|
 | 0 | E7-S2 | Admin usage view — carry-over: verify, smoke-test, finish-story | done |
-| 1 | E3-S6 | Worker resilience and parallel scraping (critical bug fix) | pending |
+| 1 | E3-S6 | Worker resilience and parallel scraping (critical bug fix) | done |
 | 2 | E7-S4 | Pilot security guardrails (critical) | pending |
 | 3 | E4-S3 | Claude cost optimization | pending |
 | 4 | E12-S1 | Design system re-skin (light theme v1) | pending |

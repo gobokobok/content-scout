@@ -50,22 +50,35 @@ async def summarize_run_items(
     *,
     user_id: uuid.UUID,
     run_id: uuid.UUID,
+    client: AsyncAnthropic | None = None,
+    http_client: httpx.AsyncClient | None = None,
 ) -> None:
-    """Summarizes each item in place (sets `item.summary`) with bounded concurrency."""
+    """Summarizes each item in place (sets `item.summary`) with bounded concurrency.
+
+    Pass `client` and `http_client` to reuse connections across batches within a run.
+    When omitted they are created (and closed) per call.
+    """
     settings = get_settings()
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    _client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
+    _own_http = http_client is None
+    _http = http_client if http_client is not None else httpx.AsyncClient(timeout=_IMAGE_FETCH_TIMEOUT_SECS)
     semaphore = asyncio.Semaphore(settings.summary_concurrency)
 
     async def _one(item: ContentItem) -> None:
         async with semaphore:
-            await _summarize_item(session, client, item, settings, user_id=user_id, run_id=run_id)
+            await _summarize_item(session, _client, _http, item, settings, user_id=user_id, run_id=run_id)
 
-    await asyncio.gather(*(_one(item) for item in items))
+    try:
+        await asyncio.gather(*(_one(item) for item in items))
+    finally:
+        if _own_http:
+            await _http.aclose()
 
 
 async def _summarize_item(
     session: AsyncSession,
     client: AsyncAnthropic,
+    http_client: httpx.AsyncClient,
     item: ContentItem,
     settings: Settings,
     *,
@@ -77,7 +90,7 @@ async def _summarize_item(
         return
 
     content_blocks: list[Any] = []
-    image_block = await _fetch_image_block(item.cover_url) if item.cover_url else None
+    image_block = await _fetch_image_block(http_client, item.cover_url) if item.cover_url else None
     if image_block:
         content_blocks.append(image_block)
     content_blocks.append(
@@ -132,11 +145,10 @@ async def _summarize_item(
     item.summary = FALLBACK_TEXT
 
 
-async def _fetch_image_block(url: str) -> dict[str, Any] | None:
+async def _fetch_image_block(http_client: httpx.AsyncClient, url: str) -> dict[str, Any] | None:
     try:
-        async with httpx.AsyncClient(timeout=_IMAGE_FETCH_TIMEOUT_SECS) as http_client:
-            resp = await http_client.get(url)
-            resp.raise_for_status()
+        resp = await http_client.get(url)
+        resp.raise_for_status()
         image = Image.open(BytesIO(resp.content))
         image.thumbnail((_MAX_IMAGE_SIDE, _MAX_IMAGE_SIDE))
         buf = BytesIO()

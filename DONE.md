@@ -9,6 +9,23 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E3-S6] Worker resilience and parallel scraping — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `WorkerSettings.job_timeout = get_settings().worker_job_timeout_secs` (default 3600); arq now cancels stalled jobs automatically
+- `process_run` catches `asyncio.CancelledError` (BaseException) separately: marks run `failed` with «Превышено время выполнения», commits via `asyncio.shield`, re-raises — previously `except Exception` silently swallowed it, leaving the run stuck
+- Parallel scraping: accounts fetched concurrently under `scrape_concurrency` semaphore (default 5) via `asyncio.gather`; DB writes happen sequentially in the parent task after gather (AsyncSession is single-task-only)
+- Idempotent insert: `pg_insert(ContentItem).on_conflict_do_nothing(index_elements=["run_id", "external_id"])` — re-delivered arq jobs cannot create duplicate content_items
+- Migration `e5a3f2c9b1d7`: unique constraint `uq_content_items_run_id_external_id` on `content_items(run_id, external_id)`
+- `summarize_run_items` accepts optional `client: AsyncAnthropic | None` and `http_client: httpx.AsyncClient | None`; worker creates both once per run and passes in — eliminates per-batch/per-image client recreation
+- `Settings`: `worker_job_timeout_secs` (default 3600), `scrape_concurrency` (default 5)
+- 3 new tests in `test_worker.py`: cancellation marks failed, parallel scrape correct row count, duplicate insert no-op
+**Smoke test:** DEFERRED — requires DEV run with 8+ accounts; confirm wall time < sequential sum and no duplicate content_items on re-enqueue.
+**Promoted to backlog:**
+- None
+
+---
+
 ## [E7-S2] Admin usage view — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**
