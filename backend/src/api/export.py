@@ -1,6 +1,7 @@
 import io
 import uuid
 from typing import Annotated, Any, Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -88,8 +89,9 @@ async def export_run_xlsx(
     run_date = run.created_at.strftime("%Y-%m-%d")
     filename = f"content-scout_{project_slug}_{run_date}.xlsx"
 
+    encoded_filename = quote(filename)
     return StreamingResponse(
         io.BytesIO(xlsx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
     )
