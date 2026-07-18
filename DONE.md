@@ -9,6 +9,22 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E6-S2] Run and shortlist history — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `GET /projects/{project_id}/history/shortlist` → `list[ShortlistHistoryItemOut]` (all events, active + removed, newest first) — `backend/src/api/history.py`
+- `ShortlistHistoryItemOut`: id, content_item_id, account_handle, type, title, url, added_at, removed_at
+- Run history reuses existing `GET /projects/{project_id}/runs`
+- `frontend/app/(app)/projects/[id]/history/page.tsx` — renders both tables; "Открыть результаты" → `router.push(/results?run={id})`
+- Deep-link fix: `window.location.search` is read inside `loadRuns()` (runs in `useEffect`, always client-side) — avoids SSR-null problem with `useState` initializer
+- `backend/tests/test_history.py` — 5 tests; `frontend/messages/ru.json` — `History` namespace
+- No ENV vars added
+**Smoke test:** PASSED — On DEV: opened История tab, 2 runs shown; clicked "Открыть результаты" on the older run (09:08, 6 items) → navigated to Результаты with `?run=625855e4-...`; run selector showed 09:08:35 run and 6 items rendered. Shortlist history shows 2 events with correct added_at/removed_at. Failed run error message truncation confirmed in UI.
+**Promoted to backlog:**
+- None
+
+---
+
 ## [E6-S1] Shortlist — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**

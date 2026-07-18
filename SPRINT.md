@@ -52,6 +52,18 @@ Full story definitions live in `BACKLOG.md`.
 | E5-S2 | XLSX export | done |
 | E6-S1 | Shortlist | done |
 
+**Sprint 4 complete.**
+
+## Sprint 5 — History, usage rollups, admin view
+
+**Stories (in order):**
+
+| Story | Title | Status |
+|---|---|---|
+| E6-S2 | Run and shortlist history | done |
+| E7-S1 | Usage rollups | pending |
+| E7-S2 | Admin usage view | pending |
+
 ## Sprint plan (projection, adjust at each /sprint-review)
 
 - **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)

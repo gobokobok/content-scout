@@ -522,22 +522,23 @@ backend/src/api/shortlist.py, backend/tests/test_shortlist.py, frontend/app/(app
 ## [E6-S2] Run and shortlist history
 **Epic:** Shortlist & History
 **Sprint:** 5
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** medium
 **Depends on:** E6-S1
 ### Goal
 The История tab shows all past runs (date, duration, accounts, items found, status, cost) and past shortlist activity; any past run's results can be reopened.
 ### Acceptance Criteria
-- [ ] Run history list with: started_at, период (days), кол-во аккаунтов, найдено публикаций, статус, стоимость; click opens that run in the results tab
-- [ ] Shortlist history: added/removed events with timestamps
-- [ ] Failed runs show their error message in Russian
+- [x] Run history list with: started_at, период (days), кол-во аккаунтов, найдено публикаций, статус, стоимость; click opens that run in the results tab
+- [x] Shortlist history: added/removed events with timestamps
+- [x] Failed runs show their error message in Russian
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 On DEV with ≥2 runs, open История, click the older run — its results render.
 ### Files to read
@@ -545,7 +546,14 @@ CLAUDE.md, backend/src/api/runs.py, frontend/app/(app)/projects/[id]/**
 ### Files to create or modify
 backend/src/api/history.py, backend/tests/test_history.py, frontend/app/(app)/projects/[id]/history/**, frontend/messages/ru.json
 ### Handover
-—
+- `GET /projects/{project_id}/history/shortlist` → `list[ShortlistHistoryItemOut]` — all shortlist events (active + removed), newest first (`backend/src/api/history.py`)
+- `ShortlistHistoryItemOut`: id, content_item_id, account_handle, type, title, url, added_at, removed_at
+- Run history reuses `GET /projects/{project_id}/runs` (existing endpoint)
+- `frontend/app/(app)/projects/[id]/history/page.tsx` — full История tab: run history table + shortlist history table
+- "Открыть результаты" button → `router.push(/projects/{id}/results?run={runId})`; deep-link reads `window.location.search` inside `loadRuns()` to select the specified run
+- `backend/tests/test_history.py` — 5 tests (empty, added items, removed items, shape, 404 wrong user)
+- `frontend/messages/ru.json` — `History` namespace added
+- No ENV vars added
 
 ## [E7-S1] Usage rollups
 **Epic:** Usage Metering & Admin
