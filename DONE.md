@@ -9,6 +9,20 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E1-S3] Email+password auth and personal workspace — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- Auth stack: `src/auth/passwords.py` (bcrypt, imported directly — not via passlib, which is unmaintained and breaks under bcrypt≥4.1), `src/auth/tokens.py` (JWT create/decode), `src/auth/providers.py` (`AuthProvider` Protocol, `EmailPasswordProvider`, `create_user_with_workspace` helper), `src/auth/dependency.py` (`CurrentUser` FastAPI dependency).
+- Routes: `POST /auth/register`, `POST /auth/login`, `GET /auth/me` in `src/api/auth.py`, mounted in `src/main.py`. Registration creates user + personal workspace + owner membership atomically (D6).
+- Frontend: `lib/api.ts` typed client + `ApiError`, `lib/auth-context.tsx` (`AuthProvider`/`useAuth`, wraps root layout), `(auth)/login` + `(auth)/register` pages, `(app)/layout.tsx` guarded shell (redirects to `/login` when unauthenticated, shows email + logout) + `(app)/page.tsx` workspace placeholder.
+- Root `app/page.tsx` was removed (Next route groups don't add URL segments — `(app)/page.tsx` now owns `/`).
+- Future auth providers (Telegram D18, VK ID D4) implement `AuthProvider` and reuse `create_user_with_workspace` without touching call sites. Future protected pages go under `app/(app)/**` and inherit the guard for free.
+- CI gained an explicit `mypy src` gate (was in CONVENTIONS.md but not enforced).
+- ENV vars added: none.
+**Smoke test:** PASSED — on DEV: registered a new user via the browser, landed in the authenticated Russian shell with email + «Выйти» shown; clicked logout, redirected to `/login`; logged back in with the same credentials, reached the shell again; cleared the token and confirmed `/` redirects unauthenticated users to `/login`; confirmed the login screen is fully usable at 375px width (D16).
+**Promoted to backlog:**
+- (none)
+
 ## [E1-S2] Database schema and migrations — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**

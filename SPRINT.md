@@ -12,15 +12,15 @@
 |---|---|---|
 | E1-S1 | Monorepo scaffold, local env, CI, DEV deploy | done |
 | E1-S2 | Database schema and migrations | done |
-| E1-S3 | Email+password auth and personal workspace | ready |
+| E1-S3 | Email+password auth and personal workspace | done |
 
-**Active story:** E1-S3 — start with `/start-story E1-S3`
+**Sprint 1 complete.** Next up is Sprint 2 — start with `/start-story E2-S1`.
 
 Full story definitions live in `BACKLOG.md`.
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 
-- **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data
+- **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (next: E2-S1)
 - **Sprint 3:** E3-S2, E4-S1, E4-S2 — real Apify scraping, Claude summaries, full pipeline
 - **Sprint 4:** E5-S1, E5-S2, E6-S1 — results table, XLSX export, shortlist
 - **Sprint 5:** E6-S2, E7-S1, E7-S2 — history, usage rollups, admin view → **usable MVP**

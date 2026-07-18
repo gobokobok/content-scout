@@ -102,32 +102,42 @@ backend/src/db.py, backend/src/models/*.py, backend/alembic/**, backend/tests/co
 ## [E1-S3] Email+password auth and personal workspace
 **Epic:** Foundation & Auth
 **Sprint:** 1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E1-S2
 ### Goal
 Users can register and log in (JWT); registration auto-creates a personal workspace; frontend has Russian login/register pages and an authenticated shell.
 ### Acceptance Criteria
-- [ ] `POST /auth/register` (email+password, bcrypt), `POST /auth/login` → JWT access token, `GET /auth/me`
-- [ ] Registration creates a personal workspace and membership row in the same transaction
-- [ ] Auth dependency rejects missing/invalid tokens with 401; all non-auth routes require it
-- [ ] Frontend: /login and /register pages (Russian), token stored, authenticated layout with logout; unauthenticated users redirected to /login
-- [ ] Auth provider kept behind an interface so VK ID can be added later without touching call sites
+- [x] `POST /auth/register` (email+password, bcrypt), `POST /auth/login` → JWT access token, `GET /auth/me`
+- [x] Registration creates a personal workspace and membership row in the same transaction
+- [x] Auth dependency rejects missing/invalid tokens with 401; all non-auth routes require it
+- [x] Frontend: /login and /register pages (Russian), token stored, authenticated layout with logout; unauthenticated users redirected to /login
+- [x] Auth provider kept behind an interface so VK ID can be added later without touching call sites
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (11 new auth tests, 21 total in suite)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Register a user on DEV, log out, log back in, see the authenticated shell in Russian.
 ### Files to read
 CLAUDE.md, docs/ARCHITECTURE.md (auth section), backend/src/models/user.py, frontend/messages/ru.json
 ### Files to create or modify
 backend/src/auth/*.py, backend/src/api/auth.py, backend/tests/test_auth.py, frontend/app/(auth)/login/page.tsx, frontend/app/(auth)/register/page.tsx, frontend/lib/api.ts, frontend/messages/ru.json
+### Changelog
+- Password hashing uses `bcrypt` directly rather than via `passlib` — `passlib[bcrypt]` is still the declared dependency (bcrypt is its transitive install), but passlib itself is unmaintained and breaks under bcrypt≥4.1; importing `bcrypt` directly is the currently-recommended pattern and avoids that landmine. No new dependency added.
+- Added an explicit `mypy src` step to CI (`ci.yml`) — CONVENTIONS.md already mandates mypy on `src/`; it just wasn't gated in CI yet. All 22 source files pass clean.
+- Root `app/page.tsx` (E1-S1 placeholder) removed and its content moved to `app/(app)/page.tsx`, since Next.js route groups don't add URL segments and both would otherwise resolve to `/`. `app/(app)/layout.tsx` now owns the authenticated shell (header, email, logout) and the redirect-to-`/login` guard.
 ### Handover
-—
+- Auth stack: `src/auth/passwords.py` (bcrypt), `src/auth/tokens.py` (JWT create/decode), `src/auth/providers.py` (`AuthProvider` Protocol + `EmailPasswordProvider` + `create_user_with_workspace` — reusable by future providers), `src/auth/dependency.py` (`CurrentUser` FastAPI dependency, 401 on missing/invalid/deleted-user tokens).
+- Routes: `POST /auth/register`, `POST /auth/login`, `GET /auth/me` (`src/api/auth.py`); Russian validation/error messages throughout (`{code, message_ru}` shape per CONVENTIONS).
+- Frontend: `lib/api.ts` (typed fetch client, `ApiError`, localStorage token), `lib/auth-context.tsx` (`AuthProvider`/`useAuth` — wraps the whole app in root `layout.tsx`), `(auth)/login` + `(auth)/register` pages, `(app)/layout.tsx` (guarded shell) + `(app)/page.tsx` (workspace placeholder, moved from root).
+- New Russian strings under `Auth` and `App` keys in `messages/ru.json` — extend these, don't create parallel keys.
+- Any future story adding protected pages just needs to live under `app/(app)/**`; the layout's guard handles the rest. Any future story adding an auth provider (Telegram, VK ID) implements `AuthProvider` and can reuse `create_user_with_workspace`.
+- ENV vars added: none (`JWT_SECRET`, `ACCESS_TOKEN_EXPIRE_MINUTES` were already in ENV.md/Railway from initial setup).
 
 ## [E2-S1] Project CRUD
 **Epic:** Projects & Competitor Lists
