@@ -134,7 +134,7 @@ export default function WorkspaceHomePage() {
                     onClick={() => onRename(p.id)}
                     className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
                   >
-                    {t("createSubmit")}
+                    {t("renameSave")}
                   </button>
                   <button
                     onClick={() => setRenamingId(null)}

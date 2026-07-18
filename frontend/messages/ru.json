@@ -30,6 +30,7 @@
     "namePlaceholder": "Название проекта",
     "createSubmit": "Создать",
     "createCancel": "Отмена",
+    "renameSave": "Сохранить",
     "rename": "Переименовать",
     "archive": "Архивировать",
     "loading": "Загрузка…",
