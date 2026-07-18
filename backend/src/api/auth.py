@@ -50,6 +50,7 @@ class TokenOut(BaseModel):
 class UserOut(BaseModel):
     id: uuid.UUID
     email: str
+    is_admin: bool
 
 
 @router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
@@ -85,4 +86,4 @@ async def login(body: CredentialsIn, session: SessionDep) -> TokenOut:
 
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser) -> UserOut:
-    return UserOut(id=user.id, email=user.email)
+    return UserOut(id=user.id, email=user.email, is_admin=user.is_admin)

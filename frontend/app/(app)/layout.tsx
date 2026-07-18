@@ -37,6 +37,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             {t("usage")}
           </Link>
+          {user.is_admin && (
+            <Link
+              href="/admin"
+              className="text-sm text-gray-600 hover:underline dark:text-gray-400"
+            >
+              {t("admin")}
+            </Link>
+          )}
           <button
             onClick={() => {
               logout();

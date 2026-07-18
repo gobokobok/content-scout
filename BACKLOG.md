@@ -595,8 +595,8 @@ backend/src/api/usage.py, backend/tests/test_usage.py, frontend/app/(app)/usage/
 
 ## [E7-S2] Admin usage view
 **Epic:** Usage Metering & Admin
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 5
+**Status:** in-progress
 **Priority:** low
 **Depends on:** E7-S1
 ### Goal

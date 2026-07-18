@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.accounts import router as accounts_router
+from src.api.admin import router as admin_router
 from src.api.auth import router as auth_router
 from src.api.export import router as export_router
 from src.api.history import router as history_router
@@ -24,6 +25,7 @@ app.include_router(export_router)
 app.include_router(history_router)
 app.include_router(shortlist_router)
 app.include_router(usage_router)
+app.include_router(admin_router)
 
 app.add_middleware(
     CORSMiddleware,

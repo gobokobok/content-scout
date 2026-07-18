@@ -22,7 +22,8 @@
   "App": {
     "loading": "Загрузка…",
     "logout": "Выйти",
-    "usage": "Использование"
+    "usage": "Использование",
+    "admin": "Администрирование"
   },
   "Projects": {
     "title": "Проекты",
@@ -153,6 +154,21 @@
     "status_summarizing": "Формирование описаний",
     "status_done": "Готово",
     "status_failed": "Ошибка"
+  },
+  "Admin": {
+    "title": "Использование по пользователям",
+    "loading": "Загрузка…",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз.",
+    "fromLabel": "С",
+    "toLabel": "По",
+    "applyButton": "Применить",
+    "empty": "За этот период данных нет.",
+    "colEmail": "Пользователь",
+    "colRuns": "Запусков",
+    "colApify": "Результатов Apify",
+    "colInputTokens": "Входящих токенов",
+    "colOutputTokens": "Исходящих токенов",
+    "colCost": "Стоимость (USD)"
   },
   "Usage": {
     "title": "Использование",

@@ -54,6 +54,7 @@ export interface TokenResponse {
 export interface UserResponse {
   id: string;
   email: string;
+  is_admin: boolean;
 }
 
 export interface ProjectResponse {
@@ -136,6 +137,22 @@ export interface ShortlistItemResponse {
   likes: number | null;
   views: number | null;
   added_at: string;
+}
+
+export interface UserUsageRowResponse {
+  user_id: string;
+  email: string;
+  runs: number;
+  apify_units: number;
+  claude_input_tokens: number;
+  claude_output_tokens: number;
+  total_cost_usd: string;
+}
+
+export interface AdminUsageResponse {
+  from_: string;
+  to: string;
+  users: UserUsageRowResponse[];
 }
 
 export interface KindTotalResponse {
@@ -249,6 +266,10 @@ export const api = {
   getMyUsage: (from: Date, to: Date) =>
     request<UsageResponse>(
       `/me/usage?from=${from.toISOString()}&to=${to.toISOString()}`,
+    ),
+  getAdminUsage: (from: Date, to: Date) =>
+    request<AdminUsageResponse>(
+      `/admin/usage?from=${from.toISOString()}&to=${to.toISOString()}`,
     ),
   downloadRunXlsx: async (
     runId: string,
