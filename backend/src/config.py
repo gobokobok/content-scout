@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # provisional and config-driven so real Apify/Claude pricing can be dropped in without a
     # code change (D26 spirit — never hardcode prices call sites care about).
     avg_items_per_account_per_day: float = 1.2
-    apify_unit_cost_usd: float = 0.01
+    apify_unit_cost_usd: float = 0.0027
     avg_claude_input_tokens_per_item: int = 350
     avg_claude_output_tokens_per_item: int = 80
     claude_input_token_cost_usd: float = 0.000001
