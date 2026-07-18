@@ -418,24 +418,25 @@ backend/src/worker.py, backend/src/services/usage.py, backend/tests/test_pipelin
 ## [E5-S1] Results table
 **Epic:** Results Table & Export
 **Sprint:** 4
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-07-18
 **Priority:** high
 **Depends on:** E4-S2
 ### Goal
 The Результаты tab shows the completed run's content as a table sortable by every column.
 ### Acceptance Criteria
-- [ ] Columns: аккаунт, дата и время публикации, тип, заголовок, ссылка (opens IG in new tab), краткое описание, лайки, просмотры, дней с публикации, просмотров/день, лайков/день
-- [ ] Server-side sort + pagination via `GET /runs/{id}/items?sort=&order=&page=`; every column sortable both directions
-- [ ] Views columns show "—" (not 0) for post/carousel types; sort treats them as NULLs last
-- [ ] Type shown as Russian labels with icons (Reels / Пост / Карусель)
-- [ ] Run selector on the tab (defaults to latest completed run)
+- [x] Columns: аккаунт, дата и время публикации, тип, заголовок, ссылка (opens IG in new tab), краткое описание, лайки, просмотры, дней с публикации, просмотров/день, лайков/день
+- [x] Server-side sort + pagination via `GET /runs/{id}/items?sort=&order=&page=`; every column sortable both directions
+- [x] Views columns show "—" (not 0) for post/carousel types; sort treats them as NULLs last
+- [x] Type shown as Russian labels with icons (Reels / Пост / Карусель)
+- [x] Run selector on the tab (defaults to latest completed run)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 On DEV open a finished run, sort by просмотров/день descending, click a link — IG post opens.
 ### Files to read
@@ -443,7 +444,12 @@ CLAUDE.md, backend/src/api/runs.py, docs/UI_GUIDELINES.md, frontend/app/(app)/pr
 ### Files to create or modify
 backend/src/api/items.py, backend/tests/test_items_api.py, frontend/app/(app)/projects/[id]/results/**, frontend/components/results-table.tsx, frontend/messages/ru.json
 ### Handover
-—
+- `GET /runs/{run_id}/items?sort=&order=&page=` — paginated, server-side sorted results endpoint in `backend/src/api/items.py`
+- `GET /projects/{project_id}/runs` — run list endpoint added to `backend/src/api/runs.py`
+- `frontend/components/results-table.tsx` — TanStack Table v8 headless component with 11 columns, sticky account+header, horizontal scroll
+- `frontend/app/(app)/projects/[id]/results/page.tsx` — full client page with run selector, sort state, pagination
+- `frontend/lib/api.ts` — `listRuns`, `listRunItems`, `ContentItemResponse`, `ItemSortField` added
+- Sort normalizes NULLs last in both ASC and DESC directions via SQLAlchemy `.nulls_last()`
 
 ## [E5-S2] XLSX export
 **Epic:** Results Table & Export

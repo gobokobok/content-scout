@@ -48,7 +48,7 @@ Full story definitions live in `BACKLOG.md`.
 
 | Story | Title | Status |
 |---|---|---|
-| E5-S1 | Results table | backlog |
+| E5-S1 | Results table | done |
 | E5-S2 | XLSX export | backlog |
 | E6-S1 | Shortlist | backlog |
 

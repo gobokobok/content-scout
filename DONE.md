@@ -9,6 +9,22 @@ Completed stories land here, newest first. Format:
 
 ---
 
+## [E5-S1] Results table — 2026-07-18
+**Completed:** 2026-07-18
+**Handover:**
+- `GET /runs/{run_id}/items?sort=&order=&page=` — server-side sorted, paginated endpoint (`backend/src/api/items.py`); 11 sortable fields, PAGE_SIZE=50, NULLs last in both directions
+- `GET /projects/{project_id}/runs` — run list added to `backend/src/api/runs.py`
+- `frontend/components/results-table.tsx` — TanStack Table v8 headless component; sticky account column + sticky header; horizontal scroll container (D16 mobile compliance)
+- `frontend/app/(app)/projects/[id]/results/page.tsx` — full results page: run selector, sort/order state, pagination, "Запустить анализ" button
+- `frontend/lib/api.ts` — `listRuns`, `listRunItems`, `ContentItemResponse`, `ItemSortField` added
+- `frontend/package.json` — `@tanstack/react-table@^8.21.3` added (pre-approved in `docs/TECH_STACK.md`)
+- Carousel/post views render as null in API → "—" in UI; sort treats as NULLs last via `.nulls_last()`
+**Smoke test:** PASSED — Opened DEV results tab at `https://web-dev-99e3.up.railway.app/projects/082ae7c5-c40f-432d-80b0-c8b06a7ca015/results`; table rendered 7 content items with correct columns; clicked "Дата публикации" header — rows re-sorted newest-first with ▼ indicator; carousel row showed "—" for views; run selector showed 2 completed runs; "Запустить анализ" button present.
+**Promoted to backlog:**
+- None
+
+---
+
 ## [E4-S2] Summarization in the run pipeline — 2026-07-18
 **Completed:** 2026-07-18
 **Handover:**
