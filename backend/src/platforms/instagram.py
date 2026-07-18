@@ -59,8 +59,18 @@ class InstagramPlatform:
         )
         if run is None:
             raise ApifyRunFailedError(f"Apify actor run for @{account.handle} returned no run")
+
         page = await self._client.dataset(run.default_dataset_id).list_items()
-        return [_normalize(item) for item in page.items]
+        # The actor emits an {"error": ...} placeholder instead of a post when a profile is
+        # private/deleted/blocked — treat that as a fetch failure (caught per-account by the
+        # worker), never as a real content item.
+        valid_items = [item for item in page.items if "error" not in item]
+        error_items = [item for item in page.items if "error" in item]
+        if error_items and not valid_items:
+            reason = error_items[0].get("errorDescription") or error_items[0]["error"]
+            raise ApifyRunFailedError(f"@{account.handle}: {reason}")
+
+        return [_normalize(item) for item in valid_items]
 
 
 def _normalize(item: dict[str, Any]) -> RawContentItem:

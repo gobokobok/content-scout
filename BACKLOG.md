@@ -311,7 +311,7 @@ Real IG scraping: the worker fetches each account's content for the window via A
 - [x] Apify client wrapped with timeout + retry; integration test against recorded fixture (no live Apify in CI)
 ### Definition of Done
 - [x] All AC checked
-- [x] Tests written and passing (10 new tests: instagram platform normalization/retry, worker per-account-failure + usage-event; CI is the authoritative gate — no local Postgres in this sandbox)
+- [x] Tests written and passing (11 new tests: instagram platform normalization/retry/error-placeholder, worker per-account-failure + usage-event; CI is the authoritative gate — no local Postgres in this sandbox)
 - [x] CI green, deployed to DEV
 - [x] Smoke test passed
 - [x] DONE.md updated
@@ -327,6 +327,7 @@ backend/src/platforms/instagram.py, backend/src/services/metrics.py, backend/tes
 - `apify-client`'s actual installed API differs from the ARCHITECTURE.md sketch I initially assumed: `.actor(id).call()` takes `run_timeout: timedelta` (not `timeout_secs: int`), returns a typed `Run | None` (not a dict — `run.default_dataset_id`, not `run["defaultDatasetId"]`), and `.dataset(id).list_items()` returns a `DatasetItemsPage` object with an `.items: list[dict]` attribute. mypy caught all three mismatches against my first draft before any of this touched CI.
 - `services/metrics.py` exposes SQL expression builders (`days_since_published_expr`, `views_per_day_expr`, `likes_per_day_expr`) per ARCHITECTURE.md's "computed in SQL at read time" — no dedicated unit test here since they need a live query to execute (`func.now()`); E5-S1's results-table tests are the natural place these get exercised against a real DB.
 - `usage_events` (kind=`apify_result`) is written once per account fetch, quantity = items returned, only when the fetch returned ≥1 item (zero results = zero Apify cost, per D12 "written at the moment cost is incurred").
+- **Found during the real DEV smoke test** (not visible in fixture-based CI tests): when `apify/instagram-scraper` can't reach a profile (blocked/rate-limited mid-run — happened live against @natgeo), it doesn't raise — it emits a single dataset item shaped `{"error": "no_items", "errorDescription": "...", "url": <profile url>}` instead of a post. The first version of `_normalize()` treated this as a real (garbage) content item — `external_id` ended up as the profile URL, every metric field null. Fixed in `_fetch_once` to detect `"error"` in the item and raise `ApifyRunFailedError` instead, which the worker's existing per-account failure handling catches — so a blocked profile now correctly marks the account `failed` with the Apify-supplied reason instead of polluting the results with a fake row. Covered by a new test; the one bad row created during the live smoke run was deleted from DEV directly.
 ### Handover
 - `src/platforms/instagram.py:InstagramPlatform` — real Apify scraper; `src/platforms/__init__.py:get_platform()` now branches on `Settings.use_mock_platform` (mock for local/CI by default, real on DEV since `USE_MOCK_PLATFORM=false`). Retries 3× with exponential backoff on any exception, then re-raises — caught per-account by the worker.
 - `src/services/metrics.py` — SQL expression builders for the three derived columns; E5-S1's results query should use these directly rather than recomputing.

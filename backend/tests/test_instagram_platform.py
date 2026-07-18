@@ -91,6 +91,20 @@ async def test_fetch_content_passes_since_and_url() -> None:
     assert run_input["onlyPostsNewerThan"] == "2026-07-10"
 
 
+async def test_fetch_content_treats_error_placeholder_as_failure() -> None:
+    run_result = SimpleNamespace(default_dataset_id="dataset-1")
+    error_item = {
+        "url": "https://instagram.com/blocked",
+        "error": "no_items",
+        "errorDescription": "Empty or private data for provided input",
+    }
+    platform = _platform_with(_FakeActorClient(run_result), _FakeDatasetClient([error_item]))
+
+    with patch("src.platforms.instagram.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(Exception, match="Empty or private data"):
+            await platform.fetch_content(_account(), datetime.now(UTC) - timedelta(days=1))
+
+
 async def test_fetch_content_retries_then_raises() -> None:
     class _AlwaysFailActor:
         def __init__(self) -> None:
