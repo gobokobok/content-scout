@@ -18,6 +18,9 @@ All environment variables. No values here — see `.env.example` for the templat
 | SUMMARY_MODEL | default `claude-haiku-4-5-20251001` | ✔ | ✔ | ✔ |
 | SUMMARY_CONCURRENCY | parallel Claude calls in worker (default 5) | ✔ | ✔ | ✔ |
 | USE_MOCK_PLATFORM | `true` to use fixture scraper (never in PROD) | ✔ | optional | ✘ |
+| TELEGRAM_BOT_TOKEN | Bot token from @BotFather (Sprint 6: E8-S1/S2/S5; api + worker) | ✔ | ✔ | ✔ (separate bot) |
+| TELEGRAM_WEBHOOK_SECRET | Random string (≥32 chars) checked against `X-Telegram-Bot-Api-Secret-Token` on `/telegram/webhook` (api) | ✔ | ✔ | ✔ (distinct) |
+| REGISTRATION_INVITE_CODE | When set, /auth/register requires this code (E7-S4). Empty = open registration | optional | ✔ | ✔ |
 
 ## Frontend
 
@@ -42,3 +45,10 @@ Confirmed set now on `dev` (verified 2026-07-18: `curl <dev-api>/health` → `{"
 3. ~~Create two Railway **project tokens**...~~ — done (as GitHub **Environment** secrets on `DEV`/`PROD`, not plain repo secrets; both `ci.yml`/`cd.yml` jobs now declare `environment:` accordingly).
 4. ~~Pick the Apify IG actor...~~ — done: `apify/instagram-scraper`, set on `dev` during E3-S2 (2026-07-18).
 5. Set `RAILPACK_START_CMD` on `api`/`worker` in the **`production`** environment (see above) — before the first `v*` tag / PROD deploy.
+
+## Human actions required before Sprint 6 (Telegram test launch)
+
+1. Create the DEV bot via @BotFather (`/newbot`, e.g. `content_scout_dev_bot`) and copy the token.
+2. Railway `dev`: set `TELEGRAM_BOT_TOKEN` on **api + worker**; set `TELEGRAM_WEBHOOK_SECRET` (random ≥32 chars) on **api**.
+3. Railway `dev` + `production`: set `REGISTRATION_INVITE_CODE` on **api** (share it with test users).
+4. Nothing else — webhook registration and the bot menu button are configured programmatically by E8-S5 via the Bot API. A separate PROD bot is only needed when Telegram goes to PROD (post-Sprint-6).

@@ -35,13 +35,14 @@ Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f
 
 ## Current sprint and active story
 
-- **Sprint:** 1 (complete) — next: Sprint 2, starting with E2-S1 (see `SPRINT.md`)
+- **Sprint:** 6 — hardening, Claude cost cuts, light-theme redesign (D28), **Telegram test launch without payments** (D27). Sprints 1–5 complete except E7-S2 (in-progress, carried over — close it first). Story order and human prerequisites in `SPRINT.md`; run stories back-to-back autonomously.
 
 ## Hard constraints
 
 - No new dependencies without a `DECISIONS.md` entry.
 - All UI strings go through next-intl; no hardcoded user-facing text. Russian is the only locale for MVP.
-- Every screen must be usable at 375px width (D16): mobile-first Tailwind, no fixed-width layouts; wide tables scroll horizontally inside their own container, never the page.
+- Every screen must be usable at 375px width (D16): mobile-first Tailwind, no fixed-width layouts. From E12-S2 on: tables become cards below 768px; until then wide tables scroll horizontally inside their own container, never the page.
+- Light theme only (D28): no `dark:` classes; all colors via the design tokens in `globals.css`; icons via lucide-react, never emoji.
 - Every external cost (Apify results, Claude tokens) must be recorded as a `usage_events` row at the moment it is incurred — never retrofitted.
 - Platform-specific scraping/metrics code lives behind the `Platform` interface (`backend/src/platforms/`); nothing outside it may import Apify directly.
 - IG photo posts/carousels have no public view counts — views columns render "—", never 0, for those types.

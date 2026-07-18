@@ -33,16 +33,39 @@
 3. Progress state on Результаты tab: status in Russian (В очереди / Сбор данных 4/12 / Создание описаний 80/120) with progress bar, polling every 2s
 4. Failure → red banner with error_message and «Повторить»
 
-## Responsive / mobile (D16)
+## Responsive / mobile (D16, updated by D28)
 
 - Mobile-first Tailwind: base styles target 375px, `md:`/`lg:` add desktop layout. No fixed pixel widths on layout containers.
-- Every screen must be **usable** (not just rendered) at 375px: tap targets ≥44px, forms full-width, dialogs become full-screen sheets on mobile.
-- Project tabs (Конкуренты / Результаты / Шорт-лист / История) collapse to a horizontally scrollable tab bar on mobile.
-- **Tables (results, shortlist, history):** MVP behavior on small screens is horizontal scroll *inside the table container* (page never scrolls sideways) with a sticky first column (Аккаунт) and sticky header. Post-MVP polish: card layout per row on mobile (title + summary + key metrics), tracked as its own backlog story.
-- Run dialog, progress bar, and «Экспорт в Excel» / «Запустить анализ» actions must all work on mobile.
-- Definition of done for any UI story includes a check at 375px viewport (dev tools or browser preview `resize_window` mobile preset).
+- Every screen must be **usable** (not just rendered) at 375px: tap targets ≥44px, forms full-width, dialogs become bottom sheets on mobile.
+- **Navigation on mobile:** bottom tab bar (Результаты / Конкуренты / Шортлист / История inside a project), `env(safe-area-inset-bottom)` respected — this is the Telegram-Mini-App-native pattern (D17). Desktop keeps top tabs.
+- **Tables (results, shortlist, history):** below `md` (768px) rows render as **cards** (cover placeholder, @handle, one-line summary, metric chips with «просм./день» highlighted); the dense table is the ≥`md` experience with sticky header + sticky first column. Sorting on mobile via a sort chip + bottom sheet. (E12-S2; supersedes the old horizontal-scroll-only rule.)
+- No hover-only affordances anywhere — everything must work by tap.
+- Definition of done for any UI story includes a check at 375px viewport (browser preview `resize_window` mobile preset).
 
-## Visual style
-- Tailwind; clean SaaS dashboard, light theme for MVP. Dense-but-readable data table (the table IS the product).
-- Loading: skeleton rows. Empty states with a next-action hint («Добавьте аккаунты конкурентов, чтобы запустить первый анализ»).
-- Follow the frontend-design skill when building screens; avoid generic AI-slop aesthetics.
+## Design system v1 (D28) — light only
+
+Dark mode is **removed** (no `dark:` classes). Tokens live in `globals.css` (`@theme`); components never hardcode hex.
+
+**Palette**
+| Token | Value | Use |
+|---|---|---|
+| bg | `#F6F7F9` | page background (never pure white pages) |
+| card | `#FFFFFF` | cards, sheets, table surface |
+| ink | `#1A1523` | primary text |
+| secondary | `#6F6E77` | secondary text, labels |
+| border | `#E4E2E9` | hairlines |
+| accent | `#6E56CF` (hover ~`#5D48B8`) | primary buttons, active tab/pill, links |
+| accent-soft | `#EDE9FE` | accent backgrounds (avatars, active chips) |
+| success | `#30A46C` / soft `#E9F9F1` | hero metric chip (просм./день), positive states |
+| warning/star | `#FFB224` | shortlist star, warnings |
+| danger | `#E5484D` | errors, destructive actions |
+
+**Type:** Golos Text (UI/body/data — Cyrillic-first, tabular figures on metric columns) + Unbounded (logo «scout.» and rare display accents), both via `next/font/google`.
+
+**Shape:** cards 14px radius, controls/buttons 12px, chips/pills 999px; hairline borders, soft elevation only where needed (bottom sheets).
+
+**Icons:** `lucide-react` only — never emoji/unicode glyphs as UI.
+
+**States:** skeleton loaders (never «Загрузка…» text), toasts for transient errors, designed empty states with a next-action hint («Добавьте аккаунты конкурентов, чтобы запустить первый анализ»).
+
+Follow the frontend-design skill when building screens; avoid generic AI-slop aesthetics. The approved visual direction (mockup from the 2026-07-18 review): white cards on `#F6F7F9`, violet pill tabs, metric chips, bottom nav.

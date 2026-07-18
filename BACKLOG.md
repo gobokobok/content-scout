@@ -12,8 +12,9 @@ Epics:
 - **E9 Public API & Engine Integration** — API tokens, webhooks for downstream content-generation products (see docs/ARCHITECTURE.md § Public API, D21)
 - **E10 Content Generation** — scripts + assets from shortlist items, typed пост/карусель/reels (D23), parallel jobs, review & edit, download delivery
 - **E11 Instagram Connection, Publishing & Analytics** — blogger connects own IG account (Graph API, D24), publish/schedule generated content, own-account analytics
+- **E12 UI/UX Modernization** — light design system v1 (D28), mobile card layouts, bottom navigation, UX states; doubles as Telegram Mini App readiness
 
-Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, mobile card layout for tables (MVP ships responsive with horizontal-scroll tables per D16), RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled).
+Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled). Mobile card layout for tables is now scheduled (E12-S2, Sprint 6 — supersedes the horizontal-scroll-only clause of D16 per D28).
 
 ---
 
@@ -425,6 +426,37 @@ backend/src/worker.py, backend/src/api/runs.py, backend/src/models/analysis_run.
 ### Handover
 —
 
+## [E3-S6] Worker resilience and parallel scraping
+**Epic:** Analysis Pipeline
+**Sprint:** 6
+**Status:** backlog
+**Priority:** critical
+**Depends on:** E4-S2
+### Goal
+Runs of any size complete reliably. Today arq's default 300s `job_timeout` kills any run longer than 5 minutes (sequential scraping means >~5 accounts), and the resulting `CancelledError` escapes `process_run`'s `except Exception` boundary, leaving the run stuck in «scraping» forever. Found in the 2026-07-18 architecture review — this must land before any real test user runs a full list.
+### Acceptance Criteria
+- [ ] `WorkerSettings.job_timeout` set from config (`worker_job_timeout_secs`, default 3600)
+- [ ] `process_run` handles `asyncio.CancelledError` (it is a `BaseException` — the current `except Exception` misses it): mark the run `failed` with «Превышено время выполнения», commit, then re-raise
+- [ ] Accounts scrape concurrently under a semaphore (`scrape_concurrency`, default 5). Fetch tasks only call the platform and return raw items; all DB writes stay in the parent task on the single session (AsyncSession is not task-safe)
+- [ ] Unique index on `content_items (run_id, external_id)` + idempotent insert (ON CONFLICT DO NOTHING), so a re-delivered arq job cannot duplicate items; Alembic migration included
+- [ ] Summarizer reuses one `AsyncAnthropic` client and one `httpx.AsyncClient` per run (currently recreated per batch / per image fetch)
+- [ ] Unit tests: cancellation marks the run failed; parallel scrape produces the same rows as sequential; duplicate insert is a no-op
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+DEV run with 8+ accounts completes well past the 5-minute mark; wall time reflects ~5-way parallelism, not the sequential sum; re-enqueueing the finished run duplicates nothing.
+### Files to read
+CLAUDE.md, backend/src/worker.py, backend/src/services/summarizer.py, backend/src/models/content_item.py
+### Files to create or modify
+backend/src/worker.py, backend/src/config.py, backend/src/services/summarizer.py, backend/src/models/content_item.py (+ migration), backend/tests/test_worker.py
+### Handover
+—
+
 ## [E4-S1] Claude summarization service
 **Epic:** AI Summaries
 **Sprint:** 3
@@ -504,6 +536,36 @@ backend/src/worker.py, backend/src/services/usage.py, backend/tests/test_pipelin
 - `src/api/runs.py:RunOut` gained `progress_summarized`, `total_input_tokens`, `total_output_tokens`.
 - Frontend: `run-dialog.tsx` shows "Обработано публикаций: N / M" during `summarizing` and "Токенов Claude: input / output" once `done`. New `RunDialog` strings in `messages/ru.json`.
 - ENV vars added: none.
+
+## [E4-S3] Claude cost optimization
+**Epic:** AI Summaries
+**Sprint:** 6
+**Status:** backlog
+**Priority:** high
+**Depends on:** E3-S6
+### Goal
+Cut Claude spend per item roughly 4× without quality loss (D29). Image tokens dominate input cost today (a 1024px cover ≈ 1 400 tokens vs ~100–300 for the caption); repeat runs re-summarize identical posts; and background summarization qualifies for the Message Batches API's 50% discount.
+### Acceptance Criteria
+- [ ] Cover images downscaled to **512px** max side before sending (`summary_image_max_side` config; was 1024) — ~4× fewer image tokens
+- [ ] Cross-run summary reuse: before summarizing, copy the summary from the most recent prior `content_item` with the same `external_id` within the same project; reused items generate no Claude call and no usage_events
+- [ ] `summary_skip_image_caption_chars` (default 200): items whose caption is longer are summarized text-only (image adds little when the caption already says what the post is)
+- [ ] Message Batches API used when pending items ≥ `summary_batch_threshold` (default 20): worker submits one batch, polls status, maps per-item results and usage back onto items and usage_events; falls back to the existing concurrent path below threshold or on batch failure
+- [ ] Unit tests: reuse lookup, skip-image rule, batch-result → summary/usage_events mapping (Batch API mocked)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run the same DEV project twice back-to-back: the second run's Claude token usage is a small fraction of the first (reuse working); summaries remain correct Russian 1–2-sentence descriptions.
+### Files to read
+CLAUDE.md, DECISIONS.md (D29), backend/src/services/summarizer.py, backend/src/worker.py, docs/PROMPTS.md
+### Files to create or modify
+backend/src/services/summarizer.py, backend/src/config.py, backend/src/worker.py, backend/tests/test_summarizer.py
+### Handover
+—
 
 ## [E5-S1] Results table
 **Epic:** Results Table & Export
@@ -741,11 +803,43 @@ backend/src/middleware/rate_limit.py, backend/src/middleware/security_headers.py
 ### Handover
 —
 
+## [E7-S4] Pilot security guardrails
+**Epic:** Usage Metering & Admin
+**Sprint:** 6
+**Status:** backlog
+**Priority:** critical
+**Depends on:** E1-S3
+### Goal
+While registration is public and billing does not exist yet, a stranger who finds the URL can register and spend real Apify/Claude money with unlimited runs — and a repeat of the env-var wipe incident could silently downgrade prod to the default JWT secret. Close the pilot-stage gaps now; the full public-launch hardening (CSP/HSTS, backups drill, dependency audits) stays in E7-S3.
+### Acceptance Criteria
+- [ ] Registration requires an invite code when `REGISTRATION_INVITE_CODE` is set (compared constant-time; Russian error message; field on the register page shown only when required — a `GET /auth/register/config` or equivalent flag). Set on DEV and PROD immediately
+- [ ] Per-user run quota: `max_runs_per_user_per_day` (default 10) enforced in run creation with a Russian message naming the limit
+- [ ] Rate limiting on `/auth/login` and `/auth/register` (default 10/min per IP), hand-rolled on the existing Redis — no new dependency; Russian 429 message
+- [ ] Boot check: when `environment != "local"`, startup fails loudly if `jwt_secret` equals the insecure default (guards against a repeat of the 2026-07-18 variable-wipe incident)
+- [ ] XLSX export: text cells starting with `=`, `+`, `-`, `@` are prefixed with `'` (formula-injection guard — captions are attacker-controlled input)
+- [ ] Baseline security headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` on api and web; CSP `frame-ancestors` on web allowing only Telegram webview origins (`https://web.telegram.org` + Telegram apps) and self — the Mini App (E8-S5) must stay embeddable, everyone else must not embed us
+- [ ] Login timing: dummy bcrypt verify on the user-not-found path (closes the account-enumeration timing oracle)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV: register without the invite code fails with a Russian message; the 11th run in a day is blocked; hammering login returns 429; export a run whose caption starts with `=HYPERLINK(` — the cell is inert text in Excel.
+### Files to read
+CLAUDE.md, backend/src/api/auth.py, backend/src/api/runs.py, backend/src/services/xlsx_export.py, backend/src/config.py
+### Files to create or modify
+backend/src/config.py, backend/src/api/auth.py, backend/src/api/runs.py, backend/src/middleware/rate_limit.py, backend/src/services/xlsx_export.py, backend/src/main.py, backend/tests/test_guardrails.py, frontend/next.config.ts, frontend/app/(auth)/register/page.tsx, frontend/messages/ru.json, ENV.md
+### Handover
+—
+
 ## [E8-S1] Telegram Login
 **Epic:** Telegram Integration & Monetization
-**Sprint:** unassigned
+**Sprint:** 6
 **Status:** backlog
-**Priority:** medium
+**Priority:** high
 **Depends on:** E1-S3
 ### Goal
 Users can log in via Telegram (Login Widget on web), as a second `AuthProvider` alongside email+password, ahead of VK ID in priority (D18).
@@ -772,7 +866,7 @@ backend/src/auth/telegram.py, backend/tests/test_telegram_auth.py, frontend/app/
 
 ## [E8-S2] Telegram bot notifications
 **Epic:** Telegram Integration & Monetization
-**Sprint:** unassigned
+**Sprint:** 6 (stretch — do last, skip if the sprint runs long)
 **Status:** backlog
 **Priority:** medium
 **Depends on:** E8-S1, E3-S1
@@ -799,16 +893,15 @@ backend/src/services/telegram_notify.py, backend/src/worker.py, backend/tests/te
 ### Handover
 —
 
-## [E8-S3] Telegram Mini App + Stars subscriptions
+## [E8-S3] Telegram Stars subscriptions
 **Epic:** Telegram Integration & Monetization
-**Sprint:** unassigned
+**Sprint:** unassigned (post-Sprint-6 — D27: no payments until the Telegram test launch has run with real test users)
 **Status:** backlog
 **Priority:** high
-**Depends on:** E8-S1, E7-S1
+**Depends on:** E8-S5, E7-S1
 ### Goal
-The existing responsive frontend runs as a Telegram Mini App with `initData` auth, and users can subscribe to a usage plan paid in Telegram Stars.
+Users subscribe to a usage plan paid in Telegram Stars inside the Mini App. The Mini App shell itself (initData auth, bot entry point) ships earlier in E8-S5 — this story is billing only.
 ### Acceptance Criteria
-- [ ] Frontend loads inside Telegram via the Web App SDK; `initData` verified server-side and exchanged for the same JWT used elsewhere (extends `TelegramAuthProvider`, no login form shown inside Telegram)
 - [ ] Subscription plans grant token balances per D26 (initial: $5 → 500 токенов / X=10, $20 / X=7, $100 / X=5; plans + X-factors in pricing config, adjustable without code changes); `POST` flow creates a Telegram Stars invoice for a plan or a one-off top-up, confirmed via Bot API payment webhook
 - [ ] Credit ledger: each completed run/script debits `ceil(internal_cost_usd × X ÷ 0.01)` tokens, recorded per operation; «Использование» shows balance + itemized per-run/per-script token consumption («анализ от 12.08 — 100 токенов»)
 - [ ] X-factors, internal USD costs, and unit prices appear in **no** API response or UI string (test asserts this on the usage/billing endpoints); user-facing world is tokens only
@@ -857,6 +950,37 @@ Share an IG profile link to the DEV bot from a phone — pick a project via butt
 CLAUDE.md, backend/src/services/telegram_notify.py, backend/src/services/url_normalizer.py, backend/src/api/accounts.py
 ### Files to create or modify
 backend/src/services/telegram_bot.py (webhook handler), backend/src/api/telegram_webhook.py, backend/tests/test_telegram_bot.py
+### Handover
+—
+
+## [E8-S5] Telegram Mini App shell (no billing)
+**Epic:** Telegram Integration & Monetization
+**Sprint:** 6
+**Status:** backlog
+**Priority:** critical
+**Depends on:** E8-S1, E12-S2
+### Goal
+The app opens inside Telegram from the bot with zero login friction, so it can be shared with test users by bot handle (D27). This is the Sprint 6 exit criterion. Payments are explicitly out of scope (they stay in E8-S3, post-Sprint-6) — hard constraint: no billing/Stars code in this story.
+### Acceptance Criteria
+- [ ] Minimal bot webhook on the api service (`POST /telegram/webhook`, validated via `X-Telegram-Bot-Api-Secret-Token` against `TELEGRAM_WEBHOOK_SECRET`): `/start` replies in Russian with an inline «Открыть content-scout» `web_app` button pointing at the web URL. Webhook + chat menu button (`setChatMenuButton`) registered via Bot API from a small idempotent setup path — no BotFather steps needed beyond bot creation
+- [ ] Bot API called with plain `httpx` (no bot-framework dependency, D27)
+- [ ] Frontend detects Telegram context (`window.Telegram.WebApp` with non-empty `initData`), sends `initData` to `POST /auth/telegram/webapp`; backend verifies the HMAC per Telegram Web App spec (secret key = HMAC-SHA256 of bot token with "WebAppData", `auth_date` ≤ 24h old) and returns the standard JWT; first open auto-creates user + personal workspace via `TelegramAuthProvider` (E8-S1)
+- [ ] Inside Telegram: no login/register forms ever shown, logout hidden, `Telegram.WebApp.ready()` + `expand()` called; bottom navigation (E12-S2) and safe-area behave correctly in the webview
+- [ ] Outside Telegram the web app behaves exactly as before (auth flow untouched)
+- [ ] Works on DEV over the public Railway HTTPS URL
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+From a phone: open the DEV bot, tap «Открыть content-scout» — the Mini App opens already authenticated, workspace auto-created; full flow (create project → add competitors → run → browse card results → shortlist) works inside Telegram. Repeat from a second Telegram account to confirm it is shareable.
+### Files to read
+CLAUDE.md, DECISIONS.md (D17, D27), docs/ARCHITECTURE.md (Telegram Mini App section), backend/src/auth/telegram.py, frontend/lib/auth-context.tsx
+### Files to create or modify
+backend/src/api/telegram_webhook.py, backend/src/auth/telegram.py, backend/src/config.py, backend/src/main.py, backend/tests/test_telegram_webapp.py, frontend/lib/telegram-webapp.ts, frontend/lib/auth-context.tsx, frontend/app/layout.tsx, frontend/messages/ru.json, ENV.md
 ### Handover
 —
 
@@ -1085,5 +1209,67 @@ Connected DEV account shows follower count history and per-post reach after the 
 CLAUDE.md, docs/IG_PUBLISHING.md, backend/src/services/ig_publisher.py, docs/UI_GUIDELINES.md
 ### Files to create or modify
 backend/src/services/ig_insights.py, backend/src/models/account_metric.py (+ migration), backend/src/api/analytics.py, backend/tests/test_ig_insights.py, frontend/app/(app)/projects/[id]/analytics/**, frontend/messages/ru.json
+### Handover
+—
+
+## [E12-S1] Design system re-skin (light theme v1)
+**Epic:** UI/UX Modernization
+**Sprint:** 6
+**Status:** backlog
+**Priority:** high
+**Depends on:** E6-S2
+### Goal
+The product stops looking like a wireframe: the light design system approved in the 2026-07-18 UI review (D28) — violet accent, tinted background with white cards, Cyrillic-first fonts, real icons — is applied to every existing screen. Dark mode is removed entirely.
+### Acceptance Criteria
+- [ ] Design tokens defined once in `globals.css` (Tailwind v4 `@theme`): background `#F6F7F9`, card `#FFFFFF`, ink `#1A1523`, secondary text `#6F6E77`, accent `#6E56CF` (hover ~`#5D48B8`), accent-soft `#EDE9FE`, success `#30A46C` (soft `#E9F9F1`), star/warning `#FFB224`, danger `#E5484D`, hairline border `#E4E2E9`; radius: cards 14px, controls 12px, chips 999px. All components consume tokens — no ad-hoc hex in components
+- [ ] Fonts via `next/font/google`: **Golos Text** (UI + data, tabular figures for metric columns), **Unbounded** (logo/display accents only); zero layout shift
+- [ ] `lucide-react` replaces every emoji/unicode glyph used as an icon (⊞ ★ ☆ ✕ ▲ ▼ 🎬 🖼️) — D28 dependency entry
+- [ ] Shared primitives in `frontend/components/ui/`: Button (primary/secondary/ghost), Card, Input, Badge/Chip, Tabs — all screens use them; no raw one-off button/input styling left
+- [ ] Dark mode removed: every `dark:` class deleted, `<html>`/body backgrounds set to the light tokens; visual QA in a dark-OS-theme browser confirms the app stays light
+- [ ] All existing screens re-skinned (login/register, projects home, project tabs: competitors/results/shortlist/history, usage, admin, run dialog); no layout regressions at 375px and 1280px, verified in the browser
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Click through every screen on DEV at 375px and desktop: violet accent, white cards on the tinted background, Golos Text everywhere, Unbounded logo, no emoji icons, no dark surfaces regardless of OS theme.
+### Files to read
+CLAUDE.md, DECISIONS.md (D28), docs/UI_GUIDELINES.md, frontend/app/globals.css, frontend/app/layout.tsx
+### Files to create or modify
+frontend/app/globals.css, frontend/app/layout.tsx, frontend/components/ui/** (new), frontend/components/results-table.tsx, all files under frontend/app/(auth)/** and frontend/app/(app)/**, frontend/package.json (lucide-react), frontend/messages/ru.json
+### Handover
+—
+
+## [E12-S2] Mobile cards, bottom navigation, UX states
+**Epic:** UI/UX Modernization
+**Sprint:** 6
+**Status:** backlog
+**Priority:** high
+**Depends on:** E12-S1
+### Goal
+The phone (and Telegram webview) experience feels like an app, not a shrunken dashboard: results become cards, navigation moves to a bottom tab bar, and loading/empty/error states are designed. This story is the Mini App's UX foundation (E8-S5 depends on it).
+### Acceptance Criteria
+- [ ] Results and shortlist render as **cards** below `md` (768px): cover thumbnail placeholder by type, @handle, one-line summary, metric chips with «просм./день» as the highlighted hero metric (soft-green chip), type chip, star toggle. The existing table is unchanged at ≥ `md`
+- [ ] Sorting on mobile via a sort chip opening a bottom sheet (table headers don't exist in card mode); default sort unchanged
+- [ ] **Bottom tab bar** on mobile inside a project (Результаты / Конкуренты / Шортлист / История) and equivalent app-level nav; ≥44px tap targets; `env(safe-area-inset-bottom)` respected
+- [ ] Skeleton loaders replace every «Загрузка…» text; transient errors surface as toasts (auto-dismiss) instead of persistent inline text; every list screen (projects, competitors, results, shortlist, history) has a designed empty state with an action hint
+- [ ] No hover-only affordances: text expansion works by tapping the cell/card itself (the ⊞-button pattern is gone)
+- [ ] Full flow verified in the browser at 375px: create project → add competitors → run with progress → browse card results → sort → shortlist → history
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Entire product flow at 375px on DEV feels app-like: bottom tabs, cards, skeletons, toasts; desktop table experience unchanged.
+### Files to read
+CLAUDE.md, DECISIONS.md (D28), docs/UI_GUIDELINES.md, frontend/components/results-table.tsx, frontend/app/(app)/projects/[id]/**
+### Files to create or modify
+frontend/components/results-cards.tsx (new), frontend/components/ui/bottom-nav.tsx (new), frontend/components/ui/toast.tsx (new), frontend/components/ui/skeleton.tsx (new), frontend/app/(app)/**, frontend/messages/ru.json
 ### Handover
 —
