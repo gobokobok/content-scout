@@ -125,6 +125,7 @@ async def test_export_xlsx_data_and_hyperlink(session: AsyncSession) -> None:
 async def test_export_404_for_wrong_user(session: AsyncSession) -> None:
     owner, run = await _setup(session)
     other = await make_user(session)
+    await make_workspace(session, owner=other)
     await session.commit()
     async with await client(session) as c:
         resp = await c.get(f"/runs/{run.id}/export.xlsx", headers=auth_headers(other.id))
