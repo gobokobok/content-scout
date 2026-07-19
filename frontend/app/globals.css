@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Lock to light mode — D28: light theme only, no dark: classes */
+:root {
+  color-scheme: light;
+}
+
 @theme {
   --color-bg: #F6F7F9;
   --color-card: #FFFFFF;
