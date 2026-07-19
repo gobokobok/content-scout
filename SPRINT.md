@@ -84,7 +84,7 @@ Full story definitions live in `BACKLOG.md`.
 | 1 | E3-S6 | Worker resilience and parallel scraping (critical bug fix) | done |
 | 2 | E7-S4 | Pilot security guardrails (critical) | done |
 | 3 | E4-S3 | Claude cost optimization | done |
-| 4 | E12-S1 | Design system re-skin (light theme v1) | pending |
+| 4 | E12-S1 | Design system re-skin (light theme v1) | done |
 | 5 | E12-S2 | Mobile cards, bottom navigation, UX states | pending |
 | 6 | E8-S1 | Telegram Login | pending |
 | 7 | E8-S5 | Telegram Mini App shell (no billing) — **sprint exit criterion** | pending |

@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E12-S1] Design system re-skin (light theme v1)
+**Completed:** 2026-07-19
+**Handover:**
+- `globals.css` — full D28 `@theme` palette: `--color-bg/card/ink/secondary/accent/accent-soft/success/warning/danger/border`; `--radius-card/control/chip`; `--font-sans` (Golos Text) / `--font-display` (Unbounded)
+- Root `layout.tsx` — loads Golos Text + Unbounded via `next/font/google`, body has `bg-bg text-ink font-sans`
+- `frontend/components/ui/index.tsx` — Button (4 variants), Card, Input, Textarea, Badge (4 variants)
+- `lucide-react` ^1.25.0 added as frontend dependency (D28); replaces all emoji glyphs across results-table, shortlist, history pages
+- All `dark:` classes eliminated (grep-confirmed zero); all screens: login/register, projects home, project tabs (competitors/results/shortlist/history), run dialog, usage, admin
+- Token classes: `bg-bg`, `bg-card`, `bg-accent`, `text-ink`, `text-secondary`, `text-accent`, `text-danger`, `text-success`, `text-warning`, `border-border`, `rounded-card`, `rounded-control`, `rounded-chip`
+**Smoke test:** DEFERRED — local browser PASSED at 375px + 1280px (violet accent, tinted bg, Golos Text, Unbounded logo, lucide icons, no dark surfaces); DEV deploy pending CI on push to main (https://web-dev-99e3.up.railway.app)
+**Promoted to backlog:** none
+
 ## [E4-S3] Claude cost optimization — 2026-07-19
 **Handover:**
 - Image resize: `settings.summary_image_max_side` (default 512, was 1024); `_fetch_image_block` accepts optional `settings` param
