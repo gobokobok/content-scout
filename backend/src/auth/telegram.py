@@ -1,7 +1,8 @@
 """Telegram auth provider — Login Widget (E8-S1) and Mini App initData (E8-S5).
 
 Login Widget:  secret = SHA-256(bot_token); hash = HMAC-SHA256(sorted_data, secret)
-Mini App:      secret = HMAC-SHA256("WebAppData", bot_token); hash = HMAC-SHA256(sorted_data, secret)
+Mini App:      secret = HMAC-SHA256("WebAppData", bot_token);
+               hash = HMAC-SHA256(sorted_data, secret)
 """
 import hashlib
 import hmac

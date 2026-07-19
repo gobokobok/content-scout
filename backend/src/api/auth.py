@@ -123,7 +123,12 @@ async def login(body: CredentialsIn, request: Request, session: SessionDep) -> T
 
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser) -> UserOut:
-    return UserOut(id=user.id, email=user.email, is_admin=user.is_admin, has_telegram=user.telegram_id is not None)
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        is_admin=user.is_admin,
+        has_telegram=user.telegram_id is not None,
+    )
 
 
 # ── Telegram Login Widget (E8-S1) ────────────────────────────────────────────
@@ -159,7 +164,10 @@ async def telegram_login(body: TelegramLoginIn, session: SessionDep) -> TokenOut
     if not settings.telegram_bot_token:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "telegram_not_configured", "message_ru": "Вход через Telegram недоступен."},
+            detail={
+                "code": "telegram_not_configured",
+                "message_ru": "Вход через Telegram недоступен.",
+            },
         )
     data = body.model_dump(exclude_none=True)
     data = {k: str(v) for k, v in data.items()}
@@ -185,7 +193,10 @@ async def telegram_webapp(body: TelegramWebAppIn, session: SessionDep) -> TokenO
     if not settings.telegram_bot_token:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "telegram_not_configured", "message_ru": "Вход через Telegram недоступен."},
+            detail={
+                "code": "telegram_not_configured",
+                "message_ru": "Вход через Telegram недоступен.",
+            },
         )
     valid, parsed = verify_webapp_init_data(body.init_data, settings.telegram_bot_token)
     if not valid:
@@ -200,7 +211,10 @@ async def telegram_webapp(body: TelegramWebAppIn, session: SessionDep) -> TokenO
     except (KeyError, ValueError, json.JSONDecodeError):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "telegram_no_user", "message_ru": "Не удалось получить данные пользователя Telegram."},
+            detail={
+                "code": "telegram_no_user",
+                "message_ru": "Не удалось получить данные пользователя Telegram.",
+            },
         )
     user = await find_or_create_telegram_user(session, telegram_id)
     await session.commit()
@@ -217,7 +231,10 @@ async def telegram_link(
     if not settings.telegram_bot_token:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "telegram_not_configured", "message_ru": "Вход через Telegram недоступен."},
+            detail={
+                "code": "telegram_not_configured",
+                "message_ru": "Вход через Telegram недоступен.",
+            },
         )
     data = {k: str(v) for k, v in body.model_dump(exclude_none=True).items()}
     if not verify_login_widget(data, settings.telegram_bot_token):
@@ -227,4 +244,9 @@ async def telegram_link(
         )
     user.telegram_id = body.id
     await session.commit()
-    return UserOut(id=user.id, email=user.email, is_admin=user.is_admin, has_telegram=user.telegram_id is not None)
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        is_admin=user.is_admin,
+        has_telegram=user.telegram_id is not None,
+    )

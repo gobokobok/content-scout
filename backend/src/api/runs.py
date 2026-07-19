@@ -33,7 +33,9 @@ NO_ACCOUNTS = HTTPException(
     status_code=status.HTTP_400_BAD_REQUEST,
     detail={
         "code": "no_accounts_to_analyze",
-        "message_ru": "Нет аккаунтов для анализа. Добавьте конкурентов на вкладке «Конкуренты».",
+        "message_ru": (
+            "Нет аккаунтов для анализа. Добавьте конкурентов на вкладке «Конкуренты»."
+        ),
     },
 )
 
@@ -104,7 +106,9 @@ async def _check_run_quota(session: AsyncSession, user_id: uuid.UUID) -> None:
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "code": "run_quota_exceeded",
-                "message_ru": f"Достигнут лимит запусков: {settings.max_runs_per_user_per_day} в день.",
+                "message_ru": (
+                    f"Достигнут лимит запусков: {settings.max_runs_per_user_per_day} в день."
+                ),
             },
         )
 
