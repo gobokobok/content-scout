@@ -18,7 +18,7 @@ import { SkeletonRows, SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
 
-const DEFAULT_SORT: ItemSortField = "views_per_day";
+const DEFAULT_SORT: ItemSortField = "likes_per_day";
 
 function formatRunLabel(run: RunResponse): string {
   const date = new Date(run.created_at).toLocaleString("ru-RU", {

@@ -63,8 +63,12 @@ class InstagramPlatform:
         page = await self._client.dataset(run.default_dataset_id).list_items()
         # The actor emits an {"error": ...} placeholder instead of a post when a profile is
         # private/deleted/blocked — treat that as a fetch failure (caught per-account by the
-        # worker), never as a real content item.
-        valid_items = [item for item in page.items if "error" not in item]
+        # worker), never as a real content item. Also skip pinned posts: they appear at the top
+        # of the profile regardless of date and can be months/years old.
+        valid_items = [
+            item for item in page.items
+            if "error" not in item and not item.get("isPinned", False)
+        ]
         error_items = [item for item in page.items if "error" in item]
         if error_items and not valid_items:
             reason = error_items[0].get("errorDescription") or error_items[0]["error"]

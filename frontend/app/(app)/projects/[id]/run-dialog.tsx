@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiError, type EstimateResponse, type RunResponse } from "@/lib/api";
+import { api, ApiError, type RunResponse } from "@/lib/api";
 
 const POLL_INTERVAL_MS = 2000;
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
@@ -20,7 +20,6 @@ export function RunDialog({
 }) {
   const t = useTranslations("RunDialog");
   const [duration, setDuration] = useState(3);
-  const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [run, setRun] = useState<RunResponse | null>(null);
   const [starting, setStarting] = useState(false);
@@ -38,16 +37,6 @@ export function RunDialog({
     document.addEventListener("keydown", handle);
     return () => document.removeEventListener("keydown", handle);
   });
-
-  useEffect(() => {
-    let cancelled = false;
-    setEstimate(null);
-    api
-      .estimateRun(projectId, { duration_days: duration, account_ids: accountIds })
-      .then((e) => { if (!cancelled) setEstimate(e); })
-      .catch((err) => { if (cancelled) return; setError(err instanceof ApiError ? err.messageRu : t("genericError")); });
-    return () => { cancelled = true; };
-  }, [projectId, duration, accountIds, t]);
 
   useEffect(() => {
     if (!run || run.status === "done" || run.status === "failed") {
@@ -139,13 +128,6 @@ export function RunDialog({
                 {t("tokenInfo")}
               </p>
 
-              {/* Apify units estimate */}
-              {estimate ? (
-                <p className="text-sm text-secondary">{t("estimateApify", { units: estimate.apify_units })}</p>
-              ) : (
-                <p className="text-sm text-secondary">{t("estimateLoading")}</p>
-              )}
-
               {error && <p className="text-sm text-danger">{error}</p>}
 
               <div className="flex gap-2">
@@ -157,7 +139,7 @@ export function RunDialog({
                 </button>
                 <button
                   onClick={() => void onConfirm()}
-                  disabled={starting || !estimate}
+                  disabled={starting}
                   className="flex-1 rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
                 >
                   {starting ? t("starting") : t("confirmButton")}

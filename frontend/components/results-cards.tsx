@@ -59,7 +59,6 @@ function SortBottomSheet({
   const t = useTranslations("ResultsCards");
 
   const fields: { field: ItemSortField; label: string }[] = [
-    { field: "views_per_day", label: t("sortViewsPerDay") },
     { field: "likes_per_day", label: t("sortLikesPerDay") },
     { field: "likes", label: t("sortLikes") },
     { field: "published_at", label: t("sortPublishedAt") },
@@ -277,7 +276,6 @@ export function ResultsCards({
   };
 
   const SORT_LABELS: Partial<Record<ItemSortField, string>> = {
-    views_per_day: t("sortViewsPerDay"),
     likes_per_day: t("sortLikesPerDay"),
     likes: t("sortLikes"),
     published_at: t("sortPublishedAt"),

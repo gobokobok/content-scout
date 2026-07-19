@@ -89,10 +89,6 @@
     "title": "Новый анализ",
     "durationLabel": "Период анализа (дней)",
     "accountsLabel": "Аккаунтов: {count}",
-    "estimateLoading": "Расчёт стоимости…",
-    "estimateApify": "Единиц Apify: {units}",
-    "estimateTokens": "Токенов Claude: {input} / {output}",
-    "estimateCost": "Ориентировочная стоимость: ${cost}",
     "tokenInfo": "Каждая публикация потребляет 1 токен. Если баланс закончится во время запуска — анализ остановится и покажет уже найденные результаты.",
     "confirmButton": "Подтвердить и запустить",
     "starting": "Запуск…",
@@ -230,7 +226,6 @@
     "genericError": "Произошла ошибка. Попробуйте ещё раз."
   },
   "ResultsCards": {
-    "sortViewsPerDay": "Просмотров/день",
     "sortLikesPerDay": "Лайков/день",
     "sortLikes": "Лайки",
     "sortPublishedAt": "Дата публикации",
