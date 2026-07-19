@@ -1,4 +1,3 @@
-import hmac
 import json
 import re
 import uuid
@@ -43,8 +42,6 @@ class CredentialsIn(BaseModel):
 
 
 class RegisterIn(CredentialsIn):
-    invite_code: str | None = None
-
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
@@ -66,30 +63,9 @@ class UserOut(BaseModel):
     token_balance: int = 0
 
 
-class RegisterConfigOut(BaseModel):
-    require_invite: bool
-
-
-@router.get("/register/config", response_model=RegisterConfigOut)
-async def register_config() -> RegisterConfigOut:
-    return RegisterConfigOut(require_invite=bool(get_settings().registration_invite_code))
-
-
 @router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterIn, request: Request, session: SessionDep) -> TokenOut:
     await check_rate_limit(request)
-
-    settings = get_settings()
-    if settings.registration_invite_code:
-        provided = (body.invite_code or "").strip()
-        if not hmac.compare_digest(provided, settings.registration_invite_code):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "code": "invalid_invite_code",
-                    "message_ru": "Неверный код приглашения.",
-                },
-            )
 
     try:
         user = await email_password_provider.register(

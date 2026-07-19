@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 const MIN_PASSWORD_LEN = 8;
@@ -15,14 +15,8 @@ export default function RegisterPage() {
   const { register } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [requireInvite, setRequireInvite] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    api.getRegisterConfig().then(({ require_invite }) => setRequireInvite(require_invite));
-  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,7 +27,7 @@ export default function RegisterPage() {
     }
     setSubmitting(true);
     try {
-      await register(email, password, requireInvite ? inviteCode : undefined);
+      await register(email, password);
       router.push("/");
     } catch (err) {
       setError(err instanceof ApiError ? err.messageRu : t("genericError"));
@@ -69,20 +63,6 @@ export default function RegisterPage() {
             className="rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         </label>
-        {requireInvite && (
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-secondary">{t("inviteCodeLabel")}</span>
-            <input
-              type="text"
-              required
-              autoComplete="off"
-              placeholder={t("inviteCodePlaceholder")}
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              className="rounded-control border border-border bg-card px-3 py-2 text-base text-ink placeholder:text-secondary focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-          </label>
-        )}
         {error && <p className="text-sm text-danger">{error}</p>}
         <button
           type="submit"

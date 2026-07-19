@@ -23,7 +23,7 @@ async def create_user_with_workspace(
     session: AsyncSession, *, email: str, password_hash: str | None
 ) -> User:
     """User + personal workspace + owner membership, one transaction (D6)."""
-    user = User(email=email.lower(), password_hash=password_hash)
+    user = User(email=email.lower(), password_hash=password_hash, token_balance=50)
     session.add(user)
     await session.flush()
     workspace = Workspace(name="Личное пространство", kind=WorkspaceKind.personal)
