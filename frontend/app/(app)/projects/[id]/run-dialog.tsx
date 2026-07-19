@@ -134,17 +134,14 @@ export function RunDialog({
 
               <p className="text-sm text-secondary">{t("accountsLabel", { count: accountsCount })}</p>
 
-              {/* Cost estimate */}
+              {/* Token info note */}
+              <p className="rounded-card border border-border bg-bg px-3 py-2.5 text-sm text-secondary">
+                {t("tokenInfo")}
+              </p>
+
+              {/* Apify units estimate */}
               {estimate ? (
-                <div className="flex flex-col gap-1.5 rounded-card border border-border bg-bg p-3 text-sm">
-                  <span className="text-ink">{t("estimateApify", { units: estimate.apify_units })}</span>
-                  <span className="text-ink">
-                    {t("estimateTokens", { input: estimate.claude_input_tokens, output: estimate.claude_output_tokens })}
-                  </span>
-                  <span className="font-semibold text-ink">
-                    {t("estimateCost", { cost: estimate.estimated_cost_usd })}
-                  </span>
-                </div>
+                <p className="text-sm text-secondary">{t("estimateApify", { units: estimate.apify_units })}</p>
               ) : (
                 <p className="text-sm text-secondary">{t("estimateLoading")}</p>
               )}
@@ -179,11 +176,6 @@ export function RunDialog({
               ) : (
                 <p className="text-sm text-secondary">
                   {t("progress", { done: run.progress_accounts })}
-                </p>
-              )}
-              {run.status === "done" && (
-                <p className="text-sm text-secondary">
-                  {t("tokenTotals", { input: run.total_input_tokens, output: run.total_output_tokens })}
                 </p>
               )}
               {run.status === "failed" && run.error_message && (
