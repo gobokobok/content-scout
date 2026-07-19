@@ -112,6 +112,7 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
                 batch,
                 user_id=run.requested_by,
                 run_id=run.id,
+                project_id=run.project_id,
                 client=anthropic_client,
                 http_client=http_client,
             )

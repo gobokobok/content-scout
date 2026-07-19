@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     summary_model: str = "claude-haiku-4-5-20251001"
     summary_concurrency: int = 5
+    summary_image_max_side: int = 512
+    summary_skip_image_caption_chars: int = 200
+    summary_batch_threshold: int = 20
 
     # E3-S1: mock platform only (InstagramPlatform lands in E3-S2). Estimate constants are
     # provisional and config-driven so real Apify/Claude pricing can be dropped in without a

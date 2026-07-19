@@ -25,7 +25,7 @@ All Claude prompts live here. Change prompts here first, then mirror in code (`b
 
 Fallbacks: no caption → summarize from image alone; no image → from caption alone; neither → skip the call, store «Описание недоступно».
 
-Parameters: max_tokens=150, temperature=0.2. Cover image resized to ≤1024px longest side before sending.
+Parameters: max_tokens=150, temperature=0.2. Cover image resized to ≤512px longest side before sending (`summary_image_max_side` config). Image skipped entirely when caption > `summary_skip_image_caption_chars` (default 200) chars.
 
 ## Script generation (post-MVP, placeholder)
 

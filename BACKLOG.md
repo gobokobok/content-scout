@@ -554,7 +554,7 @@ backend/src/worker.py, backend/src/services/usage.py, backend/tests/test_pipelin
 ## [E4-S3] Claude cost optimization
 **Epic:** AI Summaries
 **Sprint:** 6
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E3-S6
 ### Goal
