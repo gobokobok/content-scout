@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { FolderOpen, MoreVertical } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiError, type ProjectResponse } from "@/lib/api";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 
 type Tab = "active" | "archived";
 
@@ -119,31 +120,37 @@ export default function WorkspaceHomePage() {
         ))}
       </div>
 
-      {creating && (
-        <form onSubmit={onCreate} className="flex flex-wrap items-center gap-2">
+      <BottomSheet
+        open={creating}
+        onClose={() => { setCreating(false); setNewName(""); }}
+        title={t("createSheetTitle")}
+      >
+        <form onSubmit={onCreate} className="flex flex-col gap-3 px-4 pb-4">
           <input
             autoFocus
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder={t("namePlaceholder")}
-            className="min-w-0 flex-1 rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
+            className="w-full rounded-control border border-border bg-bg px-3 py-3 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-control bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {t("createSubmit")}
-          </button>
-          <button
-            type="button"
-            onClick={() => { setCreating(false); setNewName(""); }}
-            className="rounded-control border border-border px-3 py-2 text-sm text-ink hover:bg-bg"
-          >
-            {t("createCancel")}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 rounded-control bg-accent py-3 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {t("createSubmit")}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setCreating(false); setNewName(""); }}
+              className="flex-1 rounded-control border border-border py-3 text-sm text-ink hover:bg-bg"
+            >
+              {t("createCancel")}
+            </button>
+          </div>
         </form>
-      )}
+      </BottomSheet>
 
       {/* Loading skeleton */}
       {projects === null && <SkeletonRows count={3} />}
@@ -235,13 +242,13 @@ export default function WorkspaceHomePage() {
                   setRenamingId(menuProject.id);
                   setRenameValue(menuProject.name);
                 }}
-                className="px-4 py-2.5 text-left text-sm text-ink hover:bg-bg transition-colors"
+                className="px-4 py-3.5 text-left text-base text-ink hover:bg-bg transition-colors"
               >
                 {t("rename")}
               </button>
               <button
                 onClick={() => menuProject && void onArchive(menuProject.id)}
-                className="px-4 py-2.5 text-left text-sm text-danger hover:bg-bg transition-colors"
+                className="px-4 py-3.5 text-left text-base text-danger hover:bg-bg transition-colors"
               >
                 {t("archive")}
               </button>
@@ -250,7 +257,7 @@ export default function WorkspaceHomePage() {
           {tab === "archived" && (
             <button
               onClick={() => menuProject && void onUnarchive(menuProject.id)}
-              className="px-4 py-2.5 text-left text-sm text-ink hover:bg-bg transition-colors"
+              className="px-4 py-3.5 text-left text-base text-ink hover:bg-bg transition-colors"
             >
               {t("unarchive")}
             </button>

@@ -5,6 +5,23 @@ import { Film, ImageIcon, Images, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ContentItemResponse, ItemSortField, ShortlistItemResponse } from "@/lib/api";
 
+type ShortlistSortField = "added_at" | "likes" | "published_at" | "account_handle";
+
+function sortShortlist(
+  items: ShortlistItemResponse[],
+  sort: ShortlistSortField,
+  order: "asc" | "desc"
+): ShortlistItemResponse[] {
+  return [...items].sort((a, b) => {
+    let cmp = 0;
+    if (sort === "added_at") cmp = new Date(a.added_at).getTime() - new Date(b.added_at).getTime();
+    else if (sort === "published_at") cmp = new Date(a.published_at).getTime() - new Date(b.published_at).getTime();
+    else if (sort === "likes") cmp = (a.likes ?? 0) - (b.likes ?? 0);
+    else if (sort === "account_handle") cmp = a.account_handle.localeCompare(b.account_handle);
+    return order === "desc" ? -cmp : cmp;
+  });
+}
+
 const TYPE_ICON: Record<ContentItemResponse["type"], React.ReactNode> = {
   reel: <Film className="h-3.5 w-3.5" />,
   post: <ImageIcon className="h-3.5 w-3.5" />,
@@ -72,10 +89,72 @@ function SortBottomSheet({
                   onSelect(field);
                   onClose();
                 }}
-                className={`flex min-h-[44px] items-center justify-between rounded-control px-3 py-2 text-sm transition-colors ${
+                className={`flex min-h-[48px] items-center justify-between rounded-control px-3 py-3 text-base transition-colors ${
                   active
                     ? "bg-accent-soft font-medium text-accent"
                     : "text-ink hover:bg-bg"
+                }`}
+              >
+                <span>{label}</span>
+                {active && (
+                  <span className="text-xs text-secondary">
+                    {order === "desc" ? t("sortDesc") : t("sortAsc")}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shortlist sort bottom sheet
+// ---------------------------------------------------------------------------
+
+function ShortlistSortBottomSheet({
+  open,
+  current,
+  order,
+  onClose,
+  onSelect,
+}: {
+  open: boolean;
+  current: ShortlistSortField;
+  order: "asc" | "desc";
+  onClose: () => void;
+  onSelect: (field: ShortlistSortField) => void;
+}) {
+  const t = useTranslations("ResultsCards");
+
+  const fields: { field: ShortlistSortField; label: string }[] = [
+    { field: "added_at", label: t("slSortAddedAt") },
+    { field: "likes", label: t("slSortLikes") },
+    { field: "published_at", label: t("slSortPublishedAt") },
+    { field: "account_handle", label: t("slSortAccount") },
+  ];
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:hidden" onClick={onClose}>
+      <div
+        className="w-full rounded-t-card border-t border-border bg-card p-4 shadow-lg"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="mb-3 text-sm font-semibold text-ink">{t("sortTitle")}</p>
+        <div className="flex flex-col gap-0.5">
+          {fields.map(({ field, label }) => {
+            const active = current === field;
+            return (
+              <button
+                key={field}
+                onClick={() => { onSelect(field); onClose(); }}
+                className={`flex min-h-[48px] items-center justify-between rounded-control px-3 py-3 text-base transition-colors ${
+                  active ? "bg-accent-soft font-medium text-accent" : "text-ink hover:bg-bg"
                 }`}
               >
                 <span>{label}</span>
@@ -175,12 +254,16 @@ export function ResultsCards({
   order,
   onSortChange,
   onShortlistToggle,
+  onExport,
+  exporting,
 }: {
   items: ContentItemResponse[];
   sort: ItemSortField;
   order: "asc" | "desc";
   onSortChange: (field: ItemSortField) => void;
   onShortlistToggle: (id: string, add: boolean) => Promise<void>;
+  onExport?: () => void | Promise<void>;
+  exporting?: boolean;
 }) {
   const t = useTranslations("ResultsCards");
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
@@ -205,8 +288,8 @@ export function ResultsCards({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Sort chip */}
-      <div>
+      {/* Sort chip + export */}
+      <div className="flex items-center gap-2">
         <button
           onClick={() => setSortSheetOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-chip bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent"
@@ -214,6 +297,15 @@ export function ResultsCards({
           {currentLabel}
           <span className="opacity-70">{order === "desc" ? "↓" : "↑"}</span>
         </button>
+        {onExport && (
+          <button
+            onClick={() => void onExport()}
+            disabled={exporting}
+            className="rounded-control border border-border px-3 py-1.5 text-xs font-medium text-ink disabled:opacity-50 hover:bg-bg whitespace-nowrap"
+          >
+            {exporting ? t("exporting") : t("exportButton")}
+          </button>
+        )}
       </div>
 
       {/* Cards */}
@@ -312,11 +404,18 @@ function ShortlistCard({
 export function ShortlistCards({
   items,
   onRemove,
+  onExport,
+  exporting,
 }: {
   items: ShortlistItemResponse[];
   onRemove: (contentItemId: string) => void;
+  onExport?: () => void | Promise<void>;
+  exporting?: boolean;
 }) {
   const t = useTranslations("ResultsCards");
+  const [sort, setSort] = useState<ShortlistSortField>("added_at");
+  const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [sortSheetOpen, setSortSheetOpen] = useState(false);
 
   const TYPE_LABEL: Record<ShortlistItemResponse["type"], string> = {
     reel: t("typeReel"),
@@ -326,9 +425,43 @@ export function ShortlistCards({
     short: t("typeReel"),
   };
 
+  const SORT_LABELS: Record<ShortlistSortField, string> = {
+    added_at: t("slSortAddedAt"),
+    likes: t("slSortLikes"),
+    published_at: t("slSortPublishedAt"),
+    account_handle: t("slSortAccount"),
+  };
+
+  function onSortSelect(field: ShortlistSortField) {
+    if (field === sort) setOrder((prev) => (prev === "desc" ? "asc" : "desc"));
+    else { setSort(field); setOrder("desc"); }
+  }
+
+  const sorted = sortShortlist(items, sort, order);
+
   return (
     <div className="flex flex-col gap-3">
-      {items.map((item) => (
+      {/* Sort chip + export */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setSortSheetOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-chip bg-accent-soft px-3 py-1.5 text-xs font-medium text-accent"
+        >
+          {SORT_LABELS[sort]}
+          <span className="opacity-70">{order === "desc" ? "↓" : "↑"}</span>
+        </button>
+        {onExport && (
+          <button
+            onClick={() => void onExport()}
+            disabled={exporting}
+            className="rounded-control border border-border px-3 py-1.5 text-xs font-medium text-ink disabled:opacity-50 hover:bg-bg whitespace-nowrap"
+          >
+            {exporting ? t("exporting") : t("exportButton")}
+          </button>
+        )}
+      </div>
+
+      {sorted.map((item) => (
         <ShortlistCard
           key={item.id}
           item={item}
@@ -336,6 +469,14 @@ export function ShortlistCards({
           onRemove={onRemove}
         />
       ))}
+
+      <ShortlistSortBottomSheet
+        open={sortSheetOpen}
+        current={sort}
+        order={order}
+        onClose={() => setSortSheetOpen(false)}
+        onSelect={onSortSelect}
+      />
     </div>
   );
 }

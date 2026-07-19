@@ -201,7 +201,7 @@ export default function ResultsTabPage() {
               : "border-transparent text-secondary hover:text-ink"
           }`}
         >
-          {tab === "results" ? t("tabResults") : tSl("title")}
+          {tab === "results" ? t("tabAll") : tSl("tabLabel")}
         </button>
       ))}
     </div>
@@ -210,7 +210,7 @@ export default function ResultsTabPage() {
   // ── Results tab ────────────────────────────────────────────────────────────
   const resultsContent = (
     <div className="flex flex-col gap-4">
-      {/* Run selector + Export on same line */}
+      {/* Run selector */}
       <div className="flex flex-wrap items-center gap-2">
         {runs !== null && runs.length > 0 && (
           <button
@@ -221,16 +221,6 @@ export default function ResultsTabPage() {
               {selectedRun ? formatRunLabel(selectedRun) : t("runSelector")}
             </span>
             <ChevronUp className="h-4 w-4 shrink-0 text-secondary" />
-          </button>
-        )}
-
-        {selectedRun?.status === "done" && itemsPage && itemsPage.items.length > 0 && (
-          <button
-            onClick={() => void handleExport()}
-            disabled={exporting}
-            className="rounded-control border border-border px-3 py-2 text-sm font-medium text-ink disabled:opacity-50 hover:bg-bg whitespace-nowrap"
-          >
-            {exporting ? t("exporting") : t("exportButton")}
           </button>
         )}
       </div>
@@ -257,7 +247,9 @@ export default function ResultsTabPage() {
         <>
           <div className="flex flex-col gap-3 md:hidden">
             <ResultsCards items={itemsPage.items} sort={sort} order={order}
-              onSortChange={onSortChange} onShortlistToggle={handleShortlistToggle} />
+              onSortChange={onSortChange} onShortlistToggle={handleShortlistToggle}
+              onExport={selectedRun.status === "done" ? handleExport : undefined}
+              exporting={exporting} />
             {totalPages > 1 && paginationBar}
           </div>
           <div className="hidden md:flex md:flex-col md:gap-3">
@@ -275,7 +267,7 @@ export default function ResultsTabPage() {
           {runs?.map((r) => (
             <li key={r.id}>
               <button onClick={() => onRunSelected(r.id)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-bg transition-colors">
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-base hover:bg-bg transition-colors">
                 <span className={`flex-1 ${r.id === selectedRunId ? "font-semibold text-accent" : "text-ink"}`}>
                   {formatRunLabel(r)}
                 </span>
@@ -291,19 +283,6 @@ export default function ResultsTabPage() {
   // ── Shortlist tab ──────────────────────────────────────────────────────────
   const shortlistContent = (
     <div className="flex flex-col gap-4">
-      {/* Export button */}
-      {shortlistItems !== null && shortlistItems.length > 0 && (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => void handleShortlistExport()}
-            disabled={shortlistExporting}
-            className="rounded-control border border-border px-3 py-2 text-sm font-medium text-ink disabled:opacity-50 hover:bg-bg"
-          >
-            {shortlistExporting ? tCards("exporting") : tCards("exportButton")}
-          </button>
-        </div>
-      )}
-
       {shortlistItems === null && <SkeletonList count={4} />}
       {shortlistItems !== null && shortlistItems.length === 0 && (
         <p className="text-secondary">{tSl("empty")}</p>
@@ -313,7 +292,19 @@ export default function ResultsTabPage() {
         <>
           {/* Mobile cards */}
           <div className="md:hidden">
-            <ShortlistCards items={shortlistItems} onRemove={handleShortlistRemove} />
+            <ShortlistCards items={shortlistItems} onRemove={handleShortlistRemove}
+              onExport={handleShortlistExport} exporting={shortlistExporting} />
+          </div>
+
+          {/* Desktop export */}
+          <div className="hidden md:flex md:items-center md:gap-2">
+            <button
+              onClick={() => void handleShortlistExport()}
+              disabled={shortlistExporting}
+              className="rounded-control border border-border px-3 py-2 text-sm font-medium text-ink disabled:opacity-50 hover:bg-bg"
+            >
+              {shortlistExporting ? tCards("exporting") : tCards("exportButton")}
+            </button>
           </div>
 
           {/* Desktop table */}

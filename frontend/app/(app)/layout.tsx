@@ -66,21 +66,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Link
             href="/"
             onClick={() => setMenuOpen(false)}
-            className="px-4 py-2.5 text-sm text-ink hover:bg-bg transition-colors"
+            className="px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
           >
             {t("projects")}
           </Link>
           <Link
             href="/usage"
             onClick={() => setMenuOpen(false)}
-            className="px-4 py-2.5 text-sm text-ink hover:bg-bg transition-colors"
+            className="px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
           >
             {t("usage")}
           </Link>
           <Link
             href="/settings"
             onClick={() => setMenuOpen(false)}
-            className="px-4 py-2.5 text-sm text-ink hover:bg-bg transition-colors"
+            className="px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
           >
             {t("settings")}
           </Link>
@@ -88,7 +88,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link
               href="/admin"
               onClick={() => setMenuOpen(false)}
-              className="px-4 py-2.5 text-sm text-ink hover:bg-bg transition-colors"
+              className="px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
             >
               {t("admin")}
             </Link>
@@ -100,7 +100,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 logout();
                 router.push("/login");
               }}
-              className="px-4 py-2.5 text-left text-sm text-danger hover:bg-bg transition-colors"
+              className="px-4 py-3.5 text-left text-base text-danger hover:bg-bg transition-colors"
             >
               {t("logout")}
             </button>
