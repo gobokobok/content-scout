@@ -2,6 +2,22 @@
 
 Completed stories land here, newest first. Format:
 
+## [E8-S1] Telegram Login + [E8-S5] Telegram Mini App shell
+**Completed:** 2026-07-19
+**Handover:**
+- `backend/src/auth/telegram.py`: `verify_login_widget()`, `verify_webapp_init_data()`, `find_or_create_telegram_user()` — all hash-check logic for Login Widget + Mini App initData
+- `POST /auth/telegram/login` (Login Widget), `POST /auth/telegram/webapp` (initData), `POST /auth/telegram/link` (link TG to email account — settings UI in E8-S2), `GET /auth/telegram/config`
+- `backend/src/api/telegram_webhook.py`: `POST /telegram/webhook` + `setup_webhook_and_menu()` (called at FastAPI startup via lifespan; self-discovers API URL from `RAILWAY_PUBLIC_DOMAIN`)
+- DB: `users.telegram_id` BigInteger unique nullable — migration `f1a2b3c4d5e6`
+- `frontend/lib/telegram-webapp.ts`: `isTelegramContext()`, `getTelegramInitData()`, `initTelegramWebApp()`
+- `frontend/lib/auth-context.tsx`: `isTelegram` in context; auto-auth via initData on mount when no stored JWT
+- Login page: returns `null` inside Telegram; shows Telegram Login Widget when `TELEGRAM_BOT_TOKEN` + `TELEGRAM_BOT_USERNAME` set
+- App layout: logout button + email hidden when `isTelegram`
+- ENV vars added (api): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`, `WEB_URL`
+- 8 unit tests (`test_telegram_auth.py`); 5 DB integration tests (`test_telegram_webapp.py`)
+**Smoke test:** DEFERRED — requires human to: (1) create bot via @BotFather; (2) set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`, `WEB_URL` on Railway DEV api; (3) open bot from phone — Mini App must open authenticated, full flow must work
+**Promoted to backlog:** none
+
 ## [E12-S2] Mobile cards, bottom navigation, UX states
 **Completed:** 2026-07-19
 **Handover:**
