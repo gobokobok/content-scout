@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E8-S2] Telegram bot notifications
+**Completed:** 2026-07-19
+**Handover:**
+- `backend/src/services/telegram_notify.py`: `notify_run_complete(run, user)` — Bot API DM on run done/failed; skips if no token or no telegram_id; all exceptions swallowed
+- `worker.py`: notify called after done commit + in both except paths (CancelledError, generic); notification failure never surfaces to caller
+- `UserOut` + `UserResponse`: added `has_telegram: bool`
+- `frontend/app/(app)/settings/page.tsx`: shows TG link status; Telegram Login Widget to link (calls `POST /auth/telegram/link`); updates `linked` state on success
+- App header (`(app)/layout.tsx`): «Настройки» nav link added
+- 5 unit tests in `test_telegram_notify.py` — all pass without DB
+**Smoke test:** DEFERRED — requires E8-S1/S5 human prerequisites on Railway DEV (bot token set, `TELEGRAM_BOT_USERNAME` set, `WEB_URL` set); then: link Telegram from /settings, start a run, confirm bot DM arrives with item count + deep link
+**Promoted to backlog:** none
+
 ## [E8-S1] Telegram Login + [E8-S5] Telegram Mini App shell
 **Completed:** 2026-07-19
 **Handover:**

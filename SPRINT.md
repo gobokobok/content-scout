@@ -88,7 +88,7 @@ Full story definitions live in `BACKLOG.md`.
 | 5 | E12-S2 | Mobile cards, bottom navigation, UX states | done |
 | 6 | E8-S1 | Telegram Login | done |
 | 7 | E8-S5 | Telegram Mini App shell (no billing) — **sprint exit criterion** | done |
-| 8 | E8-S2 | Telegram bot notifications (stretch — skip if the sprint runs long) | pending |
+| 8 | E8-S2 | Telegram bot notifications (stretch — skip if the sprint runs long) | done |
 
 **Sprint exit check:** open the DEV bot from a phone, tap «Открыть content-scout», run the full flow inside Telegram, and share the bot handle with a second account.
 
