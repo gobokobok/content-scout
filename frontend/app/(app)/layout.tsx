@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Menu } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("App");
   const router = useRouter();
   const { user, loading, logout, isTelegram } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -27,35 +30,68 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
-        <span className="font-display text-lg font-semibold text-ink">content-scout</span>
-        <div className="flex items-center gap-3">
-          {!isTelegram && <span className="text-sm text-secondary">{user.email}</span>}
-          <Link href="/usage" className="text-sm text-secondary hover:text-ink hover:underline">
+      <header className="flex items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
+        <Link
+          href="/"
+          className="font-display text-lg font-semibold text-ink hover:text-accent transition-colors"
+        >
+          content-scout
+        </Link>
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="rounded-control p-2 text-secondary hover:bg-bg transition-colors"
+          aria-label="Меню"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      </header>
+
+      {children}
+
+      <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)}>
+        <div className="flex flex-col py-2">
+          {!isTelegram && (
+            <div className="border-b border-border px-4 pb-3 pt-1">
+              <p className="text-sm text-secondary">{user.email}</p>
+            </div>
+          )}
+          <Link
+            href="/usage"
+            onClick={() => setMenuOpen(false)}
+            className="px-4 py-3 text-base text-ink hover:bg-bg transition-colors"
+          >
             {t("usage")}
           </Link>
-          <Link href="/settings" className="text-sm text-secondary hover:text-ink hover:underline">
+          <Link
+            href="/settings"
+            onClick={() => setMenuOpen(false)}
+            className="px-4 py-3 text-base text-ink hover:bg-bg transition-colors"
+          >
             {t("settings")}
           </Link>
           {user.is_admin && (
-            <Link href="/admin" className="text-sm text-secondary hover:text-ink hover:underline">
+            <Link
+              href="/admin"
+              onClick={() => setMenuOpen(false)}
+              className="px-4 py-3 text-base text-ink hover:bg-bg transition-colors"
+            >
               {t("admin")}
             </Link>
           )}
           {!isTelegram && (
             <button
               onClick={() => {
+                setMenuOpen(false);
                 logout();
                 router.push("/login");
               }}
-              className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
+              className="px-4 py-3 text-left text-base text-danger hover:bg-bg transition-colors"
             >
               {t("logout")}
             </button>
           )}
         </div>
-      </header>
-      {children}
+      </BottomSheet>
     </div>
   );
 }

@@ -71,6 +71,7 @@ export interface AccountResponse {
   normalized_url: string;
   status: string;
   created_at: string;
+  follower_count?: number | null;
 }
 
 export interface AddAccountsResponse {
@@ -231,7 +232,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listProjects: () => request<ProjectResponse[]>("/projects"),
+  listProjects: (includeArchived = false) =>
+    request<ProjectResponse[]>(`/projects${includeArchived ? "?include_archived=true" : ""}`),
   createProject: (name: string) =>
     request<ProjectResponse>("/projects", { method: "POST", body: JSON.stringify({ name }) }),
   getProject: (id: string) => request<ProjectResponse>(`/projects/${id}`),

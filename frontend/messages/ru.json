@@ -31,8 +31,11 @@
   },
   "Projects": {
     "title": "Проекты",
+    "activeTab": "Активные",
+    "archivedTab": "Архив",
     "empty": "У вас пока нет проектов.",
     "emptyHint": "Нажмите «Создать проект», чтобы начать.",
+    "emptyArchived": "Нет архивированных проектов.",
     "createButton": "Создать проект",
     "namePlaceholder": "Название проекта",
     "createSubmit": "Создать",
@@ -56,17 +59,21 @@
   },
   "Competitors": {
     "counter": "{count} / {max}",
-    "empty": "Список конкурентов пуст. Вставьте ссылки на профили Instagram ниже.",
+    "empty": "Список конкурентов пуст.",
     "textareaPlaceholder": "Ссылки на профили Instagram или @имена пользователей, по одному на строку",
+    "addCompetitorButton": "Добавить конкурента",
+    "addSheetTitle": "Добавить конкурентов",
     "addButton": "Добавить",
     "adding": "Добавление…",
-    "remove": "Удалить",
-    "genericError": "Произошла ошибка. Попробуйте ещё раз.",
     "addedCount": "Добавлено: {count}",
+    "cancel": "Отмена",
+    "deleteAction": "Удалить",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз.",
     "loading": "Загрузка…",
     "selectAll": "Выбрать все",
-    "runButton": "Запустить анализ",
-    "selectedCount": "Выбрано: {count}"
+    "runButton": "Анализ",
+    "selectedCount": "Выбрано: {count}",
+    "followersShort": "подп."
   },
   "RunDialog": {
     "title": "Новый анализ",
@@ -91,7 +98,8 @@
     "genericError": "Произошла ошибка. Попробуйте ещё раз."
   },
   "ResultsTable": {
-    "runSelector": "Запуск:",
+    "runSelector": "Запуск",
+    "selectRunTitle": "Выбрать запуск",
     "runButton": "Запустить анализ",
     "noRuns": "Ещё не было ни одного анализа. Добавьте конкурентов и запустите первый анализ.",
     "empty": "В этом запуске нет публикаций.",

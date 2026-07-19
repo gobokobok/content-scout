@@ -3,13 +3,20 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Users } from "lucide-react";
+import { Users, MoreVertical, Plus } from "lucide-react";
 import { api, ApiError, type AccountResponse } from "@/lib/api";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { RunDialog } from "../run-dialog";
 
 const MAX_ACCOUNTS = 50;
+
+function formatFollowerCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
 
 export default function CompetitorsTabPage() {
   const t = useTranslations("Competitors");
@@ -22,12 +29,14 @@ export default function CompetitorsTabPage() {
   const [addedCount, setAddedCount] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [runDialogOpen, setRunDialogOpen] = useState(false);
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [menuAccountId, setMenuAccountId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const loaded = await api.listAccounts(params.id);
       setAccounts(loaded);
-      setSelected(new Set(loaded.map((a) => a.id)));
+      // No default selection — start with nothing selected
     } catch (err) {
       addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
@@ -69,6 +78,7 @@ export default function CompetitorsTabPage() {
       setErrors(result.errors);
       setAddedCount(result.added.length);
       setText("");
+      if (result.added.length > 0) setAddSheetOpen(false);
       await load();
     } catch (err) {
       addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
@@ -78,8 +88,14 @@ export default function CompetitorsTabPage() {
   }
 
   async function onRemove(accountId: string) {
+    setMenuAccountId(null);
     try {
       await api.removeAccount(params.id, accountId);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(accountId);
+        return next;
+      });
       await load();
     } catch (err) {
       addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
@@ -87,59 +103,46 @@ export default function CompetitorsTabPage() {
   }
 
   const count = accounts?.length ?? 0;
+  const allSelected = accounts !== null && accounts.length > 0 && selected.size === accounts.length;
+  const menuAccount = accounts?.find((a) => a.id === menuAccountId) ?? null;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      {/* Top bar: counter + action buttons */}
+      <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-secondary">
           {t("counter", { count, max: MAX_ACCOUNTS })}
         </span>
-        {count > 0 && (
-          <button
-            onClick={() => setRunDialogOpen(true)}
-            disabled={selected.size === 0}
-            className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {t("runButton")}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {count < MAX_ACCOUNTS && (
+            <button
+              onClick={() => setAddSheetOpen(true)}
+              className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              {t("addCompetitorButton")}
+            </button>
+          )}
+          {count > 0 && (
+            <button
+              onClick={() => setRunDialogOpen(true)}
+              disabled={selected.size === 0}
+              className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-opacity"
+            >
+              {t("runButton")}
+            </button>
+          )}
+        </div>
       </div>
-
-      <form onSubmit={onAdd} className="flex flex-col gap-2">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={t("textareaPlaceholder")}
-          rows={4}
-          className="w-full resize-y rounded-control border border-border bg-card px-3 py-2 text-base text-ink placeholder:text-secondary focus:outline-none focus:ring-2 focus:ring-accent/30"
-        />
-        <button
-          type="submit"
-          disabled={submitting || !text.trim()}
-          className="self-start rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {submitting ? t("adding") : t("addButton")}
-        </button>
-      </form>
 
       {addedCount !== null && (
         <p className="text-sm text-secondary">{t("addedCount", { count: addedCount })}</p>
       )}
 
-      {errors.length > 0 && (
-        <ul className="flex flex-col gap-1">
-          {errors.map((e, i) => (
-            <li key={i} className="text-sm text-danger">
-              {e.input}: {e.message_ru}
-            </li>
-          ))}
-        </ul>
-      )}
-
       {/* Loading skeleton */}
       {accounts === null && <SkeletonList count={4} />}
 
-      {/* Designed empty state */}
+      {/* Empty state */}
       {accounts !== null && accounts.length === 0 && (
         <div className="flex flex-col items-center gap-3 rounded-card border border-border bg-card py-12 text-center">
           <Users className="h-10 w-10 text-border" />
@@ -148,50 +151,144 @@ export default function CompetitorsTabPage() {
       )}
 
       {accounts !== null && accounts.length > 0 && (
-        <div className="overflow-x-auto">
-          <div className="mb-1 flex items-center gap-2">
-            <label className="flex items-center gap-2 text-sm text-secondary">
-              <input
-                type="checkbox"
-                checked={selected.size === accounts.length}
-                onChange={toggleSelectAll}
-              />
-              {t("selectAll")}
-            </label>
-            <span className="text-sm text-secondary">
-              {t("selectedCount", { count: selected.size })}
-            </span>
+        <div className="flex flex-col gap-0 overflow-hidden rounded-card border border-border bg-card">
+          {/* Select-all header row */}
+          <div
+            className="flex cursor-pointer items-center gap-3 border-b border-border px-4 py-3 hover:bg-bg transition-colors"
+            onClick={toggleSelectAll}
+          >
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleSelectAll}
+              onClick={(e) => e.stopPropagation()}
+              className="h-4 w-4 accent-accent"
+            />
+            <span className="flex-1 text-sm font-medium text-secondary">{t("selectAll")}</span>
+            {selected.size > 0 && (
+              <span className="text-sm text-secondary">
+                {t("selectedCount", { count: selected.size })}
+              </span>
+            )}
           </div>
-          <ul className="flex min-w-max flex-col gap-2">
-            {accounts.map((a) => (
-              <li
-                key={a.id}
-                className="flex items-center gap-3 rounded-card border border-border bg-card px-4 py-2"
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.has(a.id)}
-                  onChange={() => toggleSelected(a.id)}
-                />
-                <a
-                  href={a.normalized_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 text-ink hover:underline"
+
+          {/* Competitor rows */}
+          <ul className="flex flex-col">
+            {accounts.map((a, idx) => {
+              const isSelected = selected.has(a.id);
+              return (
+                <li
+                  key={a.id}
+                  className={`flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors ${
+                    idx < accounts.length - 1 ? "border-b border-border" : ""
+                  } ${isSelected ? "bg-accent-soft" : "hover:bg-bg"}`}
+                  onClick={() => toggleSelected(a.id)}
                 >
-                  @{a.handle}
-                </a>
-                <button
-                  onClick={() => onRemove(a.id)}
-                  className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
-                >
-                  {t("remove")}
-                </button>
-              </li>
-            ))}
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelected(a.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-4 w-4 shrink-0 accent-accent"
+                  />
+                  <a
+                    href={a.normalized_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 text-sm font-medium text-ink hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    @{a.handle}
+                  </a>
+                  {a.follower_count != null && (
+                    <span className="text-xs text-secondary">
+                      {formatFollowerCount(a.follower_count)} {t("followersShort")}
+                    </span>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuAccountId(a.id);
+                    }}
+                    className="rounded-control p-1.5 text-secondary hover:bg-border transition-colors"
+                    aria-label="Действия"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
+
+      {/* Add competitor bottom sheet */}
+      <BottomSheet
+        open={addSheetOpen}
+        onClose={() => {
+          setAddSheetOpen(false);
+          setErrors([]);
+          setText("");
+          setAddedCount(null);
+        }}
+        title={t("addSheetTitle")}
+      >
+        <form onSubmit={onAdd} className="flex flex-col gap-3 p-4">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={t("textareaPlaceholder")}
+            rows={5}
+            autoFocus
+            className="w-full resize-none rounded-control border border-border bg-bg px-3 py-2 text-base text-ink placeholder:text-secondary focus:outline-none focus:ring-2 focus:ring-accent/30"
+          />
+          {errors.length > 0 && (
+            <ul className="flex flex-col gap-1">
+              {errors.map((e, i) => (
+                <li key={i} className="text-sm text-danger">
+                  {e.input}: {e.message_ru}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={submitting || !text.trim()}
+              className="flex-1 rounded-control bg-accent py-2.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {submitting ? t("adding") : t("addButton")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAddSheetOpen(false);
+                setErrors([]);
+                setText("");
+              }}
+              className="rounded-control border border-border px-4 py-2.5 text-sm text-ink hover:bg-bg"
+            >
+              {t("cancel")}
+            </button>
+          </div>
+        </form>
+      </BottomSheet>
+
+      {/* Competitor 3-dot context menu */}
+      <BottomSheet
+        open={menuAccountId !== null}
+        onClose={() => setMenuAccountId(null)}
+        title={menuAccount ? `@${menuAccount.handle}` : undefined}
+      >
+        <div className="flex flex-col py-2">
+          <button
+            onClick={() => menuAccount && void onRemove(menuAccount.id)}
+            className="px-4 py-3 text-left text-base text-danger hover:bg-bg transition-colors"
+          >
+            {t("deleteAction")}
+          </button>
+        </div>
+      </BottomSheet>
 
       {runDialogOpen && (
         <RunDialog

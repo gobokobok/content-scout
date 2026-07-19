@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { ChevronUp, Check } from "lucide-react";
 import {
   api,
   ApiError,
@@ -15,9 +16,28 @@ import { ResultsTable } from "@/components/results-table";
 import { ResultsCards } from "@/components/results-cards";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { RunDialog } from "../run-dialog";
 
 const DEFAULT_SORT: ItemSortField = "views_per_day";
+
+function formatRunLabel(run: RunResponse): string {
+  const date = new Date(run.created_at).toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const statusMap: Record<RunResponse["status"], string> = {
+    pending: "Ожидание",
+    scraping: "Сбор",
+    summarizing: "Анализ",
+    done: "Готово",
+    failed: "Ошибка",
+  };
+  return `${date} — ${statusMap[run.status]}`;
+}
 
 export default function ResultsTabPage() {
   const t = useTranslations("ResultsTable");
@@ -34,6 +54,7 @@ export default function ResultsTabPage() {
     null,
   );
   const [runDialogOpen, setRunDialogOpen] = useState(false);
+  const [runSelectorOpen, setRunSelectorOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const loadRuns = useCallback(async () => {
@@ -137,6 +158,7 @@ export default function ResultsTabPage() {
 
   function onRunSelected(id: string) {
     setSelectedRunId(id);
+    setRunSelectorOpen(false);
     setPage(1);
   }
 
@@ -169,21 +191,20 @@ export default function ResultsTabPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-secondary">{t("runSelector")}</label>
-          <select
-            value={selectedRunId ?? ""}
-            onChange={(e) => onRunSelected(e.target.value)}
-            className="rounded-control border border-border bg-card px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
+        {/* Run selector — bottom sheet trigger */}
+        {runs !== null && runs.length > 0 && (
+          <button
+            onClick={() => setRunSelectorOpen(true)}
+            className="flex items-center gap-2 rounded-control border border-border bg-card px-3 py-2 text-sm text-ink hover:bg-bg transition-colors max-w-full"
           >
-            {runs?.map((r) => (
-              <option key={r.id} value={r.id}>
-                {new Date(r.created_at).toLocaleString("ru-RU")} — {t(`status_${r.status}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
+            <span className="truncate">
+              {selectedRun ? formatRunLabel(selectedRun) : t("runSelector")}
+            </span>
+            <ChevronUp className="h-4 w-4 shrink-0 text-secondary" />
+          </button>
+        )}
+
+        <div className="flex items-center gap-2 ml-auto">
           {selectedRun?.status === "done" && itemsPage && itemsPage.items.length > 0 && (
             <button
               onClick={() => void handleExport()}
@@ -250,6 +271,33 @@ export default function ResultsTabPage() {
           </div>
         </>
       )}
+
+      {/* Run selector bottom sheet */}
+      <BottomSheet
+        open={runSelectorOpen}
+        onClose={() => setRunSelectorOpen(false)}
+        title={t("selectRunTitle")}
+      >
+        <ul className="flex flex-col py-1">
+          {runs?.map((r) => (
+            <li key={r.id}>
+              <button
+                onClick={() => onRunSelected(r.id)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-bg transition-colors"
+              >
+                <span
+                  className={`flex-1 ${r.id === selectedRunId ? "font-semibold text-accent" : "text-ink"}`}
+                >
+                  {formatRunLabel(r)}
+                </span>
+                {r.id === selectedRunId && (
+                  <Check className="h-4 w-4 shrink-0 text-accent" />
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </BottomSheet>
 
       {runDialogOpen && (
         <RunDialog
