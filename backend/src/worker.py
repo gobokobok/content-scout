@@ -29,6 +29,9 @@ from src.services.telegram_notify import notify_run_complete
 from src.services.usage import rollup_run_totals
 
 _SUMMARIZER_HTTP_TIMEOUT = 10.0
+_TOKEN_BALANCE_EXHAUSTED_MSG = (
+    "Баланс токенов исчерпан. Показаны результаты, полученные до остановки."
+)
 
 
 async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
@@ -149,7 +152,7 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         run.status = RunStatus.done
         run.finished_at = datetime.now(UTC)
         if token_balance_exhausted:
-            run.error_message = "Баланс токенов исчерпан. Показаны результаты, полученные до остановки."
+            run.error_message = _TOKEN_BALANCE_EXHAUSTED_MSG
         await session.commit()
         requesting_user = requesting_user or await session.get(User, run.requested_by)
         if requesting_user:

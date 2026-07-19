@@ -3,20 +3,26 @@ import uuid
 from typing import Annotated, Any, Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.items import ContentItemOut, SortField, _get_run
-from src.api.shortlist import ShortlistItemOut, _get_project as _get_shortlist_project
+from src.api.shortlist import ShortlistItemOut
 from src.auth.dependency import CurrentUser
 from src.db import get_session
 from src.models import Account, ContentItem, Project, ShortlistItem
 from src.services.metrics import days_since_published_expr, likes_per_day_expr, views_per_day_expr
+from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.xlsx_export import build_shortlist_xlsx, build_xlsx, safe_filename_part
 
 router = APIRouter(tags=["export"])
+
+_PROJECT_NOT_FOUND = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND,
+    detail={"code": "project_not_found", "message_ru": "Проект не найден."},
+)
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -104,7 +110,10 @@ async def export_shortlist_xlsx(
     user: CurrentUser,
     session: SessionDep,
 ) -> StreamingResponse:
-    project = await _get_shortlist_project(session, user, project_id)
+    try:
+        project = await get_owned_project(session, user, project_id)
+    except ProjectNotFoundError:
+        raise _PROJECT_NOT_FOUND from None
     project_slug = safe_filename_part(project.name)
 
     rows = await session.execute(
