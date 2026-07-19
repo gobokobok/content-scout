@@ -34,6 +34,13 @@ def safe_filename_part(text: str) -> str:
     return re.sub(r"[^\w\-]", "_", text)[:40]
 
 
+def _safe_text(value: str | None) -> str:
+    """Prefix formula-trigger characters to prevent spreadsheet formula injection."""
+    if value and value[0] in "=+-@":
+        return f"'{value}"
+    return value or ""
+
+
 def build_xlsx(items: list[ContentItemOut], project_name: str, run_created_at: datetime) -> bytes:
     wb = Workbook()
     ws = wb.active
@@ -49,12 +56,12 @@ def build_xlsx(items: list[ContentItemOut], project_name: str, run_created_at: d
     for item in items:
         ws.append(
             [
-                f"@{item.account_handle}",
+                _safe_text(f"@{item.account_handle}"),
                 item.published_at.replace(tzinfo=None),  # Excel doesn't handle tz-aware datetimes
                 _TYPE_LABELS.get(item.type, item.type),
-                item.title or "",
+                _safe_text(item.title),
                 item.url,  # placeholder; overwritten below as hyperlink
-                item.summary or "",
+                _safe_text(item.summary),
                 item.likes,
                 item.views,
                 round(item.days_since_published, 1),

@@ -1,3 +1,7 @@
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -15,6 +19,12 @@ from src.config import get_settings
 
 settings = get_settings()
 
+_DEFAULT_JWT_SECRET = "local-dev-secret-do-not-use-in-prod"
+if settings.environment != "local" and settings.jwt_secret == _DEFAULT_JWT_SECRET:
+    raise RuntimeError(
+        "JWT_SECRET is set to the insecure default — configure it before deploying"
+    )
+
 app = FastAPI(title="content-scout api")
 app.include_router(auth_router)
 app.include_router(projects_router)
@@ -27,6 +37,16 @@ app.include_router(shortlist_router)
 app.include_router(usage_router)
 app.include_router(admin_router)
 
+
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+
+app.add_middleware(_SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,

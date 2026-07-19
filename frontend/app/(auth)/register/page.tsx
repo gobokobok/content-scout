@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 const MIN_PASSWORD_LEN = 8;
@@ -15,8 +15,14 @@ export default function RegisterPage() {
   const { register } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [requireInvite, setRequireInvite] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    api.getRegisterConfig().then(({ require_invite }) => setRequireInvite(require_invite));
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,7 +33,7 @@ export default function RegisterPage() {
     }
     setSubmitting(true);
     try {
-      await register(email, password);
+      await register(email, password, requireInvite ? inviteCode : undefined);
       router.push("/");
     } catch (err) {
       setError(err instanceof ApiError ? err.messageRu : t("genericError"));
@@ -63,6 +69,22 @@ export default function RegisterPage() {
             className="rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
           />
         </label>
+        {requireInvite && (
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {t("inviteCodeLabel")}
+            </span>
+            <input
+              type="text"
+              required
+              autoComplete="off"
+              placeholder={t("inviteCodePlaceholder")}
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              className="rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            />
+          </label>
+        )}
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <button
           type="submit"

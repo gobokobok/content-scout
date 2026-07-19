@@ -17,7 +17,9 @@
     "registerLink": "Зарегистрироваться",
     "loginLink": "Войти",
     "genericError": "Произошла ошибка. Попробуйте ещё раз.",
-    "passwordTooShort": "Пароль должен быть не короче {min} символов."
+    "passwordTooShort": "Пароль должен быть не короче {min} символов.",
+    "inviteCodeLabel": "Код приглашения",
+    "inviteCodePlaceholder": "Введите код приглашения"
   },
   "App": {
     "loading": "Загрузка…",

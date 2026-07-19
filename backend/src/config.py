@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     worker_job_timeout_secs: int = 3600
     scrape_concurrency: int = 5
 
+    registration_invite_code: str = ""
+    max_runs_per_user_per_day: int = 10
+
     use_mock_platform: bool = True
     apify_api_token: str = ""
     apify_ig_actor_id: str = ""

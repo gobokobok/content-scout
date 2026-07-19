@@ -200,10 +200,12 @@ export type ItemSortField =
   | "likes_per_day";
 
 export const api = {
-  register: (email: string, password: string) =>
+  getRegisterConfig: () =>
+    request<{ require_invite: boolean }>("/auth/register/config"),
+  register: (email: string, password: string, inviteCode?: string) =>
     request<TokenResponse>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, invite_code: inviteCode ?? null }),
     }),
   login: (email: string, password: string) =>
     request<TokenResponse>("/auth/login", {

@@ -21,6 +21,7 @@ All environment variables. No values here — see `.env.example` for the templat
 | TELEGRAM_BOT_TOKEN | Bot token from @BotFather (Sprint 6: E8-S1/S2/S5; api + worker) | ✔ | ✔ | ✔ (separate bot) |
 | TELEGRAM_WEBHOOK_SECRET | Random string (≥32 chars) checked against `X-Telegram-Bot-Api-Secret-Token` on `/telegram/webhook` (api) | ✔ | ✔ | ✔ (distinct) |
 | REGISTRATION_INVITE_CODE | When set, /auth/register requires this code (E7-S4). Empty = open registration | optional | ✔ | ✔ |
+| MAX_RUNS_PER_USER_PER_DAY | Per-user daily run quota (E7-S4, default 10) | optional | ✔ | ✔ |
 
 ## Frontend
 

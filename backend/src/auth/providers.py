@@ -3,7 +3,7 @@ from typing import Protocol
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.passwords import hash_password, verify_password
+from src.auth.passwords import dummy_verify, hash_password, verify_password
 from src.models import User, Workspace, WorkspaceKind, WorkspaceMember
 
 
@@ -49,6 +49,7 @@ class EmailPasswordProvider:
         email, password = credentials["email"], credentials["password"]
         user = await session.scalar(select(User).where(User.email == email.lower()))
         if user is None or user.password_hash is None:
+            dummy_verify()  # Constant-time path to prevent user-enumeration via response time
             return None
         if not verify_password(password, user.password_hash):
             return None

@@ -1,11 +1,11 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
@@ -89,6 +89,26 @@ class RunOut(BaseModel):
         )
 
 
+async def _check_run_quota(session: AsyncSession, user_id: uuid.UUID) -> None:
+    settings = get_settings()
+    today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    count = await session.scalar(
+        select(func.count()).select_from(AnalysisRun).where(
+            AnalysisRun.requested_by == user_id,
+            AnalysisRun.created_at >= today_start,
+            AnalysisRun.created_at < today_start + timedelta(days=1),
+        )
+    )
+    if (count or 0) >= settings.max_runs_per_user_per_day:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "run_quota_exceeded",
+                "message_ru": f"Достигнут лимит запусков: {settings.max_runs_per_user_per_day} в день.",
+            },
+        )
+
+
 async def _get_project(session: AsyncSession, user: CurrentUser, project_id: uuid.UUID):
     try:
         return await get_owned_project(session, user, project_id)
@@ -119,6 +139,7 @@ async def create_run(
     project_id: uuid.UUID, body: RunRequestIn, user: CurrentUser, session: SessionDep
 ) -> RunOut:
     await _get_project(session, user, project_id)
+    await _check_run_quota(session, user.id)
     accounts = await resolve_target_accounts(session, project_id, body.account_ids)
     if not accounts:
         raise NO_ACCOUNTS

@@ -1,15 +1,18 @@
+import hmac
 import re
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.auth.providers import EmailTakenError, email_password_provider
 from src.auth.tokens import create_access_token
+from src.config import get_settings
 from src.db import get_session
+from src.middleware.rate_limit import check_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -34,6 +37,8 @@ class CredentialsIn(BaseModel):
 
 
 class RegisterIn(CredentialsIn):
+    invite_code: str | None = None
+
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
@@ -53,8 +58,31 @@ class UserOut(BaseModel):
     is_admin: bool
 
 
+class RegisterConfigOut(BaseModel):
+    require_invite: bool
+
+
+@router.get("/register/config", response_model=RegisterConfigOut)
+async def register_config() -> RegisterConfigOut:
+    return RegisterConfigOut(require_invite=bool(get_settings().registration_invite_code))
+
+
 @router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterIn, session: SessionDep) -> TokenOut:
+async def register(body: RegisterIn, request: Request, session: SessionDep) -> TokenOut:
+    await check_rate_limit(request)
+
+    settings = get_settings()
+    if settings.registration_invite_code:
+        provided = (body.invite_code or "").strip()
+        if not hmac.compare_digest(provided, settings.registration_invite_code):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "invalid_invite_code",
+                    "message_ru": "Неверный код приглашения.",
+                },
+            )
+
     try:
         user = await email_password_provider.register(
             session, email=body.email, password=body.password
@@ -72,7 +100,9 @@ async def register(body: RegisterIn, session: SessionDep) -> TokenOut:
 
 
 @router.post("/login", response_model=TokenOut)
-async def login(body: CredentialsIn, session: SessionDep) -> TokenOut:
+async def login(body: CredentialsIn, request: Request, session: SessionDep) -> TokenOut:
+    await check_rate_limit(request)
+
     user = await email_password_provider.authenticate(
         session, email=body.email, password=body.password
     )
