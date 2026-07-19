@@ -70,14 +70,6 @@ async def setup_webhook_and_menu() -> None:
         logger.info("Telegram bot not configured — skipping webhook setup")
         return
 
-    webhook_url = f"{settings.web_url.rstrip('/')}/api/telegram/webhook"
-    # The Next.js app rewrites /api/* to the FastAPI backend (see next.config.ts).
-    # On Railway, the API is a separate service — use the direct API URL instead.
-    # web_url is the frontend; we derive the API URL from NEXT_PUBLIC_API_URL env or
-    # fall back to replacing the web URL pattern. For simplicity, webhook_url is
-    # constructed from the api's own base URL via a separate env var, or we use
-    # the raw API URL directly via httpx when called at startup.
-    # Simpler: set webhook to the api service URL directly.
     api_webhook_url = f"{_get_api_base_url()}/telegram/webhook"
 
     try:

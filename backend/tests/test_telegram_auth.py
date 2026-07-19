@@ -4,8 +4,6 @@ import hmac
 import time
 import urllib.parse
 
-import pytest
-
 from src.auth.telegram import verify_login_widget, verify_webapp_init_data
 
 BOT_TOKEN = "123456789:test-bot-token-for-unit-tests"

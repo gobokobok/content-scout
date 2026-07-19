@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -19,7 +19,6 @@ from tests.conftest import (
     make_account,
     make_account_list,
     make_project,
-    make_run,
     make_user,
     make_workspace,
 )

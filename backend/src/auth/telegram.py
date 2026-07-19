@@ -6,7 +6,6 @@ Mini App:      secret = HMAC-SHA256("WebAppData", bot_token);
 """
 import hashlib
 import hmac
-import json
 import time
 import urllib.parse
 

@@ -65,7 +65,10 @@ async def summarize_run_items(
     settings = get_settings()
     _client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
     _own_http = http_client is None
-    _http = http_client if http_client is not None else httpx.AsyncClient(timeout=_IMAGE_FETCH_TIMEOUT_SECS)
+    _http = (
+        http_client if http_client is not None
+        else httpx.AsyncClient(timeout=_IMAGE_FETCH_TIMEOUT_SECS)
+    )
 
     try:
         # --- Cross-run summary reuse ---
@@ -81,7 +84,10 @@ async def summarize_run_items(
         # --- Message Batches API path (≥ threshold items) ---
         if len(pending) >= settings.summary_batch_threshold:
             try:
-                await _summarize_via_batches(session, _client, _http, pending, settings, user_id=user_id, run_id=run_id)
+                await _summarize_via_batches(
+                    session, _client, _http, pending, settings,
+                    user_id=user_id, run_id=run_id,
+                )
                 return
             except Exception:  # noqa: BLE001 — fall back to concurrent path on any batch failure
                 pass
@@ -91,7 +97,10 @@ async def summarize_run_items(
 
         async def _one(item: ContentItem) -> None:
             async with semaphore:
-                await _summarize_item(session, _client, _http, item, settings, user_id=user_id, run_id=run_id)
+                await _summarize_item(
+                    session, _client, _http, item, settings,
+                    user_id=user_id, run_id=run_id,
+                )
 
         await asyncio.gather(*(_one(item) for item in pending))
 
