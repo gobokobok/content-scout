@@ -12,7 +12,7 @@ const MIN_PASSWORD_LEN = 8;
 export default function RegisterPage() {
   const t = useTranslations("Auth");
   const router = useRouter();
-  const { register, telegramLogin } = useAuth();
+  const { register, telegramLogin, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +22,10 @@ export default function RegisterPage() {
     null,
   );
   const tgContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (user) router.replace("/");
+  }, [user, router]);
 
   useEffect(() => {
     api.getTelegramConfig().then(setTgConfig).catch(() => {});
@@ -39,7 +43,6 @@ export default function RegisterPage() {
       setSubmitting(true);
       try {
         await telegramLogin(user);
-        router.push("/");
       } catch (err) {
         setError(err instanceof ApiError ? err.messageRu : t("genericError"));
       } finally {
@@ -71,7 +74,6 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register(email, password);
-      router.push("/");
     } catch (err) {
       setError(err instanceof ApiError ? err.messageRu : t("genericError"));
     } finally {

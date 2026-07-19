@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 export default function LoginPage() {
   const t = useTranslations("Auth");
   const router = useRouter();
-  const { login, telegramLogin, isTelegram } = useAuth();
+  const { login, telegramLogin, user, isTelegram } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,6 +21,11 @@ export default function LoginPage() {
     null,
   );
   const tgContainerRef = useRef<HTMLDivElement>(null);
+
+  // Navigate as soon as user is set in context — avoids router.push race with setUser commit
+  useEffect(() => {
+    if (user) router.replace("/");
+  }, [user, router]);
 
   useEffect(() => {
     api.getTelegramConfig().then(setTgConfig).catch(() => {});
@@ -39,7 +44,6 @@ export default function LoginPage() {
       setSubmitting(true);
       try {
         await telegramLogin(user);
-        router.push("/");
       } catch (err) {
         setError(err instanceof ApiError ? err.messageRu : t("genericError"));
       } finally {
@@ -70,7 +74,6 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      router.push("/");
     } catch (err) {
       setError(err instanceof ApiError ? err.messageRu : t("genericError"));
     } finally {
