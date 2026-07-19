@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Menu } from "lucide-react";
+import { getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { ContextMenu } from "@/components/ui/context-menu";
 
@@ -16,7 +17,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (!loading && !user) {
+    // Don't redirect if a token exists — loadUser may still be committing its
+    // setUser() update (React batches async state updates, so user can briefly
+    // be null even after a successful telegramLogin/login call).
+    if (!loading && !user && !getToken()) {
       router.replace("/login");
     }
   }, [loading, user, router]);
