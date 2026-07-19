@@ -244,6 +244,8 @@ export const api = {
     }),
   archiveProject: (id: string) =>
     request<ProjectResponse>(`/projects/${id}/archive`, { method: "POST" }),
+  unarchiveProject: (id: string) =>
+    request<ProjectResponse>(`/projects/${id}/unarchive`, { method: "POST" }),
   listAccounts: (projectId: string) =>
     request<AccountResponse[]>(`/projects/${projectId}/accounts`),
   addAccounts: (projectId: string, entries: string[]) =>

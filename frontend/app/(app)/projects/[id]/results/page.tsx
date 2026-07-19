@@ -16,7 +16,8 @@ import { ResultsTable } from "@/components/results-table";
 import { ResultsCards } from "@/components/results-cards";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { ContextMenu } from "@/components/ui/context-menu";
+import { useProject } from "@/lib/project-context";
 import { RunDialog } from "../run-dialog";
 
 const DEFAULT_SORT: ItemSortField = "views_per_day";
@@ -53,8 +54,10 @@ export default function ResultsTabPage() {
   const [itemsPage, setItemsPage] = useState<{ items: ContentItemResponse[]; total: number } | null>(
     null,
   );
+  const { isArchived } = useProject();
   const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [runSelectorOpen, setRunSelectorOpen] = useState(false);
+  const [runSelectorAnchorEl, setRunSelectorAnchorEl] = useState<HTMLElement | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const loadRuns = useCallback(async () => {
@@ -191,10 +194,10 @@ export default function ResultsTabPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* Run selector — bottom sheet trigger */}
+        {/* Run selector trigger */}
         {runs !== null && runs.length > 0 && (
           <button
-            onClick={() => setRunSelectorOpen(true)}
+            onClick={(e) => { setRunSelectorAnchorEl(e.currentTarget); setRunSelectorOpen(true); }}
             className="flex items-center gap-2 rounded-control border border-border bg-card px-3 py-2 text-sm text-ink hover:bg-bg transition-colors max-w-full"
           >
             <span className="truncate">
@@ -214,7 +217,7 @@ export default function ResultsTabPage() {
               {exporting ? t("exporting") : t("exportButton")}
             </button>
           )}
-          {accountsCount > 0 && (
+          {accountsCount > 0 && !isArchived && (
             <button
               onClick={() => setRunDialogOpen(true)}
               className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white"
@@ -272,11 +275,12 @@ export default function ResultsTabPage() {
         </>
       )}
 
-      {/* Run selector bottom sheet */}
-      <BottomSheet
+      {/* Run selector — context menu (popover on desktop, sheet on mobile) */}
+      <ContextMenu
         open={runSelectorOpen}
         onClose={() => setRunSelectorOpen(false)}
         title={t("selectRunTitle")}
+        anchorEl={runSelectorAnchorEl}
       >
         <ul className="flex flex-col py-1">
           {runs?.map((r) => (
@@ -297,7 +301,7 @@ export default function ResultsTabPage() {
             </li>
           ))}
         </ul>
-      </BottomSheet>
+      </ContextMenu>
 
       {runDialogOpen && (
         <RunDialog

@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { FolderOpen, MoreVertical } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiError, type ProjectResponse } from "@/lib/api";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { ContextMenu } from "@/components/ui/context-menu";
 
 type Tab = "active" | "archived";
 
@@ -22,6 +22,7 @@ export default function WorkspaceHomePage() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [menuProjectId, setMenuProjectId] = useState<string | null>(null);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -50,6 +51,16 @@ export default function WorkspaceHomePage() {
     setMenuProjectId(null);
     try {
       await api.archiveProject(id);
+      await load();
+    } catch (err) {
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
+    }
+  }
+
+  async function onUnarchive(id: string) {
+    setMenuProjectId(null);
+    try {
+      await api.unarchiveProject(id);
       await load();
     } catch (err) {
       addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
@@ -126,10 +137,7 @@ export default function WorkspaceHomePage() {
           </button>
           <button
             type="button"
-            onClick={() => {
-              setCreating(false);
-              setNewName("");
-            }}
+            onClick={() => { setCreating(false); setNewName(""); }}
             className="rounded-control border border-border px-3 py-2 text-sm text-ink hover:bg-bg"
           >
             {t("createCancel")}
@@ -159,14 +167,17 @@ export default function WorkspaceHomePage() {
       {projects !== null && projects.length > 0 && (
         <ul className="flex flex-col gap-2">
           {projects.map((p) => (
-            <li key={p.id} className="relative flex items-center rounded-card border border-border bg-card">
+            <li key={p.id} className="flex items-center overflow-hidden rounded-card border border-border bg-card">
               {renamingId === p.id ? (
                 <div className="flex flex-1 flex-wrap items-center gap-2 px-4 py-3">
                   <input
                     autoFocus
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") void onRename(p.id); if (e.key === "Escape") setRenamingId(null); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void onRename(p.id);
+                      if (e.key === "Escape") setRenamingId(null);
+                    }}
                     className="min-w-0 flex-1 rounded-control border border-border bg-bg px-2 py-1 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
                   />
                   <button
@@ -184,27 +195,22 @@ export default function WorkspaceHomePage() {
                 </div>
               ) : (
                 <>
-                  {/* Full-row link */}
                   <Link
                     href={`/projects/${p.id}`}
-                    className="absolute inset-0 rounded-card"
-                    aria-label={p.name}
-                  />
-                  <span className="relative flex-1 px-4 py-3.5 text-base text-ink">
+                    className="flex-1 px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
+                  >
                     {p.name}
-                  </span>
-                  {tab === "active" && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setMenuProjectId(p.id);
-                      }}
-                      className="relative z-10 m-2 rounded-control p-2 text-secondary hover:bg-bg transition-colors"
-                      aria-label="Действия"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </button>
-                  )}
+                  </Link>
+                  <button
+                    onClick={(e) => {
+                      setMenuProjectId(p.id);
+                      setMenuAnchorEl(e.currentTarget);
+                    }}
+                    className="m-2 flex-shrink-0 rounded-control p-2 text-secondary hover:bg-bg transition-colors"
+                    aria-label="Действия"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
                 </>
               )}
             </li>
@@ -212,32 +218,45 @@ export default function WorkspaceHomePage() {
         </ul>
       )}
 
-      {/* 3-dot context menu for project */}
-      <BottomSheet
+      {/* Context menu for project */}
+      <ContextMenu
         open={menuProjectId !== null}
         onClose={() => setMenuProjectId(null)}
         title={menuProject?.name}
+        anchorEl={menuAnchorEl}
       >
-        <div className="flex flex-col py-2">
-          <button
-            onClick={() => {
-              if (!menuProject) return;
-              setMenuProjectId(null);
-              setRenamingId(menuProject.id);
-              setRenameValue(menuProject.name);
-            }}
-            className="px-4 py-3 text-left text-base text-ink hover:bg-bg transition-colors"
-          >
-            {t("rename")}
-          </button>
-          <button
-            onClick={() => menuProject && void onArchive(menuProject.id)}
-            className="px-4 py-3 text-left text-base text-danger hover:bg-bg transition-colors"
-          >
-            {t("archive")}
-          </button>
+        <div className="flex flex-col py-1">
+          {tab === "active" && (
+            <>
+              <button
+                onClick={() => {
+                  if (!menuProject) return;
+                  setMenuProjectId(null);
+                  setRenamingId(menuProject.id);
+                  setRenameValue(menuProject.name);
+                }}
+                className="px-4 py-2.5 text-left text-sm text-ink hover:bg-bg transition-colors"
+              >
+                {t("rename")}
+              </button>
+              <button
+                onClick={() => menuProject && void onArchive(menuProject.id)}
+                className="px-4 py-2.5 text-left text-sm text-danger hover:bg-bg transition-colors"
+              >
+                {t("archive")}
+              </button>
+            </>
+          )}
+          {tab === "archived" && (
+            <button
+              onClick={() => menuProject && void onUnarchive(menuProject.id)}
+              className="px-4 py-2.5 text-left text-sm text-ink hover:bg-bg transition-colors"
+            >
+              {t("unarchive")}
+            </button>
+          )}
         </div>
-      </BottomSheet>
+      </ContextMenu>
     </main>
   );
 }

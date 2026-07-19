@@ -105,3 +105,13 @@ async def archive_project(
         project.archived_at = datetime.now(UTC)
     await session.commit()
     return ProjectOut.from_model(project)
+
+
+@router.post("/{project_id}/unarchive", response_model=ProjectOut)
+async def unarchive_project(
+    project_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> ProjectOut:
+    project = await _get_owned_project(session, user, project_id)
+    project.archived_at = None
+    await session.commit()
+    return ProjectOut.from_model(project)

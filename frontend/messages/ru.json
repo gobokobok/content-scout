@@ -43,6 +43,7 @@
     "renameSave": "Сохранить",
     "rename": "Переименовать",
     "archive": "Архивировать",
+    "unarchive": "Восстановить",
     "loading": "Загрузка…",
     "genericError": "Произошла ошибка. Попробуйте ещё раз."
   },
@@ -53,6 +54,7 @@
     "tabShortlist": "Шорт-лист",
     "tabHistory": "История",
     "notFound": "Проект не найден.",
+    "archivedBadge": "В архиве",
     "comingSoonResults": "Здесь появятся результаты анализа.",
     "comingSoonShortlist": "Здесь появится шорт-лист.",
     "comingSoonHistory": "Здесь появится история запусков."

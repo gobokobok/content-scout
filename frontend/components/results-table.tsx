@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-table";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { ChevronUp, ChevronDown, Film, ImageIcon, Images, Star, X } from "lucide-react";
+import { ChevronUp, ChevronDown, Film, ImageIcon, Images, Star, X, Maximize2 } from "lucide-react";
 import type { ContentItemResponse, ItemSortField } from "@/lib/api";
 
 const TYPE_ICON: Record<ContentItemResponse["type"], React.ReactNode> = {
@@ -37,24 +37,28 @@ function truncate(s: string | null, max: number): string {
 
 function TextExpandCell({ text }: { text: string | null }) {
   const [open, setOpen] = useState(false);
-  if (!text) return <span>—</span>;
+  if (!text) return <span className="text-secondary">—</span>;
   const needsExpand = text.length > 60;
   return (
-    <>
-      <span
-        className={needsExpand ? "cursor-pointer hover:text-accent" : undefined}
-        onClick={needsExpand ? () => setOpen(true) : undefined}
-        title={needsExpand ? "Нажмите, чтобы раскрыть" : undefined}
-      >
-        {truncate(text, 60)}
-      </span>
+    <span className="inline-flex items-center gap-1.5">
+      <span className="truncate">{truncate(text, 60)}</span>
+      {needsExpand && (
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex shrink-0 items-center text-secondary hover:text-accent transition-colors"
+          aria-label="Раскрыть"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+        </button>
+      )}
       {open && (
+        /* Responsive: bottom sheet on mobile, centered modal on desktop */
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40"
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-card bg-card p-6 shadow-xl"
+            className="relative w-full md:max-w-lg max-h-[80vh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-card p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -68,7 +72,7 @@ function TextExpandCell({ text }: { text: string | null }) {
           </div>
         </div>
       )}
-    </>
+    </span>
   );
 }
 
@@ -184,7 +188,12 @@ export function ResultsTable({
     },
     {
       id: "title",
-      header: t("colTitle"),
+      header: () => (
+        <span className="inline-flex items-center gap-1">
+          {t("colTitle")}
+          <Maximize2 className="h-3 w-3 text-secondary opacity-60" />
+        </span>
+      ),
       cell: ({ row }) => <TextExpandCell text={row.original.title} />,
     },
     {
@@ -203,7 +212,12 @@ export function ResultsTable({
     },
     {
       id: "summary",
-      header: t("colSummary"),
+      header: () => (
+        <span className="inline-flex items-center gap-1">
+          {t("colSummary")}
+          <Maximize2 className="h-3 w-3 text-secondary opacity-60" />
+        </span>
+      ),
       cell: ({ row }) => <TextExpandCell text={row.original.summary} />,
     },
     {

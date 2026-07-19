@@ -6,13 +6,14 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Menu } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { ContextMenu } from "@/components/ui/context-menu";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("App");
   const router = useRouter();
   const { user, loading, logout, isTelegram } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -38,7 +39,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           content-scout
         </Link>
         <button
-          onClick={() => setMenuOpen(true)}
+          onClick={(e) => {
+            setMenuAnchorEl(e.currentTarget);
+            setMenuOpen(true);
+          }}
           className="rounded-control p-2 text-secondary hover:bg-bg transition-colors"
           aria-label="Меню"
         >
@@ -48,24 +52,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {children}
 
-      <BottomSheet open={menuOpen} onClose={() => setMenuOpen(false)}>
-        <div className="flex flex-col py-2">
+      <ContextMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        anchorEl={menuAnchorEl}
+      >
+        <div className="flex flex-col py-1">
           {!isTelegram && (
-            <div className="border-b border-border px-4 pb-3 pt-1">
+            <div className="border-b border-border px-4 pb-2.5 pt-2">
               <p className="text-sm text-secondary">{user.email}</p>
             </div>
           )}
           <Link
             href="/usage"
             onClick={() => setMenuOpen(false)}
-            className="px-4 py-3 text-base text-ink hover:bg-bg transition-colors"
+            className="px-4 py-2.5 text-sm text-ink hover:bg-bg transition-colors"
           >
             {t("usage")}
           </Link>
           <Link
             href="/settings"
             onClick={() => setMenuOpen(false)}
-            className="px-4 py-3 text-base text-ink hover:bg-bg transition-colors"
+            className="px-4 py-2.5 text-sm text-ink hover:bg-bg transition-colors"
           >
             {t("settings")}
           </Link>
@@ -73,7 +81,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link
               href="/admin"
               onClick={() => setMenuOpen(false)}
-              className="px-4 py-3 text-base text-ink hover:bg-bg transition-colors"
+              className="px-4 py-2.5 text-sm text-ink hover:bg-bg transition-colors"
             >
               {t("admin")}
             </Link>
@@ -85,13 +93,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 logout();
                 router.push("/login");
               }}
-              className="px-4 py-3 text-left text-base text-danger hover:bg-bg transition-colors"
+              className="px-4 py-2.5 text-left text-sm text-danger hover:bg-bg transition-colors"
             >
               {t("logout")}
             </button>
           )}
         </div>
-      </BottomSheet>
+      </ContextMenu>
     </div>
   );
 }

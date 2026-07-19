@@ -8,6 +8,8 @@ import { api, ApiError, type AccountResponse } from "@/lib/api";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { ContextMenu } from "@/components/ui/context-menu";
+import { useProject } from "@/lib/project-context";
 import { RunDialog } from "../run-dialog";
 
 const MAX_ACCOUNTS = 50;
@@ -22,6 +24,7 @@ export default function CompetitorsTabPage() {
   const t = useTranslations("Competitors");
   const params = useParams<{ id: string }>();
   const { addToast } = useToast();
+  const { isArchived } = useProject();
   const [accounts, setAccounts] = useState<AccountResponse[] | null>(null);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,12 +34,12 @@ export default function CompetitorsTabPage() {
   const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [menuAccountId, setMenuAccountId] = useState<string | null>(null);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
     try {
       const loaded = await api.listAccounts(params.id);
       setAccounts(loaded);
-      // No default selection — start with nothing selected
     } catch (err) {
       addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
@@ -113,26 +116,28 @@ export default function CompetitorsTabPage() {
         <span className="text-sm font-medium text-secondary">
           {t("counter", { count, max: MAX_ACCOUNTS })}
         </span>
-        <div className="flex items-center gap-2">
-          {count < MAX_ACCOUNTS && (
-            <button
-              onClick={() => setAddSheetOpen(true)}
-              className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              {t("addCompetitorButton")}
-            </button>
-          )}
-          {count > 0 && (
-            <button
-              onClick={() => setRunDialogOpen(true)}
-              disabled={selected.size === 0}
-              className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-opacity"
-            >
-              {t("runButton")}
-            </button>
-          )}
-        </div>
+        {!isArchived && (
+          <div className="flex items-center gap-2">
+            {count < MAX_ACCOUNTS && (
+              <button
+                onClick={() => setAddSheetOpen(true)}
+                className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                {t("addCompetitorButton")}
+              </button>
+            )}
+            {count > 0 && (
+              <button
+                onClick={() => setRunDialogOpen(true)}
+                disabled={selected.size === 0}
+                className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-opacity"
+              >
+                {t("runButton")}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {addedCount !== null && (
@@ -152,25 +157,27 @@ export default function CompetitorsTabPage() {
 
       {accounts !== null && accounts.length > 0 && (
         <div className="flex flex-col gap-0 overflow-hidden rounded-card border border-border bg-card">
-          {/* Select-all header row */}
-          <div
-            className="flex cursor-pointer items-center gap-3 border-b border-border px-4 py-3 hover:bg-bg transition-colors"
-            onClick={toggleSelectAll}
-          >
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={toggleSelectAll}
-              onClick={(e) => e.stopPropagation()}
-              className="h-4 w-4 accent-accent"
-            />
-            <span className="flex-1 text-sm font-medium text-secondary">{t("selectAll")}</span>
-            {selected.size > 0 && (
-              <span className="text-sm text-secondary">
-                {t("selectedCount", { count: selected.size })}
-              </span>
-            )}
-          </div>
+          {/* Select-all header row — hidden in archived view */}
+          {!isArchived && (
+            <div
+              className="flex cursor-pointer items-center gap-3 border-b border-border px-4 py-3 hover:bg-bg transition-colors"
+              onClick={toggleSelectAll}
+            >
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleSelectAll}
+                onClick={(e) => e.stopPropagation()}
+                className="h-4 w-4 accent-accent"
+              />
+              <span className="flex-1 text-sm font-medium text-secondary">{t("selectAll")}</span>
+              {selected.size > 0 && (
+                <span className="text-sm text-secondary">
+                  {t("selectedCount", { count: selected.size })}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Competitor rows */}
           <ul className="flex flex-col">
@@ -179,18 +186,22 @@ export default function CompetitorsTabPage() {
               return (
                 <li
                   key={a.id}
-                  className={`flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3 transition-colors ${
                     idx < accounts.length - 1 ? "border-b border-border" : ""
-                  } ${isSelected ? "bg-accent-soft" : "hover:bg-bg"}`}
-                  onClick={() => toggleSelected(a.id)}
+                  } ${!isArchived ? "cursor-pointer" : ""} ${
+                    isSelected ? "bg-accent-soft" : !isArchived ? "hover:bg-bg" : ""
+                  }`}
+                  onClick={!isArchived ? () => toggleSelected(a.id) : undefined}
                 >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelected(a.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="h-4 w-4 shrink-0 accent-accent"
-                  />
+                  {!isArchived && (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelected(a.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-4 w-4 shrink-0 accent-accent"
+                    />
+                  )}
                   <a
                     href={a.normalized_url}
                     target="_blank"
@@ -205,16 +216,19 @@ export default function CompetitorsTabPage() {
                       {formatFollowerCount(a.follower_count)} {t("followersShort")}
                     </span>
                   )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setMenuAccountId(a.id);
-                    }}
-                    className="rounded-control p-1.5 text-secondary hover:bg-border transition-colors"
-                    aria-label="Действия"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
+                  {!isArchived && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuAccountId(a.id);
+                        setMenuAnchorEl(e.currentTarget);
+                      }}
+                      className="rounded-control p-1.5 text-secondary hover:bg-border transition-colors"
+                      aria-label="Действия"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -222,7 +236,7 @@ export default function CompetitorsTabPage() {
         </div>
       )}
 
-      {/* Add competitor bottom sheet */}
+      {/* Add competitor bottom sheet (always a sheet since it has a form) */}
       <BottomSheet
         open={addSheetOpen}
         onClose={() => {
@@ -275,20 +289,21 @@ export default function CompetitorsTabPage() {
       </BottomSheet>
 
       {/* Competitor 3-dot context menu */}
-      <BottomSheet
+      <ContextMenu
         open={menuAccountId !== null}
         onClose={() => setMenuAccountId(null)}
         title={menuAccount ? `@${menuAccount.handle}` : undefined}
+        anchorEl={menuAnchorEl}
       >
-        <div className="flex flex-col py-2">
+        <div className="flex flex-col py-1">
           <button
             onClick={() => menuAccount && void onRemove(menuAccount.id)}
-            className="px-4 py-3 text-left text-base text-danger hover:bg-bg transition-colors"
+            className="px-4 py-2.5 text-left text-sm text-danger hover:bg-bg transition-colors"
           >
             {t("deleteAction")}
           </button>
         </div>
-      </BottomSheet>
+      </ContextMenu>
 
       {runDialogOpen && (
         <RunDialog
