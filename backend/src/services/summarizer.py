@@ -272,7 +272,7 @@ async def _summarize_via_batches(
     if not requests:
         return
 
-    batch = await client.messages.batches.create(requests=requests)
+    batch = await client.messages.batches.create(requests=requests)  # type: ignore[arg-type]
 
     # Poll until processing_status == "ended"
     while batch.processing_status != "ended":
@@ -281,13 +281,13 @@ async def _summarize_via_batches(
 
     # Map results back to items and record usage
     async for result in await client.messages.batches.results(batch.id):
-        item = item_by_id.get(result.custom_id)
-        if item is None:
+        target = item_by_id.get(result.custom_id)
+        if target is None:
             continue
         if result.result.type == "succeeded":
             msg = result.result.message
             text = "".join(b.text for b in msg.content if b.type == "text").strip()
-            item.summary = text or FALLBACK_TEXT
+            target.summary = text or FALLBACK_TEXT
             session.add(
                 UsageEvent(
                     user_id=user_id,
@@ -307,7 +307,7 @@ async def _summarize_via_batches(
                 )
             )
         else:
-            item.summary = FALLBACK_TEXT
+            target.summary = FALLBACK_TEXT
 
 
 async def _fetch_image_block(
