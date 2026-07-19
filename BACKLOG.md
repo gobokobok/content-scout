@@ -832,7 +832,8 @@ backend/src/middleware/rate_limit.py, backend/src/middleware/security_headers.py
 ## [E7-S4] Pilot security guardrails
 **Epic:** Usage Metering & Admin
 **Sprint:** 6
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-19
 **Priority:** critical
 **Depends on:** E1-S3
 ### Goal
@@ -859,7 +860,16 @@ CLAUDE.md, backend/src/api/auth.py, backend/src/api/runs.py, backend/src/service
 ### Files to create or modify
 backend/src/config.py, backend/src/api/auth.py, backend/src/api/runs.py, backend/src/middleware/rate_limit.py, backend/src/services/xlsx_export.py, backend/src/main.py, backend/tests/test_guardrails.py, frontend/next.config.ts, frontend/app/(auth)/register/page.tsx, frontend/messages/ru.json, ENV.md
 ### Handover
-—
+- `backend/src/middleware/rate_limit.py` — `check_rate_limit(request, limit=10)`: Redis INCR+EXPIRE fixed-window limiter; called in login and register handlers
+- `backend/src/api/auth.py` — `GET /auth/register/config` → `{require_invite: bool}`; register checks hmac.compare_digest against `REGISTRATION_INVITE_CODE`; both login and register are rate-limited
+- `backend/src/api/runs.py` — `_check_run_quota()` counts today's UTC runs for the user, raises 429 if ≥ `MAX_RUNS_PER_USER_PER_DAY`
+- `backend/src/auth/passwords.py` — `dummy_verify()` runs a full bcrypt check against a pre-computed dummy hash to equalise timing on user-not-found
+- `backend/src/auth/providers.py` — `authenticate()` calls `dummy_verify()` when user is None
+- `backend/src/services/xlsx_export.py` — `_safe_text()` prefixes `=`, `+`, `-`, `@` cells with `'`; applied to account_handle, title, summary columns
+- `backend/src/main.py` — module-level boot check (crash on default JWT_SECRET in non-local env); `_SecurityHeadersMiddleware` adds X-Content-Type-Options and Referrer-Policy to all API responses
+- `frontend/next.config.ts` — `headers()` adds X-Content-Type-Options, Referrer-Policy, and `frame-ancestors 'self' https://web.telegram.org https://*.telegram.org` CSP on all Next.js routes
+- `frontend/app/(auth)/register/page.tsx` — fetches /auth/register/config on mount; renders invite code field only when `require_invite` is true
+- ENV vars added: `REGISTRATION_INVITE_CODE` (api), `MAX_RUNS_PER_USER_PER_DAY` (api)
 
 ## [E8-S1] Telegram Login
 **Epic:** Telegram Integration & Monetization

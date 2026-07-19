@@ -82,7 +82,7 @@ Full story definitions live in `BACKLOG.md`.
 |---|---|---|---|
 | 0 | E7-S2 | Admin usage view — carry-over: verify, smoke-test, finish-story | done |
 | 1 | E3-S6 | Worker resilience and parallel scraping (critical bug fix) | done |
-| 2 | E7-S4 | Pilot security guardrails (critical) | pending |
+| 2 | E7-S4 | Pilot security guardrails (critical) | done |
 | 3 | E4-S3 | Claude cost optimization | pending |
 | 4 | E12-S1 | Design system re-skin (light theme v1) | pending |
 | 5 | E12-S2 | Mobile cards, bottom navigation, UX states | pending |

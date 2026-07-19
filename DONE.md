@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E7-S4] Pilot security guardrails — 2026-07-19
+**Handover:**
+- Invite code gate: `REGISTRATION_INVITE_CODE` env var; `GET /auth/register/config` returns `{require_invite: bool}`; register handler checks with `hmac.compare_digest`; frontend register page shows invite field conditionally
+- Per-user run quota: `MAX_RUNS_PER_USER_PER_DAY` (default 10); counted in UTC day window; 429 with Russian message naming the limit
+- Rate limiting: `backend/src/middleware/rate_limit.py` → `check_rate_limit(request, limit=10)` uses Redis INCR+EXPIRE; wired to login and register
+- Boot check: `main.py` crashes at startup if `jwt_secret` == insecure default in non-local env
+- Security headers: `_SecurityHeadersMiddleware` on API (X-Content-Type-Options, Referrer-Policy); CSP `frame-ancestors` on Next.js (`frame-ancestors 'self' https://web.telegram.org https://*.telegram.org`)
+- XLSX formula injection: `_safe_text()` prefixes `=`, `+`, `-`, `@` cells with `'`; applied to account_handle, title, summary
+- Login timing: `dummy_verify()` in `passwords.py` (rounds=12); called from `providers.py` on user-not-found path
+- Tests: `backend/tests/test_guardrails.py` — 10 tests (3 unit tests pass locally without Postgres; 7 DB tests run in CI)
+**Smoke test:** DEFERRED — requires DEV deploy (CI push sent); on DEV verify register without invite code fails with Russian message, 11th run is blocked with 429, hammering login returns 429, XLSX cell starting with `=` exports as text.
+
 ## [E#-S#] Title — YYYY-MM-DD
 - What shipped
 - Deviations from AC (if any)
