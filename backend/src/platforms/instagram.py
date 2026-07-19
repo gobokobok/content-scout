@@ -66,8 +66,7 @@ class InstagramPlatform:
         # worker), never as a real content item. Also skip pinned posts: they appear at the top
         # of the profile regardless of date and can be months/years old.
         valid_items = [
-            item for item in page.items
-            if "error" not in item and not item.get("isPinned", False)
+            item for item in page.items if "error" not in item and not item.get("isPinned", False)
         ]
         error_items = [item for item in page.items if "error" in item]
         if error_items and not valid_items:
