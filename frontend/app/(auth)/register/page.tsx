@@ -44,21 +44,21 @@ export default function RegisterPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">{t("registerTitle")}</h1>
+      <h1 className="text-2xl font-semibold text-ink">{t("registerTitle")}</h1>
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         <label className="flex flex-col gap-1">
-          <span className="text-sm text-gray-600 dark:text-gray-400">{t("emailLabel")}</span>
+          <span className="text-sm text-secondary">{t("emailLabel")}</span>
           <input
             type="email"
             required
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-sm text-gray-600 dark:text-gray-400">{t("passwordLabel")}</span>
+          <span className="text-sm text-secondary">{t("passwordLabel")}</span>
           <input
             type="password"
             required
@@ -66,14 +66,12 @@ export default function RegisterPage() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         </label>
         {requireInvite && (
           <label className="flex flex-col gap-1">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {t("inviteCodeLabel")}
-            </span>
+            <span className="text-sm text-secondary">{t("inviteCodeLabel")}</span>
             <input
               type="text"
               required
@@ -81,22 +79,22 @@ export default function RegisterPage() {
               placeholder={t("inviteCodePlaceholder")}
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+              className="rounded-control border border-border bg-card px-3 py-2 text-base text-ink placeholder:text-secondary focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </label>
         )}
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-gray-900 px-4 py-2.5 text-base font-medium text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+          className="rounded-control bg-accent px-4 py-2.5 text-base font-medium text-white disabled:opacity-50"
         >
           {submitting ? t("registering") : t("registerButton")}
         </button>
       </form>
-      <p className="text-sm text-gray-600 dark:text-gray-400">
+      <p className="text-sm text-secondary">
         {t("haveAccount")}{" "}
-        <Link href="/login" className="font-medium underline">
+        <Link href="/login" className="font-medium text-accent underline">
           {t("loginLink")}
         </Link>
       </p>

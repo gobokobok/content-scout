@@ -20,28 +20,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (loading || !user) {
     return (
       <main className="flex min-h-screen items-center justify-center p-4">
-        <p className="text-gray-600 dark:text-gray-400">{t("loading")}</p>
+        <p className="text-secondary">{t("loading")}</p>
       </main>
     );
   }
 
   return (
     <div className="min-h-screen">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-        <span className="text-lg font-semibold">content-scout</span>
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
+        <span className="font-display text-lg font-semibold text-ink">content-scout</span>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600 dark:text-gray-400">{user.email}</span>
-          <Link
-            href="/usage"
-            className="text-sm text-gray-600 hover:underline dark:text-gray-400"
-          >
+          <span className="text-sm text-secondary">{user.email}</span>
+          <Link href="/usage" className="text-sm text-secondary hover:text-ink hover:underline">
             {t("usage")}
           </Link>
           {user.is_admin && (
-            <Link
-              href="/admin"
-              className="text-sm text-gray-600 hover:underline dark:text-gray-400"
-            >
+            <Link href="/admin" className="text-sm text-secondary hover:text-ink hover:underline">
               {t("admin")}
             </Link>
           )}
@@ -50,7 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               logout();
               router.push("/login");
             }}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700"
+            className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
           >
             {t("logout")}
           </button>

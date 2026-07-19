@@ -67,11 +67,11 @@ export default function WorkspaceHomePage() {
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
+        <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
         {!creating && (
           <button
             onClick={() => setCreating(true)}
-            className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
+            className="rounded-control bg-accent px-3 py-2 text-sm font-medium text-white"
           >
             {t("createButton")}
           </button>
@@ -85,12 +85,12 @@ export default function WorkspaceHomePage() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder={t("namePlaceholder")}
-            className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+            className="min-w-0 flex-1 rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+            className="rounded-control bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {t("createSubmit")}
           </button>
@@ -100,19 +100,19 @@ export default function WorkspaceHomePage() {
               setCreating(false);
               setNewName("");
             }}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700"
+            className="rounded-control border border-border px-3 py-2 text-sm text-ink hover:bg-bg"
           >
             {t("createCancel")}
           </button>
         </form>
       )}
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      {projects === null && <p className="text-gray-600 dark:text-gray-400">{t("loading")}</p>}
+      {projects === null && <p className="text-secondary">{t("loading")}</p>}
 
       {projects !== null && projects.length === 0 && (
-        <p className="text-gray-600 dark:text-gray-400">{t("empty")}</p>
+        <p className="text-secondary">{t("empty")}</p>
       )}
 
       {projects !== null && projects.length > 0 && (
@@ -120,7 +120,7 @@ export default function WorkspaceHomePage() {
           {projects.map((p) => (
             <li
               key={p.id}
-              className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 px-4 py-3 dark:border-gray-800"
+              className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-card px-4 py-3"
             >
               {renamingId === p.id ? (
                 <>
@@ -128,24 +128,24 @@ export default function WorkspaceHomePage() {
                     autoFocus
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
-                    className="min-w-0 flex-1 rounded-md border border-gray-300 px-2 py-1 text-base dark:border-gray-700 dark:bg-gray-900"
+                    className="min-w-0 flex-1 rounded-control border border-border bg-bg px-2 py-1 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
                   />
                   <button
                     onClick={() => onRename(p.id)}
-                    className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
+                    className="rounded-control bg-accent px-3 py-1.5 text-sm font-medium text-white"
                   >
                     {t("renameSave")}
                   </button>
                   <button
                     onClick={() => setRenamingId(null)}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700"
+                    className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
                   >
                     {t("createCancel")}
                   </button>
                 </>
               ) : (
                 <>
-                  <Link href={`/projects/${p.id}`} className="flex-1 hover:underline">
+                  <Link href={`/projects/${p.id}`} className="flex-1 text-ink hover:underline">
                     {p.name}
                   </Link>
                   <button
@@ -153,13 +153,13 @@ export default function WorkspaceHomePage() {
                       setRenamingId(p.id);
                       setRenameValue(p.name);
                     }}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700"
+                    className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
                   >
                     {t("rename")}
                   </button>
                   <button
                     onClick={() => onArchive(p.id)}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700"
+                    className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
                   >
                     {t("archive")}
                   </button>

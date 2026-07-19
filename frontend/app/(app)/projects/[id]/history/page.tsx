@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Film, ImageIcon, Images } from "lucide-react";
 import {
   api,
   ApiError,
@@ -10,12 +11,12 @@ import {
   type ShortlistHistoryItemResponse,
 } from "@/lib/api";
 
-const TYPE_ICON: Record<ShortlistHistoryItemResponse["type"], string> = {
-  reel: "🎬",
-  post: "🖼️",
-  carousel: "🖼️🖼️",
-  video: "🎬",
-  short: "🎬",
+const TYPE_ICON: Record<ShortlistHistoryItemResponse["type"], React.ReactNode> = {
+  reel: <Film className="inline h-4 w-4" />,
+  post: <ImageIcon className="inline h-4 w-4" />,
+  carousel: <Images className="inline h-4 w-4" />,
+  video: <Film className="inline h-4 w-4" />,
+  short: <Film className="inline h-4 w-4" />,
 };
 
 function formatDate(iso: string): string {
@@ -77,22 +78,20 @@ export default function HistoryTabPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {/* Run history */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">{t("runsTitle")}</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("runsTitle")}</h2>
 
-        {runs === null && !error && (
-          <p className="text-gray-600 dark:text-gray-400">{t("loading")}</p>
-        )}
+        {runs === null && !error && <p className="text-secondary">{t("loading")}</p>}
 
         {runs !== null && runs.length === 0 && (
-          <p className="text-gray-600 dark:text-gray-400">{t("runsEmpty")}</p>
+          <p className="text-secondary">{t("runsEmpty")}</p>
         )}
 
         {runs !== null && runs.length > 0 && (
-          <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-800">
+          <div className="overflow-x-auto rounded-card border border-border">
             <table className="w-full min-w-max border-collapse text-sm">
               <thead>
                 <tr>
@@ -108,7 +107,7 @@ export default function HistoryTabPage() {
                     <th
                       key={i}
                       scope="col"
-                      className="sticky top-0 whitespace-nowrap bg-gray-50 px-3 py-2 text-left font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-400"
+                      className="sticky top-0 whitespace-nowrap bg-bg px-3 py-2 text-left font-medium text-secondary"
                     >
                       {h}
                     </th>
@@ -117,10 +116,7 @@ export default function HistoryTabPage() {
               </thead>
               <tbody>
                 {runs.map((run) => (
-                  <tr
-                    key={run.id}
-                    className="border-t border-gray-100 dark:border-gray-800"
-                  >
+                  <tr key={run.id} className="border-t border-border">
                     <td className="whitespace-nowrap px-3 py-2">
                       {run.started_at ? formatDate(run.started_at) : formatDate(run.created_at)}
                     </td>
@@ -131,29 +127,31 @@ export default function HistoryTabPage() {
                       <span
                         className={
                           run.status === "failed"
-                            ? "text-red-600 dark:text-red-400"
+                            ? "text-danger"
                             : run.status === "done"
-                              ? "text-green-700 dark:text-green-400"
-                              : ""
+                              ? "text-success"
+                              : "text-secondary"
                         }
                       >
                         {t(`status_${run.status}`)}
                       </span>
                       {run.status === "failed" && run.error_message && (
                         <span
-                          className="ml-1 text-xs text-red-500 dark:text-red-400"
+                          className="ml-1 text-xs text-danger"
                           title={run.error_message}
                         >
                           ({truncate(run.error_message, 40)})
                         </span>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2">{formatCost(run.total_cost_usd)}</td>
+                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                      {formatCost(run.total_cost_usd)}
+                    </td>
                     <td className="whitespace-nowrap px-3 py-2">
                       {run.status === "done" && (
                         <button
                           onClick={() => openRunResults(run.id)}
-                          className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+                          className="text-sm text-accent hover:underline"
                         >
                           {t("openResults")}
                         </button>
@@ -169,18 +167,18 @@ export default function HistoryTabPage() {
 
       {/* Shortlist history */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">{t("shortlistTitle")}</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("shortlistTitle")}</h2>
 
         {shortlistHistory === null && !error && (
-          <p className="text-gray-600 dark:text-gray-400">{t("loading")}</p>
+          <p className="text-secondary">{t("loading")}</p>
         )}
 
         {shortlistHistory !== null && shortlistHistory.length === 0 && (
-          <p className="text-gray-600 dark:text-gray-400">{t("shortlistEmpty")}</p>
+          <p className="text-secondary">{t("shortlistEmpty")}</p>
         )}
 
         {shortlistHistory !== null && shortlistHistory.length > 0 && (
-          <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-800">
+          <div className="overflow-x-auto rounded-card border border-border">
             <table className="w-full min-w-max border-collapse text-sm">
               <thead>
                 <tr>
@@ -195,7 +193,7 @@ export default function HistoryTabPage() {
                     <th
                       key={h}
                       scope="col"
-                      className="sticky top-0 whitespace-nowrap bg-gray-50 px-3 py-2 text-left font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-400"
+                      className="sticky top-0 whitespace-nowrap bg-bg px-3 py-2 text-left font-medium text-secondary"
                     >
                       {h}
                     </th>
@@ -204,13 +202,13 @@ export default function HistoryTabPage() {
               </thead>
               <tbody>
                 {shortlistHistory.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-t border-gray-100 dark:border-gray-800"
-                  >
+                  <tr key={item.id} className="border-t border-border">
                     <td className="whitespace-nowrap px-3 py-2">@{item.account_handle}</td>
                     <td className="whitespace-nowrap px-3 py-2">
-                      {TYPE_ICON[item.type]} {typeLabel[item.type]}
+                      <span className="inline-flex items-center gap-1 text-secondary">
+                        {TYPE_ICON[item.type]}
+                        {typeLabel[item.type]}
+                      </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2">
                       <span title={item.title ?? undefined}>{truncate(item.title, 60)}</span>
@@ -220,7 +218,7 @@ export default function HistoryTabPage() {
                         href={item.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-blue-600 hover:underline dark:text-blue-400"
+                        className="text-accent hover:underline"
                       >
                         {t("openLink")}
                       </a>
@@ -228,13 +226,9 @@ export default function HistoryTabPage() {
                     <td className="whitespace-nowrap px-3 py-2">{formatDate(item.added_at)}</td>
                     <td className="whitespace-nowrap px-3 py-2">
                       {item.removed_at ? (
-                        <span className="text-red-600 dark:text-red-400">
-                          {formatDate(item.removed_at)}
-                        </span>
+                        <span className="text-danger">{formatDate(item.removed_at)}</span>
                       ) : (
-                        <span className="text-green-700 dark:text-green-400">
-                          {t("statusActive")}
-                        </span>
+                        <span className="text-success">{t("statusActive")}</span>
                       )}
                     </td>
                   </tr>

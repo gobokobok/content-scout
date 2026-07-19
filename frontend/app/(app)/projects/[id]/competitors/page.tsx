@@ -89,14 +89,14 @@ export default function CompetitorsTabPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+        <span className="text-sm font-medium text-secondary">
           {t("counter", { count, max: MAX_ACCOUNTS })}
         </span>
         {count > 0 && (
           <button
             onClick={() => setRunDialogOpen(true)}
             disabled={selected.size === 0}
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+            className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {t("runButton")}
           </button>
@@ -109,45 +109,43 @@ export default function CompetitorsTabPage() {
           onChange={(e) => setText(e.target.value)}
           placeholder={t("textareaPlaceholder")}
           rows={4}
-          className="w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-900"
+          className="w-full resize-y rounded-control border border-border bg-card px-3 py-2 text-base text-ink placeholder:text-secondary focus:outline-none focus:ring-2 focus:ring-accent/30"
         />
         <button
           type="submit"
           disabled={submitting || !text.trim()}
-          className="self-start rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+          className="self-start rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {submitting ? t("adding") : t("addButton")}
         </button>
       </form>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {addedCount !== null && (
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t("addedCount", { count: addedCount })}
-        </p>
+        <p className="text-sm text-secondary">{t("addedCount", { count: addedCount })}</p>
       )}
 
       {errors.length > 0 && (
         <ul className="flex flex-col gap-1">
           {errors.map((e, i) => (
-            <li key={i} className="text-sm text-red-600 dark:text-red-400">
+            <li key={i} className="text-sm text-danger">
               {e.input}: {e.message_ru}
             </li>
           ))}
         </ul>
       )}
 
-      {accounts === null && <p className="text-gray-600 dark:text-gray-400">{t("loading")}</p>}
+      {accounts === null && <p className="text-secondary">{t("loading")}</p>}
 
       {accounts !== null && accounts.length === 0 && (
-        <p className="text-gray-600 dark:text-gray-400">{t("empty")}</p>
+        <p className="text-secondary">{t("empty")}</p>
       )}
 
       {accounts !== null && accounts.length > 0 && (
         <div className="overflow-x-auto">
           <div className="mb-1 flex items-center gap-2">
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <label className="flex items-center gap-2 text-sm text-secondary">
               <input
                 type="checkbox"
                 checked={selected.size === accounts.length}
@@ -155,7 +153,7 @@ export default function CompetitorsTabPage() {
               />
               {t("selectAll")}
             </label>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-secondary">
               {t("selectedCount", { count: selected.size })}
             </span>
           </div>
@@ -163,7 +161,7 @@ export default function CompetitorsTabPage() {
             {accounts.map((a) => (
               <li
                 key={a.id}
-                className="flex items-center gap-3 rounded-md border border-gray-200 px-4 py-2 dark:border-gray-800"
+                className="flex items-center gap-3 rounded-card border border-border bg-card px-4 py-2"
               >
                 <input
                   type="checkbox"
@@ -174,13 +172,13 @@ export default function CompetitorsTabPage() {
                   href={a.normalized_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex-1 hover:underline"
+                  className="flex-1 text-ink hover:underline"
                 >
                   @{a.handle}
                 </a>
                 <button
                   onClick={() => onRemove(a.id)}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700"
+                  className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
                 >
                   {t("remove")}
                 </button>

@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Film, ImageIcon, Images } from "lucide-react";
 import { api, ApiError, type ShortlistItemResponse } from "@/lib/api";
 
-const TYPE_ICON: Record<ShortlistItemResponse["type"], string> = {
-  reel: "🎬",
-  post: "🖼️",
-  carousel: "🖼️🖼️",
-  video: "🎬",
-  short: "🎬",
+const TYPE_ICON: Record<ShortlistItemResponse["type"], React.ReactNode> = {
+  reel: <Film className="inline h-4 w-4" />,
+  post: <ImageIcon className="inline h-4 w-4" />,
+  carousel: <Images className="inline h-4 w-4" />,
+  video: <Film className="inline h-4 w-4" />,
+  short: <Film className="inline h-4 w-4" />,
 };
 
 function formatNumber(n: number | null): string {
@@ -67,28 +68,24 @@ export default function ShortlistTabPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">{t("title")}</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("title")}</h2>
         <button
           disabled
           title={t("comingSoon")}
-          className="cursor-not-allowed rounded-md border border-gray-300 px-4 py-2 text-sm font-medium opacity-40 dark:border-gray-700"
+          className="cursor-not-allowed rounded-control border border-border px-4 py-2 text-sm font-medium text-ink opacity-40"
         >
           {t("createScript")}
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      {items === null && !error && (
-        <p className="text-gray-600 dark:text-gray-400">{t("loading")}</p>
-      )}
+      {items === null && !error && <p className="text-secondary">{t("loading")}</p>}
 
-      {items !== null && items.length === 0 && (
-        <p className="text-gray-600 dark:text-gray-400">{t("empty")}</p>
-      )}
+      {items !== null && items.length === 0 && <p className="text-secondary">{t("empty")}</p>}
 
       {items !== null && items.length > 0 && (
-        <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-800">
+        <div className="overflow-x-auto rounded-card border border-border">
           <table className="w-full min-w-max border-collapse text-sm">
             <thead>
               <tr>
@@ -106,7 +103,7 @@ export default function ShortlistTabPage() {
                   <th
                     key={h}
                     scope="col"
-                    className="sticky top-0 whitespace-nowrap bg-gray-50 px-3 py-2 text-left font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-400"
+                    className="sticky top-0 whitespace-nowrap bg-bg px-3 py-2 text-left font-medium text-secondary"
                   >
                     {h}
                   </th>
@@ -115,16 +112,16 @@ export default function ShortlistTabPage() {
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr
-                  key={item.id}
-                  className="border-t border-gray-100 dark:border-gray-800"
-                >
-                  <td className="sticky left-0 whitespace-nowrap bg-white px-3 py-2 dark:bg-gray-950">
+                <tr key={item.id} className="border-t border-border">
+                  <td className="sticky left-0 whitespace-nowrap bg-card px-3 py-2">
                     @{item.account_handle}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">{formatDate(item.added_at)}</td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    {TYPE_ICON[item.type]} {typeLabel[item.type]}
+                    <span className="inline-flex items-center gap-1 text-secondary">
+                      {TYPE_ICON[item.type]}
+                      {typeLabel[item.type]}
+                    </span>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <span title={item.title ?? undefined}>{truncate(item.title, 60)}</span>
@@ -134,7 +131,7 @@ export default function ShortlistTabPage() {
                       href={item.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-blue-600 hover:underline dark:text-blue-400"
+                      className="text-accent hover:underline"
                     >
                       {t("openLink")}
                     </a>
@@ -142,12 +139,16 @@ export default function ShortlistTabPage() {
                   <td className="whitespace-nowrap px-3 py-2">
                     <span title={item.summary ?? undefined}>{truncate(item.summary, 60)}</span>
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2">{formatNumber(item.likes)}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{formatNumber(item.views)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                    {formatNumber(item.likes)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                    {formatNumber(item.views)}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <button
                       onClick={() => void handleRemove(item.content_item_id)}
-                      className="text-sm text-red-600 hover:underline dark:text-red-400"
+                      className="text-sm text-danger hover:underline"
                     >
                       {t("remove")}
                     </button>

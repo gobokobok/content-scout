@@ -69,19 +69,19 @@ export default function AdminPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-semibold">{t("title")}</h1>
+      <h1 className="mb-6 text-2xl font-semibold text-ink">{t("title")}</h1>
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm text-secondary">
           {t("fromLabel")}
           <input
             type="month"
             value={toInputDate(from)}
             onChange={(e) => setFrom(fromInputDate(e.target.value))}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900"
+            className="rounded-control border border-border bg-card px-3 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1 text-sm text-secondary">
           {t("toLabel")}
           <input
             type="month"
@@ -90,28 +90,28 @@ export default function AdminPage() {
               const d = fromInputDate(e.target.value);
               setTo(new Date(d.getFullYear(), d.getMonth() + 1, 1));
             }}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-900"
+            className="rounded-control border border-border bg-card px-3 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         </label>
         <button
           onClick={() => void load(from, to)}
           disabled={pending}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+          className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {t("applyButton")}
         </button>
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="mb-4 text-sm text-danger">{error}</p>}
 
-      {pending && <p className="text-gray-600 dark:text-gray-400">{t("loading")}</p>}
+      {pending && <p className="text-secondary">{t("loading")}</p>}
 
       {!pending && data && data.users.length === 0 && (
-        <p className="text-gray-600 dark:text-gray-400">{t("empty")}</p>
+        <p className="text-secondary">{t("empty")}</p>
       )}
 
       {!pending && data && data.users.length > 0 && (
-        <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-800">
+        <div className="overflow-x-auto rounded-card border border-border">
           <table className="w-full min-w-max border-collapse text-sm">
             <thead>
               <tr>
@@ -126,7 +126,7 @@ export default function AdminPage() {
                   <th
                     key={h}
                     scope="col"
-                    className="sticky top-0 whitespace-nowrap bg-gray-50 px-4 py-2 text-left font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-400"
+                    className="sticky top-0 whitespace-nowrap bg-bg px-4 py-2 text-left font-medium text-secondary"
                   >
                     {h}
                   </th>
@@ -135,8 +135,8 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {data.users.map((row: UserUsageRowResponse) => (
-                <tr key={row.user_id} className="border-t border-gray-100 dark:border-gray-800">
-                  <td className="whitespace-nowrap px-4 py-2">{row.email}</td>
+                <tr key={row.user_id} className="border-t border-border">
+                  <td className="whitespace-nowrap px-4 py-2 text-ink">{row.email}</td>
                   <td className="whitespace-nowrap px-4 py-2 tabular-nums">{row.runs}</td>
                   <td className="whitespace-nowrap px-4 py-2 tabular-nums">
                     {new Intl.NumberFormat("ru-RU").format(row.apify_units)}

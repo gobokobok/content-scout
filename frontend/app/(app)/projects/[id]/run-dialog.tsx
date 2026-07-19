@@ -88,15 +88,13 @@ export function RunDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 dark:bg-gray-950">
-        <h2 className="mb-4 text-lg font-semibold">{t("title")}</h2>
+      <div className="w-full max-w-md rounded-card bg-card p-6 shadow-lg">
+        <h2 className="mb-4 text-lg font-semibold text-ink">{t("title")}</h2>
 
         {!run && (
           <div className="flex flex-col gap-4">
             <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                {t("durationLabel")}
-              </span>
+              <span className="text-sm text-secondary">{t("durationLabel")}</span>
               <input
                 type="number"
                 min={1}
@@ -105,16 +103,14 @@ export function RunDialog({
                 onChange={(e) =>
                   setDuration(Math.min(7, Math.max(1, Number(e.target.value) || 1)))
                 }
-                className="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+                className="rounded-control border border-border bg-bg px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
               />
             </label>
 
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t("accountsLabel", { count: accountsCount })}
-            </p>
+            <p className="text-sm text-secondary">{t("accountsLabel", { count: accountsCount })}</p>
 
             {estimate ? (
-              <div className="flex flex-col gap-1 rounded-md border border-gray-200 p-3 text-sm dark:border-gray-800">
+              <div className="flex flex-col gap-1 rounded-card border border-border bg-bg p-3 text-sm text-ink">
                 <span>{t("estimateApify", { units: estimate.apify_units })}</span>
                 <span>
                   {t("estimateTokens", {
@@ -127,22 +123,22 @@ export function RunDialog({
                 </span>
               </div>
             ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t("estimateLoading")}</p>
+              <p className="text-sm text-secondary">{t("estimateLoading")}</p>
             )}
 
-            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            {error && <p className="text-sm text-danger">{error}</p>}
 
             <div className="flex justify-end gap-2">
               <button
                 onClick={onClose}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm dark:border-gray-700"
+                className="rounded-control border border-border px-4 py-2 text-sm text-ink hover:bg-bg"
               >
                 {t("cancel")}
               </button>
               <button
                 onClick={onConfirm}
                 disabled={starting || !estimate}
-                className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+                className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
                 {starting ? t("starting") : t("confirmButton")}
               </button>
@@ -152,21 +148,21 @@ export function RunDialog({
 
         {run && (
           <div className="flex flex-col gap-3">
-            <p className="text-base font-medium">{statusKey && t(statusKey)}</p>
+            <p className="text-base font-medium text-ink">{statusKey && t(statusKey)}</p>
             {run.status === "summarizing" ? (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-secondary">
                 {t("summarizeProgress", {
                   done: run.progress_summarized,
                   total: run.progress_items,
                 })}
               </p>
             ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-secondary">
                 {t("progress", { done: run.progress_accounts })}
               </p>
             )}
             {run.status === "done" && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-secondary">
                 {t("tokenTotals", {
                   input: run.total_input_tokens,
                   output: run.total_output_tokens,
@@ -174,13 +170,13 @@ export function RunDialog({
               </p>
             )}
             {run.status === "failed" && run.error_message && (
-              <p className="text-sm text-red-600 dark:text-red-400">{run.error_message}</p>
+              <p className="text-sm text-danger">{run.error_message}</p>
             )}
             {(run.status === "done" || run.status === "failed") && (
               <div className="flex justify-end">
                 <button
                   onClick={onClose}
-                  className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
+                  className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white"
                 >
                   {t("close")}
                 </button>

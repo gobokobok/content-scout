@@ -92,7 +92,6 @@ export default function ResultsTabPage() {
       } else {
         await api.removeFromShortlist(params.id, contentItemId);
       }
-      // Refetch current page so in_shortlist reflects updated state
       if (selectedRunId) {
         const res = await api.listRunItems(selectedRunId, { sort, order, page });
         setItemsPage({ items: res.items, total: res.total });
@@ -145,11 +144,11 @@ export default function ResultsTabPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600 dark:text-gray-400">{t("runSelector")}</label>
+          <label className="text-sm text-secondary">{t("runSelector")}</label>
           <select
             value={selectedRunId ?? ""}
             onChange={(e) => onRunSelected(e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+            className="rounded-control border border-border bg-card px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
           >
             {runs?.map((r) => (
               <option key={r.id} value={r.id}>
@@ -163,7 +162,7 @@ export default function ResultsTabPage() {
             <button
               onClick={() => void handleExport()}
               disabled={exporting}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-gray-700"
+              className="rounded-control border border-border px-4 py-2 text-sm font-medium text-ink disabled:opacity-50 hover:bg-bg"
             >
               {exporting ? t("exporting") : t("exportButton")}
             </button>
@@ -171,7 +170,7 @@ export default function ResultsTabPage() {
           {accountsCount > 0 && (
             <button
               onClick={() => setRunDialogOpen(true)}
-              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
+              className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white"
             >
               {t("runButton")}
             </button>
@@ -179,20 +178,18 @@ export default function ResultsTabPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {runs !== null && runs.length === 0 && (
-        <p className="text-gray-600 dark:text-gray-400">{t("noRuns")}</p>
+        <p className="text-secondary">{t("noRuns")}</p>
       )}
 
       {selectedRun && selectedRun.status !== "done" && (
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t(`status_${selectedRun.status}`)}
-        </p>
+        <p className="text-sm text-secondary">{t(`status_${selectedRun.status}`)}</p>
       )}
 
       {selectedRun?.status === "done" && itemsPage && itemsPage.items.length === 0 && (
-        <p className="text-gray-600 dark:text-gray-400">{t("empty")}</p>
+        <p className="text-secondary">{t("empty")}</p>
       )}
 
       {selectedRun?.status === "done" && itemsPage && itemsPage.items.length > 0 && (
@@ -209,17 +206,17 @@ export default function ResultsTabPage() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-gray-700"
+              className="rounded-control border border-border px-3 py-1.5 text-sm text-ink disabled:opacity-50 hover:bg-bg"
             >
               {t("prevPage")}
             </button>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
+            <span className="text-sm text-secondary">
               {t("pageInfo", { page, totalPages })}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-50 dark:border-gray-700"
+              className="rounded-control border border-border px-3 py-1.5 text-sm text-ink disabled:opacity-50 hover:bg-bg"
             >
               {t("nextPage")}
             </button>

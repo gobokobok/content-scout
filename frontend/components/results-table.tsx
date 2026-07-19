@@ -8,14 +8,15 @@ import {
 } from "@tanstack/react-table";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { ChevronUp, ChevronDown, Film, ImageIcon, Images, Maximize2, Star, X } from "lucide-react";
 import type { ContentItemResponse, ItemSortField } from "@/lib/api";
 
-const TYPE_ICON: Record<ContentItemResponse["type"], string> = {
-  reel: "🎬",
-  post: "🖼️",
-  carousel: "🖼️🖼️",
-  video: "🎬",
-  short: "🎬",
+const TYPE_ICON: Record<ContentItemResponse["type"], React.ReactNode> = {
+  reel: <Film className="inline h-4 w-4" />,
+  post: <ImageIcon className="inline h-4 w-4" />,
+  carousel: <Images className="inline h-4 w-4" />,
+  video: <Film className="inline h-4 w-4" />,
+  short: <Film className="inline h-4 w-4" />,
 };
 
 function formatNumber(n: number | null): string {
@@ -45,10 +46,10 @@ function TextExpandCell({ text }: { text: string | null }) {
         {needsExpand && (
           <button
             onClick={() => setOpen(true)}
-            className="ml-1 shrink-0 rounded px-1 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            className="ml-1 shrink-0 rounded px-1 text-secondary hover:text-ink"
             title="Показать полностью"
           >
-            ⊞
+            <Maximize2 className="h-3 w-3" />
           </button>
         )}
       </span>
@@ -58,17 +59,17 @@ function TextExpandCell({ text }: { text: string | null }) {
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-xl dark:bg-gray-900"
+            className="relative max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-card bg-card p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setOpen(false)}
-              className="absolute right-4 top-4 text-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              className="absolute right-4 top-4 text-secondary hover:text-ink"
               aria-label="Закрыть"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
-            <p className="pr-8 text-sm leading-relaxed whitespace-pre-wrap">{text}</p>
+            <p className="pr-8 text-sm leading-relaxed whitespace-pre-wrap text-ink">{text}</p>
           </div>
         </div>
       )}
@@ -156,9 +157,13 @@ export function ResultsTable({
             void onShortlistToggle(row.original.id, !row.original.in_shortlist)
           }
           title={row.original.in_shortlist ? t("removeFromShortlist") : t("addToShortlist")}
-          className="text-lg leading-none"
+          className="leading-none"
         >
-          {row.original.in_shortlist ? "★" : "☆"}
+          {row.original.in_shortlist ? (
+            <Star className="h-4 w-4 fill-warning text-warning" />
+          ) : (
+            <Star className="h-4 w-4 text-secondary" />
+          )}
         </button>
       ),
     },
@@ -176,8 +181,9 @@ export function ResultsTable({
       id: "type",
       header: t("colType"),
       cell: ({ row }) => (
-        <span>
-          {TYPE_ICON[row.original.type]} {typeLabel[row.original.type]}
+        <span className="inline-flex items-center gap-1 text-secondary">
+          {TYPE_ICON[row.original.type]}
+          {typeLabel[row.original.type]}
         </span>
       ),
     },
@@ -194,7 +200,7 @@ export function ResultsTable({
           href={row.original.url}
           target="_blank"
           rel="noreferrer"
-          className="text-blue-600 hover:underline dark:text-blue-400"
+          className="text-accent hover:underline"
         >
           {t("openLink")}
         </a>
@@ -253,19 +259,19 @@ export function ResultsTable({
     <div className="flex flex-col gap-2">
       {selected.size > 0 && (
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="text-sm text-secondary">
             {t("selectedCount", { count: selected.size })}
           </span>
           <button
             onClick={() => void handleBulkShortlist()}
             disabled={bulkPending}
-            className="rounded-md bg-gray-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+            className="rounded-control bg-accent px-3 py-1.5 text-sm text-white disabled:opacity-50"
           >
             {bulkPending ? t("adding") : t("addSelectedToShortlist")}
           </button>
         </div>
       )}
-      <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-800">
+      <div className="overflow-x-auto rounded-card border border-border">
         <table className="w-full min-w-max border-collapse text-sm">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -279,13 +285,17 @@ export function ResultsTable({
                       key={header.id}
                       onClick={isSortable ? () => onSortChange(field) : undefined}
                       scope="col"
-                      className={`sticky top-0 z-10 select-none whitespace-nowrap bg-gray-50 px-3 py-2 text-left font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-400 ${
-                        isSortable ? "cursor-pointer" : ""
+                      className={`sticky top-0 z-10 select-none whitespace-nowrap bg-bg px-3 py-2 text-left font-medium text-secondary ${
+                        isSortable ? "cursor-pointer hover:text-ink" : ""
                       } ${field === "account" ? "sticky left-0 z-20" : ""}`}
                     >
                       <span className="flex items-center gap-1">
                         {flexRender(header.column.columnDef.header, header.getContext())}
-                        {active && <span>{order === "asc" ? "▲" : "▼"}</span>}
+                        {active && (
+                          order === "asc"
+                            ? <ChevronUp className="h-3 w-3" />
+                            : <ChevronDown className="h-3 w-3" />
+                        )}
                       </span>
                     </th>
                   );
@@ -295,13 +305,13 @@ export function ResultsTable({
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-t border-gray-100 dark:border-gray-800">
+              <tr key={row.id} className="border-t border-border">
                 {row.getVisibleCells().map((cell) => (
                   <td
                     key={cell.id}
-                    className={`whitespace-nowrap px-3 py-2 ${
+                    className={`whitespace-nowrap px-3 py-2 text-ink ${
                       cell.column.id === "account"
-                        ? "sticky left-0 z-10 bg-white dark:bg-gray-950"
+                        ? "sticky left-0 z-10 bg-card"
                         : ""
                     }`}
                   >

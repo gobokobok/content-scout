@@ -38,18 +38,16 @@ export default function ProjectShellLayout({ children }: { children: React.React
 
   return (
     <main className="flex flex-col gap-4 p-4">
-      <Link href="/" className="text-sm text-gray-600 hover:underline dark:text-gray-400">
+      <Link href="/" className="text-sm text-secondary hover:text-ink hover:underline">
         {t("back")}
       </Link>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
       {!error && (
-        <h1 className="text-2xl font-semibold">
-          {project?.name ?? " "}
-        </h1>
+        <h1 className="text-2xl font-semibold text-ink">{project?.name ?? " "}</h1>
       )}
 
-      <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-gray-200 px-4 dark:border-gray-800">
+      <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-border px-4">
         {TABS.map((tab) => {
           const href = `/projects/${params.id}/${tab.segment}`;
           const active = pathname?.startsWith(href);
@@ -57,10 +55,10 @@ export default function ProjectShellLayout({ children }: { children: React.React
             <Link
               key={tab.segment}
               href={href}
-              className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${
+              className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
                 active
-                  ? "border-gray-900 text-gray-900 dark:border-white dark:text-white"
-                  : "border-transparent text-gray-500 dark:text-gray-400"
+                  ? "border-accent text-accent"
+                  : "border-transparent text-secondary hover:text-ink"
               }`}
             >
               {t(tab.labelKey)}
