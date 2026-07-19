@@ -66,7 +66,8 @@ async def summarize_run_items(
     _client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
     _own_http = http_client is None
     _http = (
-        http_client if http_client is not None
+        http_client
+        if http_client is not None
         else httpx.AsyncClient(timeout=_IMAGE_FETCH_TIMEOUT_SECS)
     )
 
@@ -85,8 +86,13 @@ async def summarize_run_items(
         if len(pending) >= settings.summary_batch_threshold:
             try:
                 await _summarize_via_batches(
-                    session, _client, _http, pending, settings,
-                    user_id=user_id, run_id=run_id,
+                    session,
+                    _client,
+                    _http,
+                    pending,
+                    settings,
+                    user_id=user_id,
+                    run_id=run_id,
                 )
                 return
             except Exception:  # noqa: BLE001 — fall back to concurrent path on any batch failure
@@ -98,8 +104,13 @@ async def summarize_run_items(
         async def _one(item: ContentItem) -> None:
             async with semaphore:
                 await _summarize_item(
-                    session, _client, _http, item, settings,
-                    user_id=user_id, run_id=run_id,
+                    session,
+                    _client,
+                    _http,
+                    item,
+                    settings,
+                    user_id=user_id,
+                    run_id=run_id,
                 )
 
         await asyncio.gather(*(_one(item) for item in pending))
@@ -147,8 +158,7 @@ async def _build_content_blocks(
     content_blocks: list[Any] = []
 
     skip_image = (
-        item.caption is not None
-        and len(item.caption) > settings.summary_skip_image_caption_chars
+        item.caption is not None and len(item.caption) > settings.summary_skip_image_caption_chars
     )
     if item.cover_url and not skip_image:
         image_block = await _fetch_image_block(http_client, item.cover_url, settings)

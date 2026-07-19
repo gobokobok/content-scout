@@ -1,4 +1,5 @@
 """Unit tests for Telegram Login Widget verification (E8-S1)."""
+
 import hashlib
 import hmac
 import time
@@ -37,6 +38,7 @@ def _make_init_data(telegram_id: int = 222, offset_secs: int = 0) -> str:
 
 # ── Login Widget ─────────────────────────────────────────────────────────────
 
+
 def test_login_widget_valid():
     data = _make_login_widget_data()
     assert verify_login_widget(data, BOT_TOKEN) is True
@@ -59,6 +61,7 @@ def test_login_widget_expired():
 
 
 # ── Mini App initData ─────────────────────────────────────────────────────────
+
 
 def test_webapp_init_data_valid():
     init_data = _make_init_data()

@@ -4,6 +4,7 @@ Sends a message to the requesting user's linked Telegram account when a run
 finishes (done or failed). Failure is always non-fatal — it is logged and
 swallowed so the run result is never affected.
 """
+
 import logging
 
 import httpx

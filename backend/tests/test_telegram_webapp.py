@@ -3,6 +3,7 @@
 These tests run against a real DB (via conftest fixtures) and mock the
 TELEGRAM_BOT_TOKEN setting so no real bot credentials are needed in CI.
 """
+
 import hashlib
 import hmac
 import json
@@ -45,6 +46,7 @@ def mock_tg_settings():
     """Patch settings so bot token is available without real env vars."""
     with patch("src.api.auth.get_settings") as m:
         from src.config import Settings
+
         s = Settings(
             telegram_bot_token=BOT_TOKEN,
             telegram_bot_username="test_bot",
@@ -97,9 +99,7 @@ async def test_telegram_login_bad_hash(mock_tg_settings, session):
 @pytest.mark.asyncio
 async def test_telegram_webapp_login(mock_tg_settings, session):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        r = await client.post(
-            "/auth/telegram/webapp", json={"init_data": _make_init_data(88888)}
-        )
+        r = await client.post("/auth/telegram/webapp", json={"init_data": _make_init_data(88888)})
     assert r.status_code == 200
     assert "access_token" in r.json()
 

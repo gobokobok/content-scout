@@ -4,6 +4,7 @@ Login Widget:  secret = SHA-256(bot_token); hash = HMAC-SHA256(sorted_data, secr
 Mini App:      secret = HMAC-SHA256("WebAppData", bot_token);
                hash = HMAC-SHA256(sorted_data, secret)
 """
+
 import hashlib
 import hmac
 import time
@@ -24,9 +25,7 @@ def verify_login_widget(data: dict[str, str], bot_token: str) -> bool:
     auth_date = data.get("auth_date", "0")
     if int(auth_date) < time.time() - MAX_AUTH_AGE_SECONDS:
         return False
-    check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(data.items()) if k != "hash"
-    )
+    check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()) if k != "hash")
     secret = hashlib.sha256(bot_token.encode()).digest()
     expected = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, received_hash)
@@ -39,9 +38,7 @@ def verify_webapp_init_data(init_data: str, bot_token: str) -> tuple[bool, dict]
     auth_date = parsed.get("auth_date", "0")
     if int(auth_date) < time.time() - MAX_AUTH_AGE_SECONDS:
         return False, {}
-    check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(parsed.items())
-    )
+    check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
     secret = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
     expected = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, received_hash), parsed
@@ -53,9 +50,7 @@ async def find_or_create_telegram_user(session: AsyncSession, telegram_id: int) 
     if user is not None:
         return user
     placeholder_email = f"tg_{telegram_id}@telegram.local"
-    user = await create_user_with_workspace(
-        session, email=placeholder_email, password_hash=None
-    )
+    user = await create_user_with_workspace(session, email=placeholder_email, password_hash=None)
     user.telegram_id = telegram_id
     await session.flush()
     return user

@@ -73,9 +73,7 @@ def test_safe_text_prefixes_formula_triggers():
 
 async def test_register_without_invite_when_not_required(session: AsyncSession) -> None:
     settings = get_settings()
-    overridden = Settings(
-        **{**settings.model_dump(), "registration_invite_code": ""}
-    )
+    overridden = Settings(**{**settings.model_dump(), "registration_invite_code": ""})
     with (
         patch("src.api.auth.get_settings", return_value=overridden),
         patch("src.api.auth.check_rate_limit", _noop_rate_limit),

@@ -1,4 +1,5 @@
 """Unit tests for Telegram run-complete notification (E8-S2)."""
+
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 

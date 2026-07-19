@@ -24,9 +24,7 @@ settings = get_settings()
 
 _DEFAULT_JWT_SECRET = "local-dev-secret-do-not-use-in-prod"
 if settings.environment != "local" and settings.jwt_secret == _DEFAULT_JWT_SECRET:
-    raise RuntimeError(
-        "JWT_SECRET is set to the insecure default — configure it before deploying"
-    )
+    raise RuntimeError("JWT_SECRET is set to the insecure default — configure it before deploying")
 
 
 @asynccontextmanager

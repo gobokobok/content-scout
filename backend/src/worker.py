@@ -61,7 +61,8 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             else:
                 for raw in raw_items:
                     await session.execute(
-                        pg_insert(ContentItem).values(
+                        pg_insert(ContentItem)
+                        .values(
                             id=uuid.uuid4(),
                             run_id=run.id,
                             account_id=account.id,
@@ -76,7 +77,8 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
                             views=raw.views,
                             comments=raw.comments,
                             raw=raw.raw,
-                        ).on_conflict_do_nothing(index_elements=["run_id", "external_id"])
+                        )
+                        .on_conflict_do_nothing(index_elements=["run_id", "external_id"])
                     )
                     items_found += 1
                 if raw_items:

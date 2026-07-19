@@ -133,8 +133,10 @@ async def me(user: CurrentUser) -> UserOut:
 
 # ── Telegram Login Widget (E8-S1) ────────────────────────────────────────────
 
+
 class TelegramLoginIn(BaseModel):
     """Raw fields forwarded from the Telegram Login Widget callback."""
+
     id: int
     first_name: str = ""
     last_name: str = ""
@@ -183,6 +185,7 @@ async def telegram_login(body: TelegramLoginIn, session: SessionDep) -> TokenOut
 
 # ── Telegram Mini App initData (E8-S5) ───────────────────────────────────────
 
+
 class TelegramWebAppIn(BaseModel):
     init_data: str
 
@@ -223,10 +226,9 @@ async def telegram_webapp(body: TelegramWebAppIn, session: SessionDep) -> TokenO
 
 # ── Link Telegram to existing email account (settings page, UI in E8-S2) ────
 
+
 @router.post("/telegram/link", response_model=UserOut)
-async def telegram_link(
-    body: TelegramLoginIn, user: CurrentUser, session: SessionDep
-) -> UserOut:
+async def telegram_link(body: TelegramLoginIn, user: CurrentUser, session: SessionDep) -> UserOut:
     settings = get_settings()
     if not settings.telegram_bot_token:
         raise HTTPException(

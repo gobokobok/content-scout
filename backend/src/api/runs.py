@@ -33,9 +33,7 @@ NO_ACCOUNTS = HTTPException(
     status_code=status.HTTP_400_BAD_REQUEST,
     detail={
         "code": "no_accounts_to_analyze",
-        "message_ru": (
-            "Нет аккаунтов для анализа. Добавьте конкурентов на вкладке «Конкуренты»."
-        ),
+        "message_ru": ("Нет аккаунтов для анализа. Добавьте конкурентов на вкладке «Конкуренты»."),
     },
 )
 
@@ -95,7 +93,9 @@ async def _check_run_quota(session: AsyncSession, user_id: uuid.UUID) -> None:
     settings = get_settings()
     today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     count = await session.scalar(
-        select(func.count()).select_from(AnalysisRun).where(
+        select(func.count())
+        .select_from(AnalysisRun)
+        .where(
             AnalysisRun.requested_by == user_id,
             AnalysisRun.created_at >= today_start,
             AnalysisRun.created_at < today_start + timedelta(days=1),

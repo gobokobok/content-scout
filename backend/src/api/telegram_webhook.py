@@ -1,4 +1,5 @@
 """Telegram Bot webhook and setup — E8-S5 (D27: raw httpx, no bot framework)."""
+
 import hmac
 import logging
 
@@ -53,12 +54,14 @@ async def _send_open_button(chat_id: int) -> None:
         chat_id=chat_id,
         text="Привет! Открывай content-scout прямо здесь — без лишних кликов.",
         reply_markup={
-            "inline_keyboard": [[
-                {
-                    "text": "Открыть content-scout",
-                    "web_app": {"url": settings.web_url},
-                }
-            ]]
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "Открыть content-scout",
+                        "web_app": {"url": settings.web_url},
+                    }
+                ]
+            ]
         },
     )
 
@@ -95,6 +98,7 @@ async def setup_webhook_and_menu() -> None:
 def _get_api_base_url() -> str:
     """Return the public base URL of this API service."""
     import os
+
     # RAILWAY_PUBLIC_DOMAIN is set automatically on Railway services
     domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")
     if domain:
