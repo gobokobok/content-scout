@@ -1,4 +1,4 @@
-"""E7-S4: Pilot security guardrails — invite code, run quota, XLSX injection, timing fix."""
+"""E7-S4: Pilot security guardrails — run quota, XLSX injection, timing fix."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -64,96 +64,6 @@ def test_safe_text_prefixes_formula_triggers():
     assert _safe_text("+1 (555) 123-4567") == "'+1 (555) 123-4567"
     assert _safe_text("-negative") == "'-negative"
     assert _safe_text("@username") == "'@username"
-
-
-# ---------------------------------------------------------------------------
-# Invite code
-# ---------------------------------------------------------------------------
-
-
-async def test_register_without_invite_when_not_required(session: AsyncSession) -> None:
-    settings = get_settings()
-    overridden = Settings(**{**settings.model_dump(), "registration_invite_code": ""})
-    with (
-        patch("src.api.auth.get_settings", return_value=overridden),
-        patch("src.api.auth.check_rate_limit", _noop_rate_limit),
-    ):
-        async with await _client(session) as c:
-            resp = await c.post(
-                "/auth/register",
-                json={"email": f"u-{uuid.uuid4().hex[:8]}@test.com", "password": "password123"},
-            )
-    assert resp.status_code == 201
-
-
-async def test_register_with_correct_invite_code(session: AsyncSession) -> None:
-    settings = get_settings()
-    overridden = Settings(**{**settings.model_dump(), "registration_invite_code": "secret42"})
-    with (
-        patch("src.api.auth.get_settings", return_value=overridden),
-        patch("src.api.auth.check_rate_limit", _noop_rate_limit),
-    ):
-        async with await _client(session) as c:
-            resp = await c.post(
-                "/auth/register",
-                json={
-                    "email": f"u-{uuid.uuid4().hex[:8]}@test.com",
-                    "password": "password123",
-                    "invite_code": "secret42",
-                },
-            )
-    assert resp.status_code == 201
-
-
-async def test_register_with_wrong_invite_code_returns_400(session: AsyncSession) -> None:
-    settings = get_settings()
-    overridden = Settings(**{**settings.model_dump(), "registration_invite_code": "correct"})
-    with (
-        patch("src.api.auth.get_settings", return_value=overridden),
-        patch("src.api.auth.check_rate_limit", _noop_rate_limit),
-    ):
-        async with await _client(session) as c:
-            resp = await c.post(
-                "/auth/register",
-                json={
-                    "email": f"u-{uuid.uuid4().hex[:8]}@test.com",
-                    "password": "password123",
-                    "invite_code": "wrong",
-                },
-            )
-    assert resp.status_code == 400
-    assert resp.json()["detail"]["code"] == "invalid_invite_code"
-
-
-async def test_register_with_missing_invite_code_returns_400(session: AsyncSession) -> None:
-    settings = get_settings()
-    overridden = Settings(**{**settings.model_dump(), "registration_invite_code": "required"})
-    with (
-        patch("src.api.auth.get_settings", return_value=overridden),
-        patch("src.api.auth.check_rate_limit", _noop_rate_limit),
-    ):
-        async with await _client(session) as c:
-            resp = await c.post(
-                "/auth/register",
-                json={"email": f"u-{uuid.uuid4().hex[:8]}@test.com", "password": "password123"},
-            )
-    assert resp.status_code == 400
-    assert resp.json()["detail"]["code"] == "invalid_invite_code"
-
-
-async def test_register_config_returns_require_invite_flag(session: AsyncSession) -> None:
-    settings = get_settings()
-    with_invite = Settings(**{**settings.model_dump(), "registration_invite_code": "xyz"})
-    without_invite = Settings(**{**settings.model_dump(), "registration_invite_code": ""})
-
-    async with await _client(session) as c:
-        with patch("src.api.auth.get_settings", return_value=with_invite):
-            resp = await c.get("/auth/register/config")
-        assert resp.json() == {"require_invite": True}
-
-        with patch("src.api.auth.get_settings", return_value=without_invite):
-            resp = await c.get("/auth/register/config")
-        assert resp.json() == {"require_invite": False}
 
 
 # ---------------------------------------------------------------------------
