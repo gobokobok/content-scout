@@ -18,6 +18,10 @@ function formatNumber(n: number | null): string {
   return new Intl.NumberFormat("ru-RU").format(Math.round(n));
 }
 
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
+
 // ---------------------------------------------------------------------------
 // Sort bottom sheet
 // ---------------------------------------------------------------------------
@@ -40,7 +44,6 @@ function SortBottomSheet({
   const fields: { field: ItemSortField; label: string }[] = [
     { field: "views_per_day", label: t("sortViewsPerDay") },
     { field: "likes_per_day", label: t("sortLikesPerDay") },
-    { field: "views", label: t("sortViews") },
     { field: "likes", label: t("sortLikes") },
     { field: "published_at", label: t("sortPublishedAt") },
     { field: "account", label: t("sortAccount") },
@@ -141,13 +144,13 @@ function ContentCard({
         </p>
       )}
 
-      {/* Metric chips + link */}
+      {/* Metrics + link */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center rounded-chip bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-          {formatNumber(item.views_per_day)}&nbsp;{t("metricsViewsPerDay")}
+        <span className="inline-flex items-center rounded-chip bg-bg border border-border px-2 py-0.5 text-xs text-secondary">
+          {daysSince(item.published_at)}&nbsp;{t("metricsDaysSince")}
         </span>
         <span className="inline-flex items-center rounded-chip border border-border bg-bg px-2 py-0.5 text-xs text-secondary">
-          {formatNumber(item.likes_per_day)}&nbsp;{t("metricsLikesPerDay")}
+          {formatNumber(item.likes)}&nbsp;{t("metricsLikes")}
         </span>
         <a
           href={item.url}
@@ -193,7 +196,6 @@ export function ResultsCards({
   const SORT_LABELS: Partial<Record<ItemSortField, string>> = {
     views_per_day: t("sortViewsPerDay"),
     likes_per_day: t("sortLikesPerDay"),
-    views: t("sortViews"),
     likes: t("sortLikes"),
     published_at: t("sortPublishedAt"),
     account: t("sortAccount"),
@@ -254,7 +256,7 @@ function ShortlistCard({
 
   return (
     <div className="rounded-card border border-border bg-card p-4">
-      {/* Header: type chip + handle + remove */}
+      {/* Header: type chip + handle + active star (remove) */}
       <div className="mb-2 flex items-center gap-2">
         <span className="inline-flex shrink-0 items-center gap-1 rounded-chip bg-accent-soft px-2 py-0.5 text-[10px] font-medium text-accent">
           {TYPE_ICON[item.type]}
@@ -265,9 +267,10 @@ function ShortlistCard({
         </span>
         <button
           onClick={() => onRemove(item.content_item_id)}
-          className="shrink-0 text-xs text-danger"
+          className="shrink-0 p-0.5"
+          aria-label={t("removeBtn")}
         >
-          {t("removeBtn")}
+          <Star className="h-4 w-4 fill-warning text-warning" />
         </button>
       </div>
 
@@ -281,18 +284,14 @@ function ShortlistCard({
         </p>
       )}
 
-      {/* Metric chips + link */}
+      {/* Metrics + link */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {item.likes !== null && (
-          <span className="inline-flex items-center rounded-chip border border-border bg-bg px-2 py-0.5 text-xs text-secondary">
-            {formatNumber(item.likes)}&nbsp;{t("metricsLikes")}
-          </span>
-        )}
-        {item.views !== null && (
-          <span className="inline-flex items-center rounded-chip border border-border bg-bg px-2 py-0.5 text-xs text-secondary">
-            {formatNumber(item.views)}&nbsp;{t("metricsViews")}
-          </span>
-        )}
+        <span className="inline-flex items-center rounded-chip border border-border bg-bg px-2 py-0.5 text-xs text-secondary">
+          {daysSince(item.published_at)}&nbsp;{t("metricsDaysSince")}
+        </span>
+        <span className="inline-flex items-center rounded-chip border border-border bg-bg px-2 py-0.5 text-xs text-secondary">
+          {formatNumber(item.likes)}&nbsp;{t("metricsLikes")}
+        </span>
         <a
           href={item.url}
           target="_blank"

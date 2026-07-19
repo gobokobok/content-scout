@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated
@@ -9,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.db import get_session
-from src.models import UsageEvent
+from src.models import AnalysisRun, Project, UsageEvent
+from src.models.workspace import WorkspaceMember
 
 router = APIRouter(tags=["usage"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -26,6 +28,19 @@ class UsageOut(BaseModel):
     to: datetime
     total_cost_usd: Decimal
     by_kind: list[KindTotal]
+
+
+class RunSummaryOut(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    project_name: str
+    status: str
+    duration_days: int
+    progress_items: int
+    total_input_tokens: int
+    total_output_tokens: int
+    created_at: datetime
+    finished_at: datetime | None
 
 
 @router.get("/me/usage", response_model=UsageOut)
@@ -52,3 +67,36 @@ async def get_my_usage(
     ]
     total_cost_usd = sum((k.cost_usd for k in by_kind), Decimal("0"))
     return UsageOut(from_=from_, to=to, total_cost_usd=total_cost_usd, by_kind=by_kind)
+
+
+@router.get("/me/runs", response_model=list[RunSummaryOut])
+async def get_my_runs(
+    user: CurrentUser,
+    session: SessionDep,
+    from_: datetime = Query(alias="from"),
+    to: datetime = Query(),
+) -> list[RunSummaryOut]:
+    rows = await session.execute(
+        select(AnalysisRun, Project.name.label("project_name"))
+        .join(Project, AnalysisRun.project_id == Project.id)
+        .join(WorkspaceMember, WorkspaceMember.workspace_id == Project.workspace_id)
+        .where(WorkspaceMember.user_id == user.id)
+        .where(AnalysisRun.created_at >= from_)
+        .where(AnalysisRun.created_at < to)
+        .order_by(AnalysisRun.created_at.desc())
+    )
+    return [
+        RunSummaryOut(
+            id=run.id,
+            project_id=run.project_id,
+            project_name=project_name,
+            status=run.status,
+            duration_days=run.duration_days,
+            progress_items=run.progress_items,
+            total_input_tokens=run.total_input_tokens,
+            total_output_tokens=run.total_output_tokens,
+            created_at=run.created_at,
+            finished_at=run.finished_at,
+        )
+        for run, project_name in rows
+    ]

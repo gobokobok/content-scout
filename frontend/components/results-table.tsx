@@ -226,19 +226,9 @@ export function ResultsTable({
       cell: ({ row }) => formatNumber(row.original.likes),
     },
     {
-      id: "views",
-      header: t("colViews"),
-      cell: ({ row }) => formatNumber(row.original.views),
-    },
-    {
       id: "days_since_published",
       header: t("colDaysSincePublished"),
       cell: ({ row }) => formatNumber(row.original.days_since_published),
-    },
-    {
-      id: "views_per_day",
-      header: t("colViewsPerDay"),
-      cell: ({ row }) => formatNumber(row.original.views_per_day),
     },
     {
       id: "likes_per_day",

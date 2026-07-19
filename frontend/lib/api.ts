@@ -170,6 +170,19 @@ export interface UsageResponse {
   by_kind: KindTotalResponse[];
 }
 
+export interface RunSummaryResponse {
+  id: string;
+  project_id: string;
+  project_name: string;
+  status: string;
+  duration_days: number;
+  progress_items: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  created_at: string;
+  finished_at: string | null;
+}
+
 export interface ShortlistHistoryItemResponse {
   id: string;
   content_item_id: string;
@@ -290,6 +303,10 @@ export const api = {
   getMyUsage: (from: Date, to: Date) =>
     request<UsageResponse>(
       `/me/usage?from=${from.toISOString()}&to=${to.toISOString()}`,
+    ),
+  getMyRuns: (from: Date, to: Date) =>
+    request<RunSummaryResponse[]>(
+      `/me/runs?from=${from.toISOString()}&to=${to.toISOString()}`,
     ),
   getAdminUsage: (from: Date, to: Date) =>
     request<AdminUsageResponse>(

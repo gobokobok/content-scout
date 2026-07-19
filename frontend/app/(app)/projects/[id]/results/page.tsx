@@ -7,7 +7,6 @@ import { ChevronUp, Check } from "lucide-react";
 import {
   api,
   ApiError,
-  type AccountResponse,
   type ContentItemResponse,
   type ItemSortField,
   type RunResponse,
@@ -17,8 +16,6 @@ import { ResultsCards } from "@/components/results-cards";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
-import { useProject } from "@/lib/project-context";
-import { RunDialog } from "../run-dialog";
 
 const DEFAULT_SORT: ItemSortField = "views_per_day";
 
@@ -46,16 +43,11 @@ export default function ResultsTabPage() {
   const { addToast } = useToast();
 
   const [runs, setRuns] = useState<RunResponse[] | null>(null);
-  const [accounts, setAccounts] = useState<AccountResponse[] | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<ItemSortField>(DEFAULT_SORT);
   const [order, setOrder] = useState<"asc" | "desc">("desc");
-  const [itemsPage, setItemsPage] = useState<{ items: ContentItemResponse[]; total: number } | null>(
-    null,
-  );
-  const { isArchived } = useProject();
-  const [runDialogOpen, setRunDialogOpen] = useState(false);
+  const [itemsPage, setItemsPage] = useState<{ items: ContentItemResponse[]; total: number } | null>(null);
   const [runSelectorOpen, setRunSelectorOpen] = useState(false);
   const [runSelectorAnchorEl, setRunSelectorAnchorEl] = useState<HTMLElement | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -72,18 +64,9 @@ export default function ResultsTabPage() {
     }
   }, [params.id, t, addToast]);
 
-  const loadAccounts = useCallback(async () => {
-    try {
-      setAccounts(await api.listAccounts(params.id));
-    } catch {
-      // non-fatal: run button just won't have an accurate count
-    }
-  }, [params.id]);
-
   useEffect(() => {
     void loadRuns();
-    void loadAccounts();
-  }, [loadRuns, loadAccounts]);
+  }, [loadRuns]);
 
   useEffect(() => {
     if (!selectedRunId) return;
@@ -98,9 +81,7 @@ export default function ResultsTabPage() {
         if (cancelled) return;
         addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [selectedRunId, sort, order, page, t, addToast]);
 
   function onSortChange(field: ItemSortField) {
@@ -166,7 +147,6 @@ export default function ResultsTabPage() {
   }
 
   const selectedRun = runs?.find((r) => r.id === selectedRunId) ?? null;
-  const accountsCount = accounts?.length ?? 0;
   const totalPages = itemsPage ? Math.max(1, Math.ceil(itemsPage.total / 50)) : 1;
 
   const paginationBar = (
@@ -193,7 +173,7 @@ export default function ResultsTabPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/* Run selector trigger */}
         {runs !== null && runs.length > 0 && (
           <button
@@ -207,25 +187,15 @@ export default function ResultsTabPage() {
           </button>
         )}
 
-        <div className="flex items-center gap-2 ml-auto">
-          {selectedRun?.status === "done" && itemsPage && itemsPage.items.length > 0 && (
-            <button
-              onClick={() => void handleExport()}
-              disabled={exporting}
-              className="rounded-control border border-border px-4 py-2 text-sm font-medium text-ink disabled:opacity-50 hover:bg-bg"
-            >
-              {exporting ? t("exporting") : t("exportButton")}
-            </button>
-          )}
-          {accountsCount > 0 && !isArchived && (
-            <button
-              onClick={() => setRunDialogOpen(true)}
-              className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white"
-            >
-              {t("runButton")}
-            </button>
-          )}
-        </div>
+        {selectedRun?.status === "done" && itemsPage && itemsPage.items.length > 0 && (
+          <button
+            onClick={() => void handleExport()}
+            disabled={exporting}
+            className="ml-auto rounded-control border border-border px-4 py-2 text-sm font-medium text-ink disabled:opacity-50 hover:bg-bg"
+          >
+            {exporting ? t("exporting") : t("exportButton")}
+          </button>
+        )}
       </div>
 
       {/* Runs loading */}
@@ -289,9 +259,7 @@ export default function ResultsTabPage() {
                 onClick={() => onRunSelected(r.id)}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-bg transition-colors"
               >
-                <span
-                  className={`flex-1 ${r.id === selectedRunId ? "font-semibold text-accent" : "text-ink"}`}
-                >
+                <span className={`flex-1 ${r.id === selectedRunId ? "font-semibold text-accent" : "text-ink"}`}>
                   {formatRunLabel(r)}
                 </span>
                 {r.id === selectedRunId && (
@@ -302,18 +270,6 @@ export default function ResultsTabPage() {
           ))}
         </ul>
       </ContextMenu>
-
-      {runDialogOpen && (
-        <RunDialog
-          projectId={params.id}
-          accountsCount={accountsCount}
-          accountIds={undefined}
-          onClose={() => {
-            setRunDialogOpen(false);
-            void loadRuns();
-          }}
-        />
-      )}
     </div>
   );
 }
