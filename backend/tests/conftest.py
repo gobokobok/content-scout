@@ -35,18 +35,33 @@ def _test_db_url() -> str:
 
 
 @pytest.fixture(autouse=True)
-async def reset_redis_pool():
-    """Reset the module-level Redis pool before each test.
+async def reset_singletons():
+    """Reset event-loop-bound singletons before and after each test.
 
-    The pool is a singleton bound to the event loop it was created on. pytest-asyncio
-    uses a fresh event loop per test function, so we must clear the cached pool between
-    tests to avoid 'Event loop is closed' errors on the stale connections.
+    pytest-asyncio uses a fresh event loop per test function. Module-level singletons
+    that hold asyncio connections (Redis pool, SQLAlchemy engine) are bound to the loop
+    they were created on; reusing them on a new loop raises 'Event loop is closed' or
+    'got Future attached to a different loop'. Clearing before each test forces fresh
+    creation on the current loop; disposing the engine after the test closes asyncpg
+    connections cleanly before the loop goes away.
     """
+    import src.db as _db
     import src.services.queue as _q
 
     _q._pool = None
+    _db.get_engine.cache_clear()
+    _db.get_sessionmaker.cache_clear()
+
     yield
+
     _q._pool = None
+    if _db.get_engine.cache_info().currsize > 0:
+        try:
+            await _db.get_engine().dispose()
+        except Exception:  # noqa: BLE001
+            pass
+    _db.get_engine.cache_clear()
+    _db.get_sessionmaker.cache_clear()
 
 
 @pytest.fixture(scope="session")
