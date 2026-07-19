@@ -11,6 +11,11 @@ Completed stories land here, newest first. Format:
 - `frontend/app/(app)/settings/page.tsx`: shows TG link status; Telegram Login Widget to link (calls `POST /auth/telegram/link`); updates `linked` state on success
 - App header (`(app)/layout.tsx`): «Настройки» nav link added
 - 5 unit tests in `test_telegram_notify.py` — all pass without DB
+**Post-close fixes (CI unblocking — 2026-07-19):**
+- `src/api/auth.py` `TelegramLoginIn`: optional fields changed `str=""` → `str|None=None` so `model_dump(exclude_none=True)` omits absent fields from the HMAC check string (hash verification was failing for login widget payloads without last_name/username/photo_url)
+- `src/main.py` `_SecurityHeadersMiddleware`: replaced `BaseHTTPMiddleware` with a pure ASGI implementation to prevent anyio TaskGroup task-loop mismatch errors in tests using `ASGITransport`
+- `tests/conftest.py`: `reset_singletons` autouse fixture clears `get_engine`/`get_sessionmaker` lru_cache and `_pool` between tests; disposes engine on teardown to close asyncpg connections cleanly before each test's event loop closes
+- `tests/test_worker.py` `_fake_summarize`: added `**_kwargs` to absorb `project_id`, `client`, `http_client` added in E4-S3
 **Smoke test:** DEFERRED — requires E8-S1/S5 human prerequisites on Railway DEV (bot token set, `TELEGRAM_BOT_USERNAME` set, `WEB_URL` set); then: link Telegram from /settings, start a run, confirm bot DM arrives with item count + deep link
 **Promoted to backlog:** none
 
