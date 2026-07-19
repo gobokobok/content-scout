@@ -85,7 +85,7 @@ Full story definitions live in `BACKLOG.md`.
 | 2 | E7-S4 | Pilot security guardrails (critical) | done |
 | 3 | E4-S3 | Claude cost optimization | done |
 | 4 | E12-S1 | Design system re-skin (light theme v1) | done |
-| 5 | E12-S2 | Mobile cards, bottom navigation, UX states | pending |
+| 5 | E12-S2 | Mobile cards, bottom navigation, UX states | done |
 | 6 | E8-S1 | Telegram Login | pending |
 | 7 | E8-S5 | Telegram Mini App shell (no billing) — **sprint exit criterion** | pending |
 | 8 | E8-S2 | Telegram bot notifications (stretch — skip if the sprint runs long) | pending |

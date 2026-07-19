@@ -1292,7 +1292,8 @@ frontend/app/globals.css, frontend/app/layout.tsx, frontend/components/ui/index.
 ## [E12-S2] Mobile cards, bottom navigation, UX states
 **Epic:** UI/UX Modernization
 **Sprint:** 6
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-19
 **Priority:** high
 **Depends on:** E12-S1
 ### Goal
@@ -1318,4 +1319,10 @@ CLAUDE.md, DECISIONS.md (D28), docs/UI_GUIDELINES.md, frontend/components/result
 ### Files to create or modify
 frontend/components/results-cards.tsx (new), frontend/components/ui/bottom-nav.tsx (new), frontend/components/ui/toast.tsx (new), frontend/components/ui/skeleton.tsx (new), frontend/app/(app)/**, frontend/messages/ru.json
 ### Handover
-—
+- `frontend/components/results-cards.tsx` — `ResultsCards` (cards + SortBottomSheet) and `ShortlistCards` for mobile views
+- `frontend/components/ui/skeleton.tsx` — `SkeletonLine`, `SkeletonCard`, `SkeletonList`, `SkeletonRow`, `SkeletonRows`
+- `frontend/components/ui/toast.tsx` — `ToastProvider` (root layout), `useToast()` hook with `addToast(msg, variant)`
+- `frontend/components/ui/bottom-nav.tsx` — `ProjectBottomNav` (md:hidden, safe-area-inset-bottom, ≥44px); in project layout
+- All list screens — skeleton loaders, errors → toasts, designed empty states (FolderOpen/Users icons)
+- Results/shortlist — cards at <768px, table at ≥768px
+- `ru.json` — `ResultsCards` namespace; `Projects.emptyHint`

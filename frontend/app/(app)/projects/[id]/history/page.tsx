@@ -10,6 +10,8 @@ import {
   type RunResponse,
   type ShortlistHistoryItemResponse,
 } from "@/lib/api";
+import { SkeletonRows } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 
 const TYPE_ICON: Record<ShortlistHistoryItemResponse["type"], React.ReactNode> = {
   reel: <Film className="inline h-4 w-4" />,
@@ -40,12 +42,12 @@ export default function HistoryTabPage() {
   const t = useTranslations("History");
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { addToast } = useToast();
 
   const [runs, setRuns] = useState<RunResponse[] | null>(null);
   const [shortlistHistory, setShortlistHistory] = useState<ShortlistHistoryItemResponse[] | null>(
     null,
   );
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -56,9 +58,9 @@ export default function HistoryTabPage() {
       setRuns(loadedRuns);
       setShortlistHistory(loadedHistory);
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
-  }, [params.id, t]);
+  }, [params.id, t, addToast]);
 
   useEffect(() => {
     void load();
@@ -78,13 +80,11 @@ export default function HistoryTabPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      {error && <p className="text-sm text-danger">{error}</p>}
-
       {/* Run history */}
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-ink">{t("runsTitle")}</h2>
 
-        {runs === null && !error && <p className="text-secondary">{t("loading")}</p>}
+        {runs === null && <SkeletonRows count={3} />}
 
         {runs !== null && runs.length === 0 && (
           <p className="text-secondary">{t("runsEmpty")}</p>
@@ -169,9 +169,7 @@ export default function HistoryTabPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-ink">{t("shortlistTitle")}</h2>
 
-        {shortlistHistory === null && !error && (
-          <p className="text-secondary">{t("loading")}</p>
-        )}
+        {shortlistHistory === null && <SkeletonRows count={3} />}
 
         {shortlistHistory !== null && shortlistHistory.length === 0 && (
           <p className="text-secondary">{t("shortlistEmpty")}</p>

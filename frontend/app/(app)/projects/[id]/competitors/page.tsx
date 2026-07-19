@@ -3,7 +3,10 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Users } from "lucide-react";
 import { api, ApiError, type AccountResponse } from "@/lib/api";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 import { RunDialog } from "../run-dialog";
 
 const MAX_ACCOUNTS = 50;
@@ -11,12 +14,12 @@ const MAX_ACCOUNTS = 50;
 export default function CompetitorsTabPage() {
   const t = useTranslations("Competitors");
   const params = useParams<{ id: string }>();
+  const { addToast } = useToast();
   const [accounts, setAccounts] = useState<AccountResponse[] | null>(null);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ input: string; message_ru: string }[]>([]);
   const [addedCount, setAddedCount] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [runDialogOpen, setRunDialogOpen] = useState(false);
 
@@ -26,9 +29,9 @@ export default function CompetitorsTabPage() {
       setAccounts(loaded);
       setSelected(new Set(loaded.map((a) => a.id)));
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
-  }, [params.id, t]);
+  }, [params.id, t, addToast]);
 
   useEffect(() => {
     void load();
@@ -59,7 +62,6 @@ export default function CompetitorsTabPage() {
     if (entries.length === 0) return;
 
     setSubmitting(true);
-    setError(null);
     setErrors([]);
     setAddedCount(null);
     try {
@@ -69,7 +71,7 @@ export default function CompetitorsTabPage() {
       setText("");
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     } finally {
       setSubmitting(false);
     }
@@ -80,7 +82,7 @@ export default function CompetitorsTabPage() {
       await api.removeAccount(params.id, accountId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
   }
 
@@ -120,8 +122,6 @@ export default function CompetitorsTabPage() {
         </button>
       </form>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
-
       {addedCount !== null && (
         <p className="text-sm text-secondary">{t("addedCount", { count: addedCount })}</p>
       )}
@@ -136,10 +136,15 @@ export default function CompetitorsTabPage() {
         </ul>
       )}
 
-      {accounts === null && <p className="text-secondary">{t("loading")}</p>}
+      {/* Loading skeleton */}
+      {accounts === null && <SkeletonList count={4} />}
 
+      {/* Designed empty state */}
       {accounts !== null && accounts.length === 0 && (
-        <p className="text-secondary">{t("empty")}</p>
+        <div className="flex flex-col items-center gap-3 rounded-card border border-border bg-card py-12 text-center">
+          <Users className="h-10 w-10 text-border" />
+          <p className="text-sm font-medium text-ink">{t("empty")}</p>
+        </div>
       )}
 
       {accounts !== null && accounts.length > 0 && (

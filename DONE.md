@@ -2,6 +2,21 @@
 
 Completed stories land here, newest first. Format:
 
+## [E12-S2] Mobile cards, bottom navigation, UX states
+**Completed:** 2026-07-19
+**Handover:**
+- `frontend/components/results-cards.tsx` — `ResultsCards` (card list + `SortBottomSheet` bottom sheet) and `ShortlistCards`; use `ResultsCards` i18n namespace
+- `frontend/components/ui/skeleton.tsx` — `SkeletonLine`, `SkeletonCard`, `SkeletonList`, `SkeletonRow`, `SkeletonRows`
+- `frontend/components/ui/toast.tsx` — `ToastProvider` (wrapped in root layout), `useToast()` → `addToast(msg, variant)`, 4s auto-dismiss
+- `frontend/components/ui/bottom-nav.tsx` — `ProjectBottomNav` (md:hidden, env(safe-area-inset-bottom), ≥44px tap targets); wired into project `[id]/layout.tsx` as a sibling to `<main>` (fragment wrapper)
+- `results/page.tsx` + `shortlist/page.tsx` — responsive: `md:hidden` cards, `hidden md:block` table; skeleton while loading
+- `competitors/page.tsx`, `history/page.tsx`, `app/(app)/page.tsx` — skeleton loaders replace «Загрузка…»; all errors → `addToast`; designed empty states with lucide icons (FolderOpen, Users)
+- `results-table.tsx` — `TextExpandCell` taps the text itself; ⊞ expand button removed
+- `frontend/messages/ru.json` — `ResultsCards` namespace (21 keys); `Projects.emptyHint`
+- No new ENV vars
+**Smoke test:** DEFERRED — full 375px flow requires DEV login credentials (connect to https://web-dev-99e3.up.railway.app after CI deploys; verify bottom tabs, card results, sort sheet, toasts, skeletons, desktop table unchanged)
+**Promoted to backlog:** none
+
 ## [E12-S1] Design system re-skin (light theme v1)
 **Completed:** 2026-07-19
 **Handover:**

@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-table";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { ChevronUp, ChevronDown, Film, ImageIcon, Images, Maximize2, Star, X } from "lucide-react";
+import { ChevronUp, ChevronDown, Film, ImageIcon, Images, Star, X } from "lucide-react";
 import type { ContentItemResponse, ItemSortField } from "@/lib/api";
 
 const TYPE_ICON: Record<ContentItemResponse["type"], React.ReactNode> = {
@@ -41,17 +41,12 @@ function TextExpandCell({ text }: { text: string | null }) {
   const needsExpand = text.length > 60;
   return (
     <>
-      <span className="flex items-center gap-1">
-        <span>{truncate(text, 60)}</span>
-        {needsExpand && (
-          <button
-            onClick={() => setOpen(true)}
-            className="ml-1 shrink-0 rounded px-1 text-secondary hover:text-ink"
-            title="Показать полностью"
-          >
-            <Maximize2 className="h-3 w-3" />
-          </button>
-        )}
+      <span
+        className={needsExpand ? "cursor-pointer hover:text-accent" : undefined}
+        onClick={needsExpand ? () => setOpen(true) : undefined}
+        title={needsExpand ? "Нажмите, чтобы раскрыть" : undefined}
+      >
+        {truncate(text, 60)}
       </span>
       {open && (
         <div

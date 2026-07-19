@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { FolderOpen } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiError, type ProjectResponse } from "@/lib/api";
+import { SkeletonRows } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 
 export default function WorkspaceHomePage() {
   const t = useTranslations("Projects");
+  const { addToast } = useToast();
   const [projects, setProjects] = useState<ProjectResponse[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -19,9 +22,9 @@ export default function WorkspaceHomePage() {
     try {
       setProjects(await api.listProjects());
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
-  }, [t]);
+  }, [t, addToast]);
 
   useEffect(() => {
     void load();
@@ -34,7 +37,7 @@ export default function WorkspaceHomePage() {
       setRenamingId(null);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
   }
 
@@ -43,7 +46,7 @@ export default function WorkspaceHomePage() {
       await api.archiveProject(id);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
   }
 
@@ -51,14 +54,13 @@ export default function WorkspaceHomePage() {
     e.preventDefault();
     if (!newName.trim()) return;
     setSubmitting(true);
-    setError(null);
     try {
       await api.createProject(newName.trim());
       setNewName("");
       setCreating(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     } finally {
       setSubmitting(false);
     }
@@ -107,12 +109,16 @@ export default function WorkspaceHomePage() {
         </form>
       )}
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {/* Loading skeleton */}
+      {projects === null && <SkeletonRows count={3} />}
 
-      {projects === null && <p className="text-secondary">{t("loading")}</p>}
-
+      {/* Designed empty state */}
       {projects !== null && projects.length === 0 && (
-        <p className="text-secondary">{t("empty")}</p>
+        <div className="flex flex-col items-center gap-3 rounded-card border border-border bg-card py-12 text-center">
+          <FolderOpen className="h-10 w-10 text-border" />
+          <p className="text-sm font-medium text-ink">{t("empty")}</p>
+          <p className="text-xs text-secondary">{t("emptyHint")}</p>
+        </div>
       )}
 
       {projects !== null && projects.length > 0 && (

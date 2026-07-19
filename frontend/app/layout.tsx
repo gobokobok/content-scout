@@ -3,6 +3,7 @@ import { Golos_Text, Unbounded } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { AuthProvider } from "@/lib/auth-context";
+import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
 const golos = Golos_Text({
@@ -35,7 +36,9 @@ export default async function RootLayout({
         className={`${golos.variable} ${unbounded.variable} antialiased bg-bg text-ink font-sans`}
       >
         <NextIntlClientProvider messages={messages}>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </AuthProvider>
         </NextIntlClientProvider>
       </body>
     </html>

@@ -12,6 +12,9 @@ import {
   type RunResponse,
 } from "@/lib/api";
 import { ResultsTable } from "@/components/results-table";
+import { ResultsCards } from "@/components/results-cards";
+import { SkeletonRows } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 import { RunDialog } from "../run-dialog";
 
 const DEFAULT_SORT: ItemSortField = "views_per_day";
@@ -19,6 +22,7 @@ const DEFAULT_SORT: ItemSortField = "views_per_day";
 export default function ResultsTabPage() {
   const t = useTranslations("ResultsTable");
   const params = useParams<{ id: string }>();
+  const { addToast } = useToast();
 
   const [runs, setRuns] = useState<RunResponse[] | null>(null);
   const [accounts, setAccounts] = useState<AccountResponse[] | null>(null);
@@ -29,7 +33,6 @@ export default function ResultsTabPage() {
   const [itemsPage, setItemsPage] = useState<{ items: ContentItemResponse[]; total: number } | null>(
     null,
   );
-  const [error, setError] = useState<string | null>(null);
   const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -41,9 +44,9 @@ export default function ResultsTabPage() {
       const latestDone = loaded.find((r) => r.status === "done");
       setSelectedRunId((current) => current ?? urlRunId ?? latestDone?.id ?? loaded[0]?.id ?? null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
-  }, [params.id, t]);
+  }, [params.id, t, addToast]);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -61,6 +64,7 @@ export default function ResultsTabPage() {
   useEffect(() => {
     if (!selectedRunId) return;
     let cancelled = false;
+    setItemsPage(null);
     api
       .listRunItems(selectedRunId, { sort, order, page })
       .then((res) => {
@@ -68,12 +72,12 @@ export default function ResultsTabPage() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+        addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
       });
     return () => {
       cancelled = true;
     };
-  }, [selectedRunId, sort, order, page, t]);
+  }, [selectedRunId, sort, order, page, t, addToast]);
 
   function onSortChange(field: ItemSortField) {
     if (field === sort) {
@@ -97,7 +101,7 @@ export default function ResultsTabPage() {
         setItemsPage({ items: res.items, total: res.total });
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
   }
 
@@ -109,7 +113,7 @@ export default function ResultsTabPage() {
         setItemsPage({ items: res.items, total: res.total });
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
   }
 
@@ -125,7 +129,7 @@ export default function ResultsTabPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     } finally {
       setExporting(false);
     }
@@ -139,6 +143,28 @@ export default function ResultsTabPage() {
   const selectedRun = runs?.find((r) => r.id === selectedRunId) ?? null;
   const accountsCount = accounts?.length ?? 0;
   const totalPages = itemsPage ? Math.max(1, Math.ceil(itemsPage.total / 50)) : 1;
+
+  const paginationBar = (
+    <div className="flex items-center justify-between gap-2">
+      <button
+        onClick={() => setPage((p) => Math.max(1, p - 1))}
+        disabled={page <= 1}
+        className="rounded-control border border-border px-3 py-1.5 text-sm text-ink disabled:opacity-50 hover:bg-bg"
+      >
+        {t("prevPage")}
+      </button>
+      <span className="text-sm text-secondary">
+        {t("pageInfo", { page, totalPages })}
+      </span>
+      <button
+        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+        disabled={page >= totalPages}
+        className="rounded-control border border-border px-3 py-1.5 text-sm text-ink disabled:opacity-50 hover:bg-bg"
+      >
+        {t("nextPage")}
+      </button>
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -178,7 +204,8 @@ export default function ResultsTabPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {/* Runs loading */}
+      {runs === null && <SkeletonRows count={5} />}
 
       {runs !== null && runs.length === 0 && (
         <p className="text-secondary">{t("noRuns")}</p>
@@ -188,38 +215,38 @@ export default function ResultsTabPage() {
         <p className="text-sm text-secondary">{t(`status_${selectedRun.status}`)}</p>
       )}
 
+      {/* Items loading */}
+      {selectedRun?.status === "done" && itemsPage === null && <SkeletonRows count={5} />}
+
       {selectedRun?.status === "done" && itemsPage && itemsPage.items.length === 0 && (
         <p className="text-secondary">{t("empty")}</p>
       )}
 
       {selectedRun?.status === "done" && itemsPage && itemsPage.items.length > 0 && (
         <>
-          <ResultsTable
-            items={itemsPage.items}
-            sort={sort}
-            order={order}
-            onSortChange={onSortChange}
-            onShortlistToggle={handleShortlistToggle}
-            onBulkShortlist={handleBulkShortlist}
-          />
-          <div className="flex items-center justify-between gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="rounded-control border border-border px-3 py-1.5 text-sm text-ink disabled:opacity-50 hover:bg-bg"
-            >
-              {t("prevPage")}
-            </button>
-            <span className="text-sm text-secondary">
-              {t("pageInfo", { page, totalPages })}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="rounded-control border border-border px-3 py-1.5 text-sm text-ink disabled:opacity-50 hover:bg-bg"
-            >
-              {t("nextPage")}
-            </button>
+          {/* Mobile: cards + pagination */}
+          <div className="flex flex-col gap-3 md:hidden">
+            <ResultsCards
+              items={itemsPage.items}
+              sort={sort}
+              order={order}
+              onSortChange={onSortChange}
+              onShortlistToggle={handleShortlistToggle}
+            />
+            {totalPages > 1 && paginationBar}
+          </div>
+
+          {/* Desktop: table + pagination */}
+          <div className="hidden md:flex md:flex-col md:gap-3">
+            <ResultsTable
+              items={itemsPage.items}
+              sort={sort}
+              order={order}
+              onSortChange={onSortChange}
+              onShortlistToggle={handleShortlistToggle}
+              onBulkShortlist={handleBulkShortlist}
+            />
+            {paginationBar}
           </div>
         </>
       )}

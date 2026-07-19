@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Film, ImageIcon, Images } from "lucide-react";
 import { api, ApiError, type ShortlistItemResponse } from "@/lib/api";
+import { ShortlistCards } from "@/components/results-cards";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
+import { Film, ImageIcon, Images } from "lucide-react";
 
 const TYPE_ICON: Record<ShortlistItemResponse["type"], React.ReactNode> = {
   reel: <Film className="inline h-4 w-4" />,
@@ -33,28 +36,28 @@ function truncate(s: string | null, max: number): string {
 export default function ShortlistTabPage() {
   const t = useTranslations("Shortlist");
   const params = useParams<{ id: string }>();
+  const { addToast } = useToast();
   const [items, setItems] = useState<ShortlistItemResponse[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       setItems(await api.listShortlist(params.id));
     } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
     }
-  }, [params.id, t]);
+  }, [params.id, t, addToast]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function handleRemove(contentItemId: string) {
-    try {
-      await api.removeFromShortlist(params.id, contentItemId);
-      setItems((prev) => prev?.filter((i) => i.content_item_id !== contentItemId) ?? null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.messageRu : t("genericError"));
-    }
+  function handleRemove(contentItemId: string) {
+    // Optimistic update; actual API call via ShortlistCards
+    setItems((prev) => prev?.filter((i) => i.content_item_id !== contentItemId) ?? null);
+    api.removeFromShortlist(params.id, contentItemId).catch((err) => {
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
+      void load();
+    });
   }
 
   const typeLabel: Record<ShortlistItemResponse["type"], string> = {
@@ -78,86 +81,95 @@ export default function ShortlistTabPage() {
         </button>
       </div>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {/* Loading skeleton */}
+      {items === null && <SkeletonList count={4} />}
 
-      {items === null && !error && <p className="text-secondary">{t("loading")}</p>}
-
-      {items !== null && items.length === 0 && <p className="text-secondary">{t("empty")}</p>}
+      {items !== null && items.length === 0 && (
+        <p className="text-secondary">{t("empty")}</p>
+      )}
 
       {items !== null && items.length > 0 && (
-        <div className="overflow-x-auto rounded-card border border-border">
-          <table className="w-full min-w-max border-collapse text-sm">
-            <thead>
-              <tr>
-                {[
-                  t("colAccount"),
-                  t("colAddedAt"),
-                  t("colType"),
-                  t("colTitle"),
-                  t("colUrl"),
-                  t("colSummary"),
-                  t("colLikes"),
-                  t("colViews"),
-                  t("colActions"),
-                ].map((h) => (
-                  <th
-                    key={h}
-                    scope="col"
-                    className="sticky top-0 whitespace-nowrap bg-bg px-3 py-2 text-left font-medium text-secondary"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id} className="border-t border-border">
-                  <td className="sticky left-0 whitespace-nowrap bg-card px-3 py-2">
-                    @{item.account_handle}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">{formatDate(item.added_at)}</td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <span className="inline-flex items-center gap-1 text-secondary">
-                      {TYPE_ICON[item.type]}
-                      {typeLabel[item.type]}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <span title={item.title ?? undefined}>{truncate(item.title, 60)}</span>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-accent hover:underline"
+        <>
+          {/* Mobile cards */}
+          <div className="md:hidden">
+            <ShortlistCards items={items} onRemove={handleRemove} />
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto rounded-card border border-border">
+            <table className="w-full min-w-max border-collapse text-sm">
+              <thead>
+                <tr>
+                  {[
+                    t("colAccount"),
+                    t("colAddedAt"),
+                    t("colType"),
+                    t("colTitle"),
+                    t("colUrl"),
+                    t("colSummary"),
+                    t("colLikes"),
+                    t("colViews"),
+                    t("colActions"),
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      scope="col"
+                      className="sticky top-0 whitespace-nowrap bg-bg px-3 py-2 text-left font-medium text-secondary"
                     >
-                      {t("openLink")}
-                    </a>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <span title={item.summary ?? undefined}>{truncate(item.summary, 60)}</span>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {formatNumber(item.likes)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {formatNumber(item.views)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <button
-                      onClick={() => void handleRemove(item.content_item_id)}
-                      className="text-sm text-danger hover:underline"
-                    >
-                      {t("remove")}
-                    </button>
-                  </td>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} className="border-t border-border">
+                    <td className="sticky left-0 whitespace-nowrap bg-card px-3 py-2">
+                      @{item.account_handle}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">{formatDate(item.added_at)}</td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <span className="inline-flex items-center gap-1 text-secondary">
+                        {TYPE_ICON[item.type]}
+                        {typeLabel[item.type]}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <span title={item.title ?? undefined}>{truncate(item.title, 60)}</span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-accent hover:underline"
+                      >
+                        {t("openLink")}
+                      </a>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <span title={item.summary ?? undefined}>{truncate(item.summary, 60)}</span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                      {formatNumber(item.likes)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                      {formatNumber(item.views)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <button
+                        onClick={() => handleRemove(item.content_item_id)}
+                        className="text-sm text-danger hover:underline"
+                      >
+                        {t("remove")}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

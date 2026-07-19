@@ -30,6 +30,7 @@
   "Projects": {
     "title": "Проекты",
     "empty": "У вас пока нет проектов.",
+    "emptyHint": "Нажмите «Создать проект», чтобы начать.",
     "createButton": "Создать проект",
     "namePlaceholder": "Название проекта",
     "createSubmit": "Создать",
@@ -186,6 +187,28 @@
     "colCost": "Стоимость (USD)",
     "empty": "За этот период использования не было.",
     "navLink": "Использование"
+  },
+  "ResultsCards": {
+    "sortViewsPerDay": "Просмотров/день",
+    "sortLikesPerDay": "Лайков/день",
+    "sortViews": "Просмотры",
+    "sortLikes": "Лайки",
+    "sortPublishedAt": "Дата публикации",
+    "sortAccount": "Аккаунт",
+    "sortTitle": "Сортировка",
+    "sortDesc": "↓",
+    "sortAsc": "↑",
+    "typeReel": "Reels",
+    "typePost": "Пост",
+    "typeCarousel": "Карусель",
+    "openLink": "Открыть",
+    "metricsViewsPerDay": "просм./день",
+    "metricsLikesPerDay": "лайков/день",
+    "metricsLikes": "лайков",
+    "metricsViews": "просмотров",
+    "addToShortlist": "Добавить в шорт-лист",
+    "removeFromShortlist": "Убрать из шорт-листа",
+    "removeBtn": "Убрать"
   },
   "Shortlist": {
     "title": "Шорт-лист",
