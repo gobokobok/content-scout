@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -14,6 +16,8 @@ from src.api.items import router as items_router
 from src.api.projects import router as projects_router
 from src.api.runs import router as runs_router
 from src.api.shortlist import router as shortlist_router
+from src.api.telegram_webhook import router as telegram_router
+from src.api.telegram_webhook import setup_webhook_and_menu
 from src.api.usage import router as usage_router
 from src.config import get_settings
 
@@ -25,7 +29,14 @@ if settings.environment != "local" and settings.jwt_secret == _DEFAULT_JWT_SECRE
         "JWT_SECRET is set to the insecure default — configure it before deploying"
     )
 
-app = FastAPI(title="content-scout api")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await setup_webhook_and_menu()
+    yield
+
+
+app = FastAPI(title="content-scout api", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(accounts_router)
@@ -36,6 +47,7 @@ app.include_router(history_router)
 app.include_router(shortlist_router)
 app.include_router(usage_router)
 app.include_router(admin_router)
+app.include_router(telegram_router)
 
 
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):

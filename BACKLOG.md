@@ -880,7 +880,7 @@ backend/src/config.py, backend/src/api/auth.py, backend/src/api/runs.py, backend
 ## [E8-S1] Telegram Login
 **Epic:** Telegram Integration & Monetization
 **Sprint:** 6
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E1-S3
 ### Goal

@@ -213,6 +213,18 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<UserResponse>("/auth/me"),
+  getTelegramConfig: () =>
+    request<{ enabled: boolean; bot_username: string }>("/auth/telegram/config"),
+  telegramLogin: (data: Record<string, string | number>) =>
+    request<TokenResponse>("/auth/telegram/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  telegramWebappLogin: (initData: string) =>
+    request<TokenResponse>("/auth/telegram/webapp", {
+      method: "POST",
+      body: JSON.stringify({ init_data: initData }),
+    }),
   listProjects: () => request<ProjectResponse[]>("/projects"),
   createProject: (name: string) =>
     request<ProjectResponse>("/projects", { method: "POST", body: JSON.stringify({ name }) }),

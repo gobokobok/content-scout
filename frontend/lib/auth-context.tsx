@@ -2,10 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api, clearToken, getToken, setToken, type UserResponse } from "./api";
+import { getTelegramInitData, initTelegramWebApp, isTelegramContext } from "./telegram-webapp";
 
 interface AuthContextValue {
   user: UserResponse | null;
   loading: boolean;
+  isTelegram: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, inviteCode?: string) => Promise<void>;
   logout: () => void;
@@ -16,6 +18,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isTelegram, setIsTelegram] = useState(false);
 
   const loadUser = useCallback(async () => {
     if (!getToken()) {
@@ -34,6 +37,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const tg = isTelegramContext();
+    setIsTelegram(tg);
+
+    if (tg) {
+      initTelegramWebApp();
+    }
+
+    if (tg && !getToken()) {
+      // Auto-authenticate via initData — no login form shown inside Telegram
+      const initData = getTelegramInitData();
+      if (initData) {
+        api
+          .telegramWebappLogin(initData)
+          .then(({ access_token }) => {
+            setToken(access_token);
+            return loadUser();
+          })
+          .catch(() => {
+            // If auto-auth fails, fall through to the normal loading state
+            setLoading(false);
+          });
+        return;
+      }
+    }
+
     void loadUser();
   }, [loadUser]);
 
@@ -61,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, isTelegram, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("App");
   const router = useRouter();
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, isTelegram } = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -30,7 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-3">
         <span className="font-display text-lg font-semibold text-ink">content-scout</span>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-secondary">{user.email}</span>
+          {!isTelegram && <span className="text-sm text-secondary">{user.email}</span>}
           <Link href="/usage" className="text-sm text-secondary hover:text-ink hover:underline">
             {t("usage")}
           </Link>
@@ -39,15 +39,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {t("admin")}
             </Link>
           )}
-          <button
-            onClick={() => {
-              logout();
-              router.push("/login");
-            }}
-            className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
-          >
-            {t("logout")}
-          </button>
+          {!isTelegram && (
+            <button
+              onClick={() => {
+                logout();
+                router.push("/login");
+              }}
+              className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
+            >
+              {t("logout")}
+            </button>
+          )}
         </div>
       </header>
       {children}

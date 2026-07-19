@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     registration_invite_code: str = ""
     max_runs_per_user_per_day: int = 10
 
+    telegram_bot_token: str = ""
+    telegram_bot_username: str = ""  # @handle without @; used by Login Widget
+    telegram_webhook_secret: str = ""
+    web_url: str = "http://localhost:3000"  # public frontend URL for bot deep links
+
     use_mock_platform: bool = True
     apify_api_token: str = ""
     apify_ig_actor_id: str = ""

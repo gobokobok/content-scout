@@ -19,7 +19,8 @@
     "genericError": "Произошла ошибка. Попробуйте ещё раз.",
     "passwordTooShort": "Пароль должен быть не короче {min} символов.",
     "inviteCodeLabel": "Код приглашения",
-    "inviteCodePlaceholder": "Введите код приглашения"
+    "inviteCodePlaceholder": "Введите код приглашения",
+    "orSeparator": "или"
   },
   "App": {
     "loading": "Загрузка…",
