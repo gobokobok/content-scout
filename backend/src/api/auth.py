@@ -120,7 +120,7 @@ class TelegramLoginIn(BaseModel):
     last_name: str | None = None
     username: str | None = None
     photo_url: str | None = None
-    auth_date: str
+    auth_date: int  # widget sends Unix timestamp as integer
     hash: str
 
 
