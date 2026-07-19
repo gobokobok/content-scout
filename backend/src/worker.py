@@ -20,10 +20,12 @@ from src.models import (
     PlatformSlug,
     RunStatus,
     UsageEvent,
+    User,
 )
 from src.platforms import get_platform
 from src.services.runs import resolve_target_accounts
 from src.services.summarizer import summarize_run_items
+from src.services.telegram_notify import notify_run_complete
 from src.services.usage import rollup_run_totals
 
 _SUMMARIZER_HTTP_TIMEOUT = 10.0
@@ -126,12 +128,21 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         run.status = RunStatus.done
         run.finished_at = datetime.now(UTC)
         await session.commit()
+        requesting_user = await session.get(User, run.requested_by)
+        if requesting_user:
+            await notify_run_complete(run, requesting_user)
 
     except asyncio.CancelledError:
         run.status = RunStatus.failed
         run.error_message = "Превышено время выполнения"
         run.finished_at = datetime.now(UTC)
         await asyncio.shield(session.commit())
+        try:
+            requesting_user = await session.get(User, run.requested_by)
+            if requesting_user:
+                await notify_run_complete(run, requesting_user)
+        except Exception:  # noqa: BLE001
+            pass
         raise
 
     except Exception as exc:  # noqa: BLE001 — worker boundary: never let a run hang
@@ -139,6 +150,12 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         run.error_message = str(exc)[:1000]
         run.finished_at = datetime.now(UTC)
         await session.commit()
+        try:
+            requesting_user = await session.get(User, run.requested_by)
+            if requesting_user:
+                await notify_run_complete(run, requesting_user)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 async def run_analysis(ctx: dict, run_id: str) -> None:

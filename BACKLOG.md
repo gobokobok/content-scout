@@ -915,7 +915,7 @@ backend/src/auth/telegram.py, backend/tests/test_telegram_auth.py, frontend/app/
 ## [E8-S2] Telegram bot notifications
 **Epic:** Telegram Integration & Monetization
 **Sprint:** 6 (stretch — do last, skip if the sprint runs long)
-**Status:** backlog
+**Status:** in-progress
 **Priority:** medium
 **Depends on:** E8-S1, E3-S1
 ### Goal

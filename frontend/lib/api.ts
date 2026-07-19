@@ -55,6 +55,7 @@ export interface UserResponse {
   id: string;
   email: string;
   is_admin: boolean;
+  has_telegram: boolean;
 }
 
 export interface ProjectResponse {
@@ -224,6 +225,11 @@ export const api = {
     request<TokenResponse>("/auth/telegram/webapp", {
       method: "POST",
       body: JSON.stringify({ init_data: initData }),
+    }),
+  telegramLink: (data: Record<string, string | number>) =>
+    request<UserResponse>("/auth/telegram/link", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
   listProjects: () => request<ProjectResponse[]>("/projects"),
   createProject: (name: string) =>

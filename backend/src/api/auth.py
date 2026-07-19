@@ -62,6 +62,7 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: str
     is_admin: bool
+    has_telegram: bool = False
 
 
 class RegisterConfigOut(BaseModel):
@@ -122,7 +123,7 @@ async def login(body: CredentialsIn, request: Request, session: SessionDep) -> T
 
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser) -> UserOut:
-    return UserOut(id=user.id, email=user.email, is_admin=user.is_admin)
+    return UserOut(id=user.id, email=user.email, is_admin=user.is_admin, has_telegram=user.telegram_id is not None)
 
 
 # ── Telegram Login Widget (E8-S1) ────────────────────────────────────────────
@@ -226,4 +227,4 @@ async def telegram_link(
         )
     user.telegram_id = body.id
     await session.commit()
-    return UserOut(id=user.id, email=user.email, is_admin=user.is_admin)
+    return UserOut(id=user.id, email=user.email, is_admin=user.is_admin, has_telegram=user.telegram_id is not None)

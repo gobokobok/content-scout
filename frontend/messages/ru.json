@@ -26,6 +26,7 @@
     "loading": "Загрузка…",
     "logout": "Выйти",
     "usage": "Использование",
+    "settings": "Настройки",
     "admin": "Администрирование"
   },
   "Projects": {
@@ -188,6 +189,15 @@
     "colCost": "Стоимость (USD)",
     "empty": "За этот период использования не было.",
     "navLink": "Использование"
+  },
+  "Settings": {
+    "title": "Настройки",
+    "telegramSection": "Telegram",
+    "telegramLinked": "Telegram-аккаунт привязан. Вы будете получать уведомления о завершении анализа.",
+    "telegramLinkHint": "Привяжите Telegram-аккаунт, чтобы получать уведомления о завершении анализа.",
+    "telegramNotConfigured": "Вход через Telegram временно недоступен.",
+    "telegramAutoLinked": "Аккаунт привязан автоматически при входе через Telegram.",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз."
   },
   "ResultsCards": {
     "sortViewsPerDay": "Просмотров/день",

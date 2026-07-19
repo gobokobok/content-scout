@@ -34,6 +34,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Link href="/usage" className="text-sm text-secondary hover:text-ink hover:underline">
             {t("usage")}
           </Link>
+          <Link href="/settings" className="text-sm text-secondary hover:text-ink hover:underline">
+            {t("settings")}
+          </Link>
           {user.is_admin && (
             <Link href="/admin" className="text-sm text-secondary hover:text-ink hover:underline">
               {t("admin")}
