@@ -64,6 +64,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           )}
           <Link
+            href="/"
+            onClick={() => setMenuOpen(false)}
+            className="px-4 py-2.5 text-sm text-ink hover:bg-bg transition-colors"
+          >
+            {t("projects")}
+          </Link>
+          <Link
             href="/usage"
             onClick={() => setMenuOpen(false)}
             className="px-4 py-2.5 text-sm text-ink hover:bg-bg transition-colors"

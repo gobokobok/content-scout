@@ -13,7 +13,7 @@ import { ProjectContext } from "@/lib/project-context";
 const TABS = [
   { segment: "competitors", labelKey: "tabCompetitors" as const },
   { segment: "results", labelKey: "tabResults" as const },
-  { segment: "shortlist", labelKey: "tabShortlist" as const },
+  { segment: "create", labelKey: "tabCreate" as const },
 ];
 
 export default function ProjectShellLayout({ children }: { children: React.ReactNode }) {
@@ -50,7 +50,7 @@ export default function ProjectShellLayout({ children }: { children: React.React
     <ProjectContext.Provider value={{ project, isArchived }}>
       <>
         <main className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 pb-20 md:pb-4">
-          <Link href="/" className="text-sm text-secondary hover:text-ink hover:underline">
+          <Link href="/" className="text-base font-medium text-secondary hover:text-ink hover:underline">
             {t("back")}
           </Link>
 

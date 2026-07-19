@@ -6,6 +6,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 
 from src.api.items import ContentItemOut
+from src.api.shortlist import ShortlistItemOut
 
 HEADERS = [
     "Аккаунт",
@@ -67,6 +68,51 @@ def build_xlsx(items: list[ContentItemOut], project_name: str, run_created_at: d
                 round(item.days_since_published, 1),
                 round(item.views_per_day, 1) if item.views_per_day is not None else None,
                 round(item.likes_per_day, 1) if item.likes_per_day is not None else None,
+            ]
+        )
+        row_num = ws.max_row
+        url_cell = ws.cell(row=row_num, column=5)
+        url_cell.hyperlink = item.url
+        url_cell.font = link_font
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+SHORTLIST_HEADERS = [
+    "Аккаунт",
+    "Добавлено",
+    "Тип",
+    "Заголовок",
+    "Ссылка",
+    "Описание",
+    "Лайки",
+]
+
+
+def build_shortlist_xlsx(items: list[ShortlistItemOut], project_name: str) -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Шорт-лист"
+
+    ws.append(SHORTLIST_HEADERS)
+    ws.freeze_panes = "A2"
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+
+    link_font = Font(color="0563C1", underline="single")
+
+    for item in items:
+        ws.append(
+            [
+                _safe_text(f"@{item.account_handle}"),
+                item.added_at.replace(tzinfo=None),
+                _TYPE_LABELS.get(item.type, item.type),
+                _safe_text(item.title),
+                item.url,
+                _safe_text(item.summary),
+                item.likes,
             ]
         )
         row_num = ws.max_row

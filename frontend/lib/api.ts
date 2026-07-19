@@ -56,6 +56,7 @@ export interface UserResponse {
   email: string;
   is_admin: boolean;
   has_telegram: boolean;
+  token_balance: number;
 }
 
 export interface ProjectResponse {
@@ -312,6 +313,26 @@ export const api = {
     request<AdminUsageResponse>(
       `/admin/usage?from=${from.toISOString()}&to=${to.toISOString()}`,
     ),
+  downloadShortlistXlsx: async (projectId: string): Promise<{ blob: Blob; filename: string }> => {
+    const token = getToken();
+    const headers = new Headers();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    const res = await fetch(`${API_URL}/projects/${projectId}/shortlist/export.xlsx`, { headers });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      const detail = body?.detail;
+      throw new ApiError(
+        res.status,
+        detail?.code ?? "unknown_error",
+        detail?.message_ru ?? "Произошла ошибка. Попробуйте ещё раз.",
+      );
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("content-disposition") ?? "";
+    const match = cd.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `content-scout_shortlist_${projectId}.xlsx`;
+    return { blob, filename };
+  },
   downloadRunXlsx: async (
     runId: string,
     sort: ItemSortField,

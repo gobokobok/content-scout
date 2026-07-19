@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Users, BarChart2, Star } from "lucide-react";
+import { Users, BarChart2, PlusCircle } from "lucide-react";
 
 const TABS = [
   { segment: "competitors", labelKey: "tabCompetitors", Icon: Users },
   { segment: "results", labelKey: "tabResults", Icon: BarChart2 },
-  { segment: "shortlist", labelKey: "tabShortlist", Icon: Star },
+  { segment: "create", labelKey: "tabCreate", Icon: PlusCircle },
 ] as const;
 
 export function ProjectBottomNav({ projectId }: { projectId: string }) {
@@ -27,11 +27,11 @@ export function ProjectBottomNav({ projectId }: { projectId: string }) {
           <Link
             key={segment}
             href={href}
-            className={`flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors ${
+            className={`flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors ${
               active ? "text-accent" : "text-secondary"
             }`}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-6 w-6" />
             <span>{t(labelKey)}</span>
           </Link>
         );

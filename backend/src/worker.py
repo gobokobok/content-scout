@@ -109,8 +109,20 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         http_client = httpx.AsyncClient(timeout=_SUMMARIZER_HTTP_TIMEOUT)
 
+        requesting_user = await session.get(User, run.requested_by)
+        token_balance_exhausted = False
+
         for start in range(0, len(pending_items), batch_size):
+            if requesting_user is not None and requesting_user.token_balance <= 0:
+                token_balance_exhausted = True
+                break
+
             batch = pending_items[start : start + batch_size]
+
+            if requesting_user is not None and requesting_user.token_balance < len(batch):
+                batch = batch[: requesting_user.token_balance]
+                token_balance_exhausted = True
+
             await summarize_run_items(
                 session,
                 batch,
@@ -121,7 +133,14 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
                 http_client=http_client,
             )
             run.progress_summarized += len(batch)
+
+            if requesting_user is not None:
+                requesting_user.token_balance = max(0, requesting_user.token_balance - len(batch))
+
             await session.commit()
+
+            if token_balance_exhausted:
+                break
 
         await anthropic_client.close()
         await http_client.aclose()
@@ -129,8 +148,10 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         await rollup_run_totals(session, run)
         run.status = RunStatus.done
         run.finished_at = datetime.now(UTC)
+        if token_balance_exhausted:
+            run.error_message = "Баланс токенов исчерпан. Показаны результаты, полученные до остановки."
         await session.commit()
-        requesting_user = await session.get(User, run.requested_by)
+        requesting_user = requesting_user or await session.get(User, run.requested_by)
         if requesting_user:
             await notify_run_complete(run, requesting_user)
 

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
-from src.models import AnalysisRun
+from src.models import AnalysisRun, User
 from src.services.estimator import estimate_run
 from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.queue import enqueue_run
@@ -34,6 +34,13 @@ NO_ACCOUNTS = HTTPException(
     detail={
         "code": "no_accounts_to_analyze",
         "message_ru": ("Нет аккаунтов для анализа. Добавьте конкурентов на вкладке «Конкуренты»."),
+    },
+)
+NO_BALANCE = HTTPException(
+    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+    detail={
+        "code": "insufficient_token_balance",
+        "message_ru": "Баланс токенов исчерпан. Пополните баланс, чтобы запустить анализ.",
     },
 )
 
@@ -144,6 +151,9 @@ async def create_run(
 ) -> RunOut:
     await _get_project(session, user, project_id)
     await _check_run_quota(session, user.id)
+    db_user = await session.get(User, user.id)
+    if db_user is not None and db_user.token_balance <= 0:
+        raise NO_BALANCE
     accounts = await resolve_target_accounts(session, project_id, body.account_ids)
     if not accounts:
         raise NO_ACCOUNTS

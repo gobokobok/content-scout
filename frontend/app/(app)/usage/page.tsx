@@ -2,18 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { api, ApiError, type RunSummaryResponse } from "@/lib/api";
+import { ChevronLeft, ChevronRight, Copy, Check } from "lucide-react";
+import { api, ApiError, type RunSummaryResponse, type UserResponse } from "@/lib/api";
 
-function formatTokens(input: number, output: number): string {
-  const total = input + output;
-  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(1)}M`;
-  if (total >= 1_000) return `${(total / 1_000).toFixed(0)}K`;
-  return String(total);
-}
-
-function formatTokensLong(input: number, output: number): string {
-  return new Intl.NumberFormat("ru-RU").format(input + output);
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
 }
 
 function formatDate(iso: string): string {
@@ -36,6 +31,34 @@ function monthRange(year: number, month: number): { from: Date; to: Date } {
     from: new Date(year, month, 1),
     to: new Date(year, month + 1, 1),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Copy button for Run ID
+// ---------------------------------------------------------------------------
+function CopyButton({ value }: { value: string }) {
+  const t = useTranslations("Usage");
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard unavailable
+    }
+  }
+
+  return (
+    <button
+      onClick={() => void handleCopy()}
+      className="ml-1 inline-flex shrink-0 items-center text-secondary hover:text-accent transition-colors"
+      aria-label={t("copied")}
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +102,10 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
           </div>
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailRunId")}</dt>
-            <dd className="font-mono text-xs text-secondary truncate ml-4">{run.id.slice(0, 8)}…</dd>
+            <dd className="flex items-center font-mono text-xs text-secondary ml-4">
+              <span className="truncate max-w-[120px]">{run.id.slice(0, 8)}…</span>
+              <CopyButton value={run.id} />
+            </dd>
           </div>
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailStarted")}</dt>
@@ -96,13 +122,7 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailTokens")}</dt>
             <dd className="text-sm font-medium text-ink tabular-nums">
-              {formatTokensLong(run.total_input_tokens, run.total_output_tokens)}
-            </dd>
-          </div>
-          <div className="flex items-center justify-between py-3">
-            <dt className="text-sm text-secondary">{t("detailTokensBreakdown")}</dt>
-            <dd className="text-xs text-secondary tabular-nums">
-              {new Intl.NumberFormat("ru-RU").format(run.total_input_tokens)} / {new Intl.NumberFormat("ru-RU").format(run.total_output_tokens)}
+              {new Intl.NumberFormat("ru-RU").format(run.progress_items)}
             </dd>
           </div>
         </dl>
@@ -123,6 +143,11 @@ export default function UsagePage() {
   const [runs, setRuns] = useState<RunSummaryResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedRun, setSelectedRun] = useState<RunSummaryResponse | null>(null);
+  const [me, setMe] = useState<UserResponse | null>(null);
+
+  useEffect(() => {
+    api.me().then(setMe).catch(() => null);
+  }, []);
 
   const load = useCallback(async () => {
     setRuns(null);
@@ -151,11 +176,19 @@ export default function UsagePage() {
   }
 
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
-  const totalTokens = runs?.reduce((sum, r) => sum + r.total_input_tokens + r.total_output_tokens, 0) ?? 0;
+  const totalTokens = runs?.reduce((sum, r) => sum + r.progress_items, 0) ?? 0;
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
       <h1 className="mb-6 text-2xl font-semibold text-ink">{t("title")}</h1>
+
+      {/* Token balance */}
+      {me !== null && (
+        <div className="mb-4 rounded-card border border-border bg-card px-4 py-3 flex items-center justify-between gap-2">
+          <span className="text-sm text-secondary">{t("balanceLabel")}</span>
+          <span className="text-lg font-semibold tabular-nums text-ink">{me.token_balance}</span>
+        </div>
+      )}
 
       {/* Month navigation */}
       <div className="mb-4 flex items-center gap-3">
@@ -232,7 +265,7 @@ export default function UsagePage() {
                     {r.project_name}
                   </td>
                   <td className="px-4 py-3 text-right font-medium tabular-nums text-ink whitespace-nowrap">
-                    {formatTokens(r.total_input_tokens, r.total_output_tokens)}
+                    {formatTokens(r.progress_items)}
                   </td>
                 </tr>
               ))}

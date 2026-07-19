@@ -25,6 +25,7 @@
   "App": {
     "loading": "Загрузка…",
     "logout": "Выйти",
+    "projects": "Проекты",
     "usage": "Использование",
     "settings": "Настройки",
     "admin": "Администрирование"
@@ -48,10 +49,11 @@
     "genericError": "Произошла ошибка. Попробуйте ещё раз."
   },
   "ProjectShell": {
-    "back": "← Все проекты",
+    "back": "← Проекты",
     "tabCompetitors": "Конкуренты",
     "tabResults": "Результаты",
     "tabShortlist": "Шорт-лист",
+    "tabCreate": "Создать",
     "tabHistory": "История",
     "notFound": "Проект не найден.",
     "archivedBadge": "В архиве",
@@ -103,6 +105,7 @@
     "runSelector": "Запуск",
     "selectRunTitle": "Выбрать запуск",
     "runButton": "Запустить анализ",
+    "tabResults": "Результаты",
     "noRuns": "Ещё не было ни одного анализа. Добавьте конкурентов и запустите первый анализ.",
     "empty": "В этом запуске нет публикаций.",
     "genericError": "Произошла ошибка. Попробуйте ещё раз.",
@@ -189,7 +192,8 @@
     "title": "Использование",
     "loading": "Загрузка…",
     "genericError": "Произошла ошибка. Попробуйте ещё раз.",
-    "monthTotalTokens": "Всего токенов за месяц",
+    "monthTotalTokens": "Использовано токенов за месяц",
+    "balanceLabel": "Остаток токенов",
     "colDate": "Дата",
     "colProject": "Проект",
     "colTokens": "Токены",
@@ -200,9 +204,13 @@
     "detailStarted": "Запущен",
     "detailStatus": "Статус",
     "detailPublications": "Публикаций проанализировано",
-    "detailTokens": "Токенов всего",
-    "detailTokensBreakdown": "Входящие / исходящие",
+    "detailTokens": "Токенов использовано",
+    "copied": "Скопировано",
     "navLink": "Использование"
+  },
+  "Create": {
+    "title": "Создать публикацию",
+    "comingSoon": "Скоро здесь появится инструмент для создания публикаций — постов, каруселей и Reels — на основе записей из вашего шорт-листа."
   },
   "Settings": {
     "title": "Настройки",
@@ -230,7 +238,9 @@
     "metricsLikes": "лайков",
     "addToShortlist": "Добавить в шорт-лист",
     "removeFromShortlist": "Убрать из шорт-листа",
-    "removeBtn": "Убрать"
+    "removeBtn": "Убрать",
+    "exportButton": "Экспорт в Excel",
+    "exporting": "Экспорт…"
   },
   "Shortlist": {
     "title": "Шорт-лист",

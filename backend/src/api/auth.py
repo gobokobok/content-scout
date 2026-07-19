@@ -63,6 +63,7 @@ class UserOut(BaseModel):
     email: str
     is_admin: bool
     has_telegram: bool = False
+    token_balance: int = 0
 
 
 class RegisterConfigOut(BaseModel):
@@ -128,6 +129,7 @@ async def me(user: CurrentUser) -> UserOut:
         email=user.email,
         is_admin=user.is_admin,
         has_telegram=user.telegram_id is not None,
+        token_balance=user.token_balance,
     )
 
 

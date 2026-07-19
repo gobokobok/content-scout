@@ -9,11 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.items import ContentItemOut, SortField, _get_run
+from src.api.shortlist import ShortlistItemOut, _get_project as _get_shortlist_project
 from src.auth.dependency import CurrentUser
 from src.db import get_session
-from src.models import Account, ContentItem, Project
+from src.models import Account, ContentItem, Project, ShortlistItem
 from src.services.metrics import days_since_published_expr, likes_per_day_expr, views_per_day_expr
-from src.services.xlsx_export import build_xlsx, safe_filename_part
+from src.services.xlsx_export import build_shortlist_xlsx, build_xlsx, safe_filename_part
 
 router = APIRouter(tags=["export"])
 
@@ -89,6 +90,53 @@ async def export_run_xlsx(
     run_date = run.created_at.strftime("%Y-%m-%d")
     filename = f"content-scout_{project_slug}_{run_date}.xlsx"
 
+    encoded_filename = quote(filename)
+    return StreamingResponse(
+        io.BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
+    )
+
+
+@router.get("/projects/{project_id}/shortlist/export.xlsx")
+async def export_shortlist_xlsx(
+    project_id: uuid.UUID,
+    user: CurrentUser,
+    session: SessionDep,
+) -> StreamingResponse:
+    project = await _get_shortlist_project(session, user, project_id)
+    project_slug = safe_filename_part(project.name)
+
+    rows = await session.execute(
+        select(ShortlistItem, ContentItem, Account.handle)
+        .join(ContentItem, ShortlistItem.content_item_id == ContentItem.id)
+        .join(Account, ContentItem.account_id == Account.id)
+        .where(
+            ShortlistItem.project_id == project_id,
+            ShortlistItem.removed_at.is_(None),
+        )
+        .order_by(ShortlistItem.added_at.desc())
+    )
+
+    items = [
+        ShortlistItemOut(
+            id=sl.id,
+            content_item_id=sl.content_item_id,
+            account_handle=handle,
+            published_at=item.published_at,
+            type=item.type.value,
+            title=item.title,
+            url=item.url,
+            summary=item.summary,
+            likes=item.likes,
+            views=item.views,
+            added_at=sl.added_at,
+        )
+        for sl, item, handle in rows
+    ]
+
+    xlsx_bytes = build_shortlist_xlsx(items, project_slug)
+    filename = f"content-scout_{project_slug}_shortlist.xlsx"
     encoded_filename = quote(filename)
     return StreamingResponse(
         io.BytesIO(xlsx_bytes),
