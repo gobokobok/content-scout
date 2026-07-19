@@ -25,7 +25,7 @@ from tests.conftest import (
 )
 
 
-async def _fake_summarize(session, items, *, user_id, run_id) -> None:
+async def _fake_summarize(session, items, *, user_id, run_id, **_kwargs) -> None:
     """Stand-in for the real Claude-backed summarizer — no network calls in worker tests."""
     for item in items:
         item.summary = "тестовое описание"
@@ -172,7 +172,7 @@ async def test_process_run_skips_already_summarized_items(session: AsyncSession)
 
     calls: list[list] = []
 
-    async def _tracking_summarize(session, items, *, user_id, run_id):
+    async def _tracking_summarize(session, items, *, user_id, run_id, **_kwargs):
         calls.append(list(items))
         await _fake_summarize(session, items, user_id=user_id, run_id=run_id)
 

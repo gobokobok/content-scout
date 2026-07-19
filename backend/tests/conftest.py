@@ -34,6 +34,21 @@ def _test_db_url() -> str:
     return url
 
 
+@pytest.fixture(autouse=True)
+async def reset_redis_pool():
+    """Reset the module-level Redis pool before each test.
+
+    The pool is a singleton bound to the event loop it was created on. pytest-asyncio
+    uses a fresh event loop per test function, so we must clear the cached pool between
+    tests to avoid 'Event loop is closed' errors on the stale connections.
+    """
+    import src.services.queue as _q
+
+    _q._pool = None
+    yield
+    _q._pool = None
+
+
 @pytest.fixture(scope="session")
 def migrated_db() -> str:
     """Run alembic upgrade head once per test session against the test DB."""

@@ -138,10 +138,10 @@ class TelegramLoginIn(BaseModel):
     """Raw fields forwarded from the Telegram Login Widget callback."""
 
     id: int
-    first_name: str = ""
-    last_name: str = ""
-    username: str = ""
-    photo_url: str = ""
+    first_name: str | None = None
+    last_name: str | None = None
+    username: str | None = None
+    photo_url: str | None = None
     auth_date: str
     hash: str
 
