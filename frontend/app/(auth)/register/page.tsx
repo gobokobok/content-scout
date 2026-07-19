@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ApiError, api, setToken } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 const MIN_PASSWORD_LEN = 8;
@@ -12,7 +12,7 @@ const MIN_PASSWORD_LEN = 8;
 export default function RegisterPage() {
   const t = useTranslations("Auth");
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, telegramLogin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -38,8 +38,7 @@ export default function RegisterPage() {
       setError(null);
       setSubmitting(true);
       try {
-        const { access_token } = await api.telegramLogin(user);
-        setToken(access_token);
+        await telegramLogin(user);
         router.push("/");
       } catch (err) {
         setError(err instanceof ApiError ? err.messageRu : t("genericError"));
@@ -60,7 +59,7 @@ export default function RegisterPage() {
     return () => {
       delete (window as unknown as Record<string, unknown>)["onTelegramAuthRegister"];
     };
-  }, [tgConfig, router, t]);
+  }, [tgConfig, router, t, telegramLogin]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

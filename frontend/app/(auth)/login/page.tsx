@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ApiError, api, setToken } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const t = useTranslations("Auth");
   const router = useRouter();
-  const { login, isTelegram } = useAuth();
+  const { login, telegramLogin, isTelegram } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,8 +38,7 @@ export default function LoginPage() {
       setError(null);
       setSubmitting(true);
       try {
-        const { access_token } = await api.telegramLogin(user);
-        setToken(access_token);
+        await telegramLogin(user);
         router.push("/");
       } catch (err) {
         setError(err instanceof ApiError ? err.messageRu : t("genericError"));
@@ -60,7 +59,7 @@ export default function LoginPage() {
     return () => {
       delete (window as unknown as Record<string, unknown>)["onTelegramAuth"];
     };
-  }, [tgConfig, router, t]);
+  }, [tgConfig, router, t, telegramLogin]);
 
   // Inside Telegram the Mini App auto-authenticates via initData — no form needed
   if (isTelegram) return null;

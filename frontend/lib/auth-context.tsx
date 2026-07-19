@@ -10,6 +10,7 @@ interface AuthContextValue {
   isTelegram: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, inviteCode?: string) => Promise<void>;
+  telegramLogin: (data: Record<string, string | number>) => Promise<void>;
   logout: () => void;
 }
 
@@ -83,13 +84,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [loadUser],
   );
 
+  const telegramLogin = useCallback(
+    async (data: Record<string, string | number>) => {
+      const { access_token } = await api.telegramLogin(data);
+      setToken(access_token);
+      await loadUser();
+    },
+    [loadUser],
+  );
+
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, isTelegram, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, isTelegram, login, register, telegramLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );
