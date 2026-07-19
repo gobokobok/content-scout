@@ -2,6 +2,15 @@
 
 Completed stories land here, newest first. Format:
 
+## [E4-S3] Claude cost optimization — 2026-07-19
+**Handover:**
+- Image resize: `settings.summary_image_max_side` (default 512, was 1024); `_fetch_image_block` accepts optional `settings` param
+- Skip image: `_build_content_blocks` omits image when `len(caption) > settings.summary_skip_image_caption_chars` (default 200)
+- Cross-run reuse: `_reuse_summary_if_available(session, item, project_id, run_id)` copies summary from most recent prior same-project same-external_id item; `summarize_run_items` accepts optional `project_id`; worker passes `run.project_id`
+- Batch path: `_summarize_via_batches` triggered when pending items ≥ `summary_batch_threshold` (default 20); polls `client.messages.batches.retrieve()` until `processing_status == "ended"`, iterates `await client.messages.batches.results(id)` with `custom_id = str(item.id)` mapping; exception → falls back to concurrent path
+- 6 new tests in `backend/tests/test_summarizer.py`; 4 prior tests still pass
+**Smoke test:** DEFERRED — run same DEV project twice back-to-back; second run's Claude token usage should be a small fraction of first (reuse working); summaries remain correct Russian descriptions.
+
 ## [E7-S4] Pilot security guardrails — 2026-07-19
 **Handover:**
 - Invite code gate: `REGISTRATION_INVITE_CODE` env var; `GET /auth/register/config` returns `{require_invite: bool}`; register handler checks with `hmac.compare_digest`; frontend register page shows invite field conditionally

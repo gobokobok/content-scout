@@ -554,7 +554,8 @@ backend/src/worker.py, backend/src/services/usage.py, backend/tests/test_pipelin
 ## [E4-S3] Claude cost optimization
 **Epic:** AI Summaries
 **Sprint:** 6
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-07-19
 **Priority:** high
 **Depends on:** E3-S6
 ### Goal
@@ -579,7 +580,12 @@ CLAUDE.md, DECISIONS.md (D29), backend/src/services/summarizer.py, backend/src/w
 ### Files to create or modify
 backend/src/services/summarizer.py, backend/src/config.py, backend/src/worker.py, backend/tests/test_summarizer.py
 ### Handover
-—
+- `backend/src/services/summarizer.py` — `summarize_run_items` now accepts optional `project_id: uuid.UUID`; when provided, copies summary from most recent prior `content_item` with same `external_id` in the same project (FALLBACK_TEXT not reused)
+- Image resize now uses `settings.summary_image_max_side` (default 512, was 1024); image skipped entirely when `len(caption) > settings.summary_skip_image_caption_chars` (default 200)
+- `_summarize_via_batches` sends a Message Batch when `len(pending) >= settings.summary_batch_threshold` (default 20); polls `retrieve()` until `processing_status == "ended"`, then maps results via `custom_id = str(item.id)`; any exception falls back to concurrent per-item path
+- `backend/src/worker.py` — `project_id=run.project_id` now passed to `summarize_run_items`
+- Config additions: `summary_image_max_side`, `summary_skip_image_caption_chars`, `summary_batch_threshold`
+- `docs/PROMPTS.md` updated to reflect 512px and skip-image rules
 
 ## [E5-S1] Results table
 **Epic:** Results Table & Export
