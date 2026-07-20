@@ -21,8 +21,9 @@ export default function LoginPage() {
     null,
   );
   const tgContainerRef = useRef<HTMLDivElement>(null);
+  const tgRedirectHandled = useRef(false);
 
-  // Navigate as soon as user is set in context — avoids router.push race with setUser commit
+  // Navigate as soon as auth-context has a user (reactive — avoids state-commit race)
   useEffect(() => {
     if (user) router.replace("/");
   }, [user, router]);
@@ -31,39 +32,56 @@ export default function LoginPage() {
     api.getTelegramConfig().then(setTgConfig).catch(() => {});
   }, []);
 
-  // Mount the Telegram Login Widget once bot_username is known
+  // Handle Telegram redirect-auth: widget uses data-auth-url, so after the user confirms
+  // in Telegram, the browser is redirected back to /login with id, hash, auth_date, … as
+  // query params. Read them once on mount and exchange for a session.
+  useEffect(() => {
+    if (tgRedirectHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    const hash = params.get("hash");
+    const authDate = params.get("auth_date");
+    if (!id || !hash || !authDate) return;
+
+    tgRedirectHandled.current = true;
+    window.history.replaceState({}, "", "/login");
+
+    const data: Record<string, string | number> = {
+      id: parseInt(id, 10),
+      auth_date: parseInt(authDate, 10),
+      hash,
+    };
+    const firstName = params.get("first_name");
+    const lastName = params.get("last_name");
+    const username = params.get("username");
+    const photoUrl = params.get("photo_url");
+    if (firstName) data.first_name = firstName;
+    if (lastName) data.last_name = lastName;
+    if (username) data.username = username;
+    if (photoUrl) data.photo_url = photoUrl;
+
+    setSubmitting(true);
+    telegramLogin(data)
+      .catch((err) => setError(err instanceof ApiError ? err.messageRu : t("genericError")))
+      .finally(() => setSubmitting(false));
+  }, [telegramLogin, t]);
+
+  // Mount the Telegram Login Widget using redirect flow (data-auth-url) so it works on
+  // mobile where the JS callback approach breaks when Telegram opens as a separate app.
   useEffect(() => {
     if (!tgConfig?.enabled || !tgContainerRef.current) return;
     const container = tgContainerRef.current;
     if (container.querySelector("script")) return;
 
-    (window as unknown as Record<string, unknown>)["onTelegramAuth"] = async (
-      user: Record<string, string | number>,
-    ) => {
-      setError(null);
-      setSubmitting(true);
-      try {
-        await telegramLogin(user);
-      } catch (err) {
-        setError(err instanceof ApiError ? err.messageRu : t("genericError"));
-      } finally {
-        setSubmitting(false);
-      }
-    };
-
     const script = document.createElement("script");
     script.src = "https://telegram.org/js/telegram-widget.js?22";
     script.setAttribute("data-telegram-login", tgConfig.bot_username);
     script.setAttribute("data-size", "large");
-    script.setAttribute("data-onauth", "onTelegramAuth(user)");
+    script.setAttribute("data-auth-url", window.location.origin + "/login");
     script.setAttribute("data-request-access", "write");
     script.async = true;
     container.appendChild(script);
-
-    return () => {
-      delete (window as unknown as Record<string, unknown>)["onTelegramAuth"];
-    };
-  }, [tgConfig, router, t, telegramLogin]);
+  }, [tgConfig]);
 
   // Inside Telegram the Mini App auto-authenticates via initData — no form needed
   if (isTelegram) return null;

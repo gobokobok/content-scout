@@ -12,7 +12,7 @@ const MIN_PASSWORD_LEN = 8;
 export default function RegisterPage() {
   const t = useTranslations("Auth");
   const router = useRouter();
-  const { register, telegramLogin, user } = useAuth();
+  const { register, user } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -36,33 +36,16 @@ export default function RegisterPage() {
     const container = tgContainerRef.current;
     if (container.querySelector("script")) return;
 
-    (window as unknown as Record<string, unknown>)["onTelegramAuthRegister"] = async (
-      user: Record<string, string | number>,
-    ) => {
-      setError(null);
-      setSubmitting(true);
-      try {
-        await telegramLogin(user);
-      } catch (err) {
-        setError(err instanceof ApiError ? err.messageRu : t("genericError"));
-      } finally {
-        setSubmitting(false);
-      }
-    };
-
     const script = document.createElement("script");
     script.src = "https://telegram.org/js/telegram-widget.js?22";
     script.setAttribute("data-telegram-login", tgConfig.bot_username);
     script.setAttribute("data-size", "large");
-    script.setAttribute("data-onauth", "onTelegramAuthRegister(user)");
+    // Redirect to /login after auth — login page handles the params for both login and register
+    script.setAttribute("data-auth-url", window.location.origin + "/login");
     script.setAttribute("data-request-access", "write");
     script.async = true;
     container.appendChild(script);
-
-    return () => {
-      delete (window as unknown as Record<string, unknown>)["onTelegramAuthRegister"];
-    };
-  }, [tgConfig, router, t, telegramLogin]);
+  }, [tgConfig]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
