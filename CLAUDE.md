@@ -35,7 +35,7 @@ Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f
 
 ## Current sprint and active story
 
-- **Sprint:** 6 — hardening, Claude cost cuts, light-theme redesign (D28), **Telegram test launch without payments** (D27). Sprints 1–5 complete except E7-S2 (in-progress, carried over — close it first). Story order and human prerequisites in `SPRINT.md`; run stories back-to-back autonomously.
+- **Sprint:** 7 — single-blogger MVP: Mini App auto-login fix (E8-S6, done) + competitor/results depth (E5-S4, E2-S3, E5-S3, E5-S5). Sprints 1–6 complete. Story order in `SPRINT.md`; run stories back-to-back autonomously.
 
 ## Hard constraints
 

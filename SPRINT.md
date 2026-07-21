@@ -92,6 +92,22 @@ Full story definitions live in `BACKLOG.md`.
 
 **Sprint exit check:** open the DEV bot from a phone, tap «Открыть content-scout», run the full flow inside Telegram, and share the bot handle with a second account.
 
+## Sprint 7 — Single-blogger MVP: Mini App fix + competitor/results depth
+
+**Goal:** per the 2026-07-21 reprioritization (single-blogger pilot focus), close out the live-blocking Mini App bug and round out the Результаты/Конкуренты screens with the data a solo blogger actually needs to judge a competitor's content: follower counts, comments, and a relative virality signal.
+
+**Execution mode:** same as Sprint 6 — run stories back-to-back autonomously, in dependency order, no user intervention expected.
+
+**Stories (in order):**
+
+| # | Story | Title | Status |
+|---|---|---|---|
+| 0 | E8-S6 | Telegram Mini App auto-login bootstrap fix (critical) | done |
+| 1 | E5-S4 | Subscriber count next to account name | in-progress |
+| 2 | E2-S3 | Competitor profile enrichment (depends on E5-S4) | backlog |
+| 3 | E5-S3 | Comments count column | backlog |
+| 4 | E5-S5 | Virality score per publication (depends on E5-S4) | backlog |
+
 ## Sprint plan (projection, adjust at each /sprint-review)
 
 - **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)

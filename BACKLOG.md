@@ -1140,7 +1140,8 @@ backend/src/api/telegram_webhook.py, backend/src/auth/telegram.py, backend/src/c
 ## [E8-S6] Telegram Mini App auto-login bootstrap fix
 **Epic:** Telegram Integration & Monetization
 **Sprint:** unassigned (MVP — next up; live-blocking bug for the single-blogger pilot, found + root-caused during 2026-07-21 sprint review)
-**Status:** in-progress — root cause fixed, pending real-device smoke test
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** critical
 **Depends on:** E8-S1, E8-S5
 ### Goal
@@ -1149,14 +1150,14 @@ Root cause: Telegram does **not** auto-inject `window.Telegram.WebApp` into the 
 ### Acceptance Criteria
 - [x] Load `https://telegram.org/js/telegram-web-app.js` via `next/script` (`strategy="beforeInteractive"`) in the root layout, so `window.Telegram.WebApp` exists before `AuthProvider`'s mount effect runs
 - [x] `suppressHydrationWarning` added to `<html>` — Telegram's script mutates `document.documentElement.style` (`--tg-viewport-height` custom properties) as a side effect of loading even outside real Telegram, causing an SSR/client hydration mismatch on `<html>`'s attributes; this is expected third-party-script behavior, not a bug to chase
-- [ ] **End-to-end smoke test with a real Telegram account against DEV** — open the Mini App from the bot, confirm auto-login actually completes and lands in the authenticated shell with zero manual login. Not deferred like every prior Telegram smoke test.
-- [ ] If the real-device test still fails after this fix, root-cause from actual console/network output against DEV rather than another speculative patch
+- [x] **End-to-end smoke test with a real Telegram account against DEV** — confirmed live: user opened the Mini App from the bot on a real phone and drove an extended real session (account menu, run dialog, competitor list) without ever seeing a login form, reporting only UI/UX bugs downstream of a successfully authenticated session. Auto-login works.
+- [x] If the real-device test still fails after this fix, root-cause from actual console/network output against DEV rather than another speculative patch — not needed, fix held on first real-device pass
 ### Definition of Done
-- [ ] All AC checked
+- [x] All AC checked
 - [x] Local verification: outside real Telegram, `window.Telegram.WebApp.initData` is `""` (confirmed via browser JS eval) so `isTelegramContext()` still correctly returns `false` for normal browser sessions — no regression to non-Telegram login; typecheck + lint clean
-- [ ] Smoke test passed (real Telegram account, not deferred)
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] Smoke test passed (real Telegram account, not deferred) — see Changelog
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 From a real phone, open the DEV bot and tap «Открыть content-scout» — the Mini App opens already authenticated (no login form), workspace loads directly.
 ### Files to read
@@ -1164,8 +1165,12 @@ CLAUDE.md, frontend/app/layout.tsx, frontend/lib/telegram-webapp.ts, frontend/li
 ### Files to create or modify
 frontend/app/layout.tsx (done)
 ### Changelog
-- 2026-07-21: root cause fixed — `telegram-web-app.js` script added to root layout via `next/script`. Verified locally (typecheck, lint, browser check of `isTelegramContext()` behavior). Real-device smoke test on DEV still needed before this can move to `done`.
+- 2026-07-21: root cause fixed — `telegram-web-app.js` script added to root layout via `next/script`. Verified locally (typecheck, lint, browser check of `isTelegramContext()` behavior).
+- 2026-07-21/22: real-device smoke test confirmed live — user drove an extended session inside the actual Mini App (account menu, non-blocking run dialog, competitor selection) with zero manual login, reporting five follow-up UI bugs against an already-authenticated session (no exit affordance, no display name shown, modal-blocking on run start, missing spacing on project creation, redundant competitor counters) plus a separate Apify `max_total_charge_usd` production incident (stuck runs). All fixed same-session in a series of untracked `fix:`/`feat:` commits (`e20e5ed`, `0055313`, `07c2b9a`, `e8dbae8`) — see DONE.md for the consolidated writeup, since these were direct bug-report fixes rather than pre-planned AC and don't warrant separate backlog stories.
 ### Handover
+- `frontend/app/layout.tsx` loads `telegram-web-app.js` via `next/script` `beforeInteractive` — required for any future Mini-App-only feature to rely on `window.Telegram.WebApp` being populated on first paint.
+- Session also added, on top of the bootstrap fix itself: `users.display_name` (editable in Settings, random default on registration — migration `c2275f27bb18`), a global `RunTrackerProvider` (`frontend/lib/run-tracker.tsx`) so the run dialog is closable/minimizable and multiple runs can be tracked in parallel with a header notification bell, a "soft logout" flow for the Mini App (`telegramLogout()` + `content-scout-tg-logged-out` localStorage flag, since Telegram itself has no real sign-out), and an Apify `max_total_charge_usd` cap (`Settings.apify_max_charge_per_fetch_usd`, default $0.5) to stop concurrent runs from deadlocking on Apify's Pay-Per-Event implicit balance reservation.
+- None of this is scheduled backlog work — it's what the first real-device pilot session surfaced. Flagging here since it changed several files future stories in this sprint will also touch: `frontend/app/(app)/layout.tsx`, `frontend/app/(auth)/login/page.tsx`, `backend/src/platforms/instagram.py`.
 —
 
 ## [E9-S1] Public API tokens

@@ -2,6 +2,20 @@
 
 Completed stories land here, newest first. Format:
 
+## [E8-S6] Telegram Mini App auto-login bootstrap fix
+**Completed:** 2026-07-22
+**Handover:**
+- Root cause: Telegram never auto-injects `window.Telegram.WebApp` into the Mini App webview — the page has to load Telegram's own `telegram-web-app.js` SDK script itself. This codebase only ever loaded `telegram-widget.js` (the unrelated Login *Widget* script). Fixed by loading `telegram-web-app.js` via `next/script` (`beforeInteractive`) in `frontend/app/layout.tsx`; `suppressHydrationWarning` added to `<html>` since the script mutates `document.documentElement.style` on load.
+- Confirmed live: user opened the Mini App from the bot on a real phone and drove an extended real session with zero manual login — the only issues reported afterward were UI/UX bugs *inside* an already-authenticated session, which is itself the proof the bootstrap fix held.
+- That real-device pilot session surfaced 5 UI bugs + 1 production incident, all fixed same-session in untracked commits (`e20e5ed`, `0055313`, `07c2b9a`, `e8dbae8`) rather than pre-planned story ACs:
+  - No way to exit/log out of the Mini App, and no account name shown → added `users.display_name` (editable in Settings, random `Пользователь####` default on registration, migration `c2275f27bb18`) and a real `telegramLogout()` (soft-logout via a `content-scout-tg-logged-out` localStorage flag, since Telegram itself has no sign-out signal to react to). Post-logout `/login` renders the full standard page (email/password form + register link), with only the Telegram half swapped for a direct one-tap sign-in button instead of the (redirect-only) Login Widget script.
+  - Run dialog blocked the rest of the app while a run was in progress, and only one run could be tracked at a time → new `frontend/lib/run-tracker.tsx` (`RunTrackerProvider`/`useRunTracker`) polls tracked runs independently of any dialog, persists lightweight refs to `localStorage`, and supports multiple parallel runs; `run-dialog.tsx` is now always closable/minimizable; a header bell (`frontend/app/(app)/layout.tsx`) shows unseen-run badges.
+  - Analysis runs silently got stuck in "Превышено время выполнения" → root-caused to Apify's Pay-Per-Event pricing: `maxTotalChargeUsd` defaults to the account's *entire remaining monthly balance* when not set explicitly, so concurrent runs' implicit reservations could exceed the real remaining balance and deadlock in `READY`. Fixed by capping it per-fetch (`Settings.apify_max_charge_per_fetch_usd`, default `$0.5`) in `backend/src/platforms/instagram.py`, plus treating any non-`SUCCEEDED` terminal Apify run status as a failure instead of silently continuing. Note: an Apify platform-wide DB-degradation incident was also active that day and likely contributed to the specific stuck runs seen live — the cap fix is a real, worth-keeping bug fix independent of that outage.
+  - Minor polish: `BottomSheet` top padding fixed (shared component, was touching titles), competitors page decluttered (removed redundant "1/50" + "Добавлено: N" counters, added an info-icon popover explaining the 50-account cap and workflow).
+- None of the above was pre-scheduled backlog work; each was a direct fix to a bug the user hit live. Flagged in BACKLOG.md's E8-S6 handover since several of these files are also touched by the still-open E5-S3/E5-S4/E2-S3/E5-S5 stories.
+**Smoke test:** PASSED (real Telegram account, live pilot session) — see Handover.
+**Promoted to backlog:** none
+
 ## [E8-S2] Telegram bot notifications
 **Completed:** 2026-07-19
 **Handover:**
