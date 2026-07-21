@@ -22,7 +22,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isTelegram, setIsTelegram] = useState(false);
 
   const loadUser = useCallback(async () => {
-    if (!getToken()) {
+    const tokenAtEntry = getToken();
+    if (!tokenAtEntry) {
       setUser(null);
       setLoading(false);
       return;
@@ -30,8 +31,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setUser(await api.me());
     } catch {
-      clearToken();
-      setUser(null);
+      // Only clear auth state if no concurrent login replaced the token while
+      // this call was in-flight (e.g. Telegram redirect racing with an expired
+      // stored token).
+      if (getToken() === tokenAtEntry) {
+        clearToken();
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
