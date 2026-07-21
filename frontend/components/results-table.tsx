@@ -118,6 +118,7 @@ export function ResultsTable({
     "summary",
     "likes",
     "views",
+    "comments",
     "days_since_published",
     "views_per_day",
     "likes_per_day",
@@ -243,6 +244,11 @@ export function ResultsTable({
       id: "likes",
       header: t("colLikes"),
       cell: ({ row }) => formatNumber(row.original.likes),
+    },
+    {
+      id: "comments",
+      header: t("colComments"),
+      cell: ({ row }) => formatNumber(row.original.comments),
     },
     {
       id: "days_since_published",

@@ -37,6 +37,7 @@ SortField = Literal[
     "summary",
     "likes",
     "views",
+    "comments",
     "days_since_published",
     "views_per_day",
     "likes_per_day",
@@ -54,6 +55,7 @@ class ContentItemOut(BaseModel):
     summary: str | None
     likes: int | None
     views: int | None
+    comments: int | None
     days_since_published: float
     views_per_day: float | None
     likes_per_day: float | None
@@ -113,6 +115,7 @@ async def list_run_items(
         "summary": ContentItem.summary,
         "likes": ContentItem.likes,
         "views": ContentItem.views,
+        "comments": ContentItem.comments,
         "days_since_published": days_expr,
         "views_per_day": views_per_day,
         "likes_per_day": likes_per_day,
@@ -154,6 +157,7 @@ async def list_run_items(
             summary=item.summary,
             likes=item.likes,
             views=item.views,
+            comments=item.comments,
             days_since_published=days,
             views_per_day=vpd,
             likes_per_day=lpd,

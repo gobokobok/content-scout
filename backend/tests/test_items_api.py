@@ -56,6 +56,7 @@ async def _setup_run_with_items(session: AsyncSession):
         published_at=now - timedelta(days=2),
         views=1000,
         likes=100,
+        comments=10,
         title="Reel A",
     )
     await make_content_item(
@@ -66,6 +67,7 @@ async def _setup_run_with_items(session: AsyncSession):
         published_at=now - timedelta(days=1),
         views=None,
         likes=50,
+        comments=30,
         title="Post B",
     )
     await make_content_item(
@@ -76,6 +78,7 @@ async def _setup_run_with_items(session: AsyncSession):
         published_at=now - timedelta(days=4),
         views=None,
         likes=200,
+        comments=20,
         title="Carousel C",
     )
     await session.commit()
@@ -106,6 +109,7 @@ async def test_list_items_default_sort_and_shape(session: AsyncSession) -> None:
             "summary",
             "likes",
             "views",
+            "comments",
             "days_since_published",
             "views_per_day",
             "likes_per_day",
@@ -142,6 +146,17 @@ async def test_sort_by_likes_ascending(session: AsyncSession) -> None:
         )
         likes = [item["likes"] for item in resp.json()["items"]]
         assert likes == sorted(likes)
+
+
+async def test_sort_by_comments_and_value_present(session: AsyncSession) -> None:
+    owner, run = await _setup_run_with_items(session)
+
+    async with await client(session) as c:
+        resp = await c.get(
+            f"/runs/{run.id}/items?sort=comments&order=desc", headers=auth_headers(owner.id)
+        )
+        comments = [item["comments"] for item in resp.json()["items"]]
+        assert comments == [30, 20, 10]
 
 
 async def test_post_and_carousel_views_are_null_not_zero(session: AsyncSession) -> None:

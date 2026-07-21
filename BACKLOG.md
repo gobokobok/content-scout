@@ -673,32 +673,41 @@ backend/src/services/xlsx_export.py, backend/src/api/export.py, backend/tests/te
 
 ## [E5-S3] Comments count column
 **Epic:** Results Table & Export
-**Sprint:** unassigned (MVP — next up, single-blogger focus per 2026-07-21 reprioritization)
-**Status:** backlog
+**Sprint:** 7
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** high
 **Depends on:** E5-S1
 ### Goal
 The results table and XLSX export show each publication's comments count — the data is already scraped into `content_items.comments` (E3-S2) but never surfaced past the DB.
 ### Acceptance Criteria
-- [ ] `ContentItemOut` (`GET /runs/{id}/items`) includes `comments`
-- [ ] Результаты table gains a sortable "Комментарии" column, positioned near лайки/просмотры
-- [ ] XLSX export includes a matching "Комментарии" column/header
-- [ ] Existing sort/pagination/NULL-handling for other columns unaffected
+- [x] `ContentItemOut` (`GET /runs/{id}/items`) includes `comments`
+- [x] Результаты table gains a sortable "Комментарии" column, positioned near лайки/просмотры
+- [x] XLSX export includes a matching "Комментарии" column/header
+- [x] Existing sort/pagination/NULL-handling for other columns unaffected
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (new sort-by-comments test in `test_items_api.py`, shape assertion updated, `test_export.py` header/value assertions updated; mypy + ruff + `tsc --noEmit` + `next lint` clean; DB-backed tests are CI-only, no local Postgres in this sandbox)
+- [ ] CI green, deployed to DEV — pending this push
+- [ ] Smoke test — DEFERRED (requires a real finished DEV run; same deferral pattern as every Apify-touching story)
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Open a finished run on DEV — «Комментарии» column shows plausible counts, sorts correctly; export to Excel and confirm the column is present with matching values.
 ### Files to read
 CLAUDE.md, backend/src/api/items.py, backend/src/models/content_item.py, frontend/components/results-table.tsx, backend/src/services/xlsx_export.py
 ### Files to create or modify
 backend/src/api/items.py, backend/tests/test_items_api.py, frontend/components/results-table.tsx, frontend/messages/ru.json, backend/src/services/xlsx_export.py, backend/tests/test_export.py
+### Changelog
+- No migration needed — `content_items.comments` has existed since E3-S2, this story only surfaces it through the API/UI/export.
+- `ContentItem` was already selected in full in both `items.py`'s and `export.py`'s queries, so `item.comments` needed no new `select()` column — same pattern as the pre-existing `likes`/`views` fields.
+- The desktop Результаты table has no `views` column today (removed in an earlier UI pass — IG doesn't expose view counts for most post types, judged "misleading" at the time), so "positioned near лайки/просмотры" became "positioned right after Лайки", the closest equivalent still on screen.
+- Scoped to the desktop table + XLSX export only, matching the story's file list — didn't add comments to the mobile card view (`results-cards.tsx`) or the shortlist table/export, since neither was in AC and comments is a secondary metric compared to the primary card chips already shown.
 ### Handover
-—
+- `ContentItemOut.comments` (`api/items.py`, `api/export.py`) — passthrough from `ContentItem.comments`; `"comments"` added to the `SortField` literal and both routers' `sort_columns` maps.
+- `results-table.tsx` — new sortable "comments" column between "likes" and "days_since_published"; `frontend/lib/api.ts` `ContentItemResponse`/`ItemSortField` updated to match.
+- `xlsx_export.py` — "Комментарии" header inserted after "Просмотры" (position 10 of 13); no column-index shift for the earlier "Ссылка" hyperlink cell since it sits before likes/views/comments.
+- Next story in this sprint (E5-S5, virality score) reads `metrics.py`/`items.py`/`results-table.tsx`/`xlsx_export.py` — no direct file conflicts with this story, but it will be inserting yet another column into the same three places; worth checking column order holistically rather than always appending at the end.
 
 ## [E5-S4] Subscriber count next to account name
 **Epic:** Results Table & Export

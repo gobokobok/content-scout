@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E5-S3] Comments count column
+**Completed:** 2026-07-22
+**Handover:**
+- `content_items.comments` has existed since E3-S2 (already scraped, never surfaced) — no migration needed for this story.
+- `ContentItemOut.comments` added in both `api/items.py` and `api/export.py`; `"comments"` added to the `SortField` literal and `sort_columns` maps in both routers. `ContentItem` was already selected in full in both queries, so no new `select()` column was needed.
+- `results-table.tsx` — new sortable "Комментарии" column placed right after "Лайки" (the desktop table has no `views` column today, removed in an earlier pass, so this is the closest equivalent to "near лайки/просмотры"). `frontend/lib/api.ts` `ContentItemResponse`/`ItemSortField` updated.
+- `xlsx_export.py` — "Комментарии" header inserted after "Просмотры" (column 10 of 13 now).
+- Scoped to desktop table + XLSX export only, per the story's file list — not added to mobile cards or the shortlist table/export.
+- New `test_sort_by_comments_and_value_present` in `test_items_api.py`; shape assertion and `test_export.py` header/value assertions updated. mypy + ruff + `tsc --noEmit` + `next lint` all clean.
+**Smoke test:** DEFERRED — requires a real finished DEV run; verify the column shows plausible counts, sorts correctly, and matches the XLSX export.
+**Promoted to backlog:** none
+
 ## [E2-S3] Competitor profile enrichment
 **Completed:** 2026-07-22
 **Handover:**

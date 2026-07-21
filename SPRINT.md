@@ -105,8 +105,8 @@ Full story definitions live in `BACKLOG.md`.
 | 0 | E8-S6 | Telegram Mini App auto-login bootstrap fix (critical) | done |
 | 1 | E5-S4 | Subscriber count next to account name | done |
 | 2 | E2-S3 | Competitor profile enrichment (depends on E5-S4) | done |
-| 3 | E5-S3 | Comments count column | in-progress |
-| 4 | E5-S5 | Virality score per publication (depends on E5-S4) | backlog |
+| 3 | E5-S3 | Comments count column | done |
+| 4 | E5-S5 | Virality score per publication (depends on E5-S4) | in-progress |
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 

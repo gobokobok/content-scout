@@ -127,6 +127,7 @@ export interface ContentItemResponse {
   summary: string | null;
   likes: number | null;
   views: number | null;
+  comments: number | null;
   days_since_published: number;
   views_per_day: number | null;
   likes_per_day: number | null;
@@ -216,6 +217,7 @@ export type ItemSortField =
   | "summary"
   | "likes"
   | "views"
+  | "comments"
   | "days_since_published"
   | "views_per_day"
   | "likes_per_day";
