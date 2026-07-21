@@ -1,4 +1,5 @@
 import uuid
+from unittest.mock import AsyncMock, patch
 
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +37,8 @@ async def _setup_project(session: AsyncSession):
     return owner, project
 
 
-async def test_add_and_list_accounts(session: AsyncSession) -> None:
+@patch("src.api.accounts.enqueue_profile_fetch", new_callable=AsyncMock)
+async def test_add_and_list_accounts(mock_enqueue: AsyncMock, session: AsyncSession) -> None:
     owner, project = await _setup_project(session)
 
     async with await client(session) as c:
@@ -51,13 +53,15 @@ async def test_add_and_list_accounts(session: AsyncSession) -> None:
         assert {a["handle"] for a in body["added"]} == {"one", "two"}
         assert len(body["errors"]) == 1
         assert body["total"] == 2
+        assert mock_enqueue.await_count == 2
 
         resp = await c.get(f"/projects/{project.id}/accounts", headers=auth_headers(owner.id))
         assert resp.status_code == 200
         assert len(resp.json()) == 2
 
 
-async def test_duplicates_deduped_silently(session: AsyncSession) -> None:
+@patch("src.api.accounts.enqueue_profile_fetch", new_callable=AsyncMock)
+async def test_duplicates_deduped_silently(mock_enqueue: AsyncMock, session: AsyncSession) -> None:
     owner, project = await _setup_project(session)
 
     async with await client(session) as c:
@@ -78,7 +82,8 @@ async def test_duplicates_deduped_silently(session: AsyncSession) -> None:
         assert body["total"] == 1
 
 
-async def test_51st_entry_rejected(session: AsyncSession) -> None:
+@patch("src.api.accounts.enqueue_profile_fetch", new_callable=AsyncMock)
+async def test_51st_entry_rejected(mock_enqueue: AsyncMock, session: AsyncSession) -> None:
     owner, project = await _setup_project(session)
 
     async with await client(session) as c:
@@ -104,7 +109,8 @@ async def test_51st_entry_rejected(session: AsyncSession) -> None:
         assert body["total"] == 50
 
 
-async def test_remove_account(session: AsyncSession) -> None:
+@patch("src.api.accounts.enqueue_profile_fetch", new_callable=AsyncMock)
+async def test_remove_account(mock_enqueue: AsyncMock, session: AsyncSession) -> None:
     owner, project = await _setup_project(session)
 
     async with await client(session) as c:

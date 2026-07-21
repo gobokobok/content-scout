@@ -14,6 +14,7 @@ from src.config import get_settings
 from src.db import get_sessionmaker
 from src.models import (
     KIND_APIFY_RESULT,
+    Account,
     AccountStatus,
     AnalysisRun,
     ContentItem,
@@ -64,6 +65,8 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         for account, raw_items, profile_info, exc in fetch_results:
             if profile_info is not None:
                 account.followers_count = profile_info.followers_count
+                account.display_name = profile_info.display_name
+                account.avatar_url = profile_info.avatar_url
                 account.followers_updated_at = datetime.now(UTC)
                 session.add(
                     UsageEvent(
@@ -209,7 +212,37 @@ async def run_analysis(ctx: dict, run_id: str) -> None:
         await process_run(session, run)
 
 
+async def fetch_account_profile(ctx: dict, account_id: str, user_id: str) -> None:
+    """Background enrichment on account add (E2-S3) — separate from the analysis run
+    lifecycle, so a competitor list fills in name/avatar/followers without waiting for a run."""
+    sessionmaker = get_sessionmaker()
+    async with sessionmaker() as session:
+        account = await session.get(Account, uuid.UUID(account_id))
+        if account is None:
+            return
+        settings = get_settings()
+        platform = get_platform(PlatformSlug.instagram)
+        try:
+            profile = await platform.fetch_profile(account)
+        except Exception:  # noqa: BLE001 — leaves the row usable (handle only), never blocks add
+            return
+
+        account.followers_count = profile.followers_count
+        account.display_name = profile.display_name
+        account.avatar_url = profile.avatar_url
+        account.followers_updated_at = datetime.now(UTC)
+        session.add(
+            UsageEvent(
+                user_id=uuid.UUID(user_id),
+                kind=KIND_APIFY_RESULT,
+                quantity=1,
+                unit_cost_usd=Decimal(str(settings.apify_unit_cost_usd)),
+            )
+        )
+        await session.commit()
+
+
 class WorkerSettings:
-    functions = [run_analysis]
+    functions = [run_analysis, fetch_account_profile]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     job_timeout = get_settings().worker_job_timeout_secs

@@ -15,9 +15,15 @@ import { RunDialog } from "../run-dialog";
 const MAX_ACCOUNTS = 50;
 
 function formatFollowerCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".", ",")} млн`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(".", ",")} тыс.`;
+  return new Intl.NumberFormat("ru-RU").format(n);
+}
+
+function formatUpdatedAt(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
 }
 
 export default function CompetitorsTabPage() {
@@ -188,6 +194,7 @@ export default function CompetitorsTabPage() {
           <ul className="flex flex-col">
             {accounts.map((a, idx) => {
               const isSelected = selected.has(a.id);
+              const hasProfile = a.display_name != null || a.followers_count != null;
               return (
                 <li
                   key={a.id}
@@ -207,20 +214,38 @@ export default function CompetitorsTabPage() {
                       className="h-4 w-4 shrink-0 accent-accent"
                     />
                   )}
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-bg">
+                    {a.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- external, unpredictable CDN host
+                      <img src={a.avatar_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Users className="h-4 w-4 text-secondary" />
+                    )}
+                  </span>
                   <a
                     href={a.normalized_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex-1 text-sm font-medium text-ink hover:underline"
+                    className="flex min-w-0 flex-1 flex-col"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    @{a.handle}
-                  </a>
-                  {a.follower_count != null && (
-                    <span className="text-xs text-secondary">
-                      {formatFollowerCount(a.follower_count)} {t("followersShort")}
+                    <span className="truncate text-sm font-medium text-ink hover:underline">
+                      {a.display_name || `@${a.handle}`}
                     </span>
-                  )}
+                    <span className="truncate text-xs text-secondary">
+                      {hasProfile ? (
+                        <>
+                          @{a.handle}
+                          {a.followers_count != null &&
+                            ` · ${formatFollowerCount(a.followers_count)} ${t("followersShort")}`}
+                          {a.profile_updated_at &&
+                            ` · ${t("updatedLabel")} ${formatUpdatedAt(a.profile_updated_at)}`}
+                        </>
+                      ) : (
+                        t("noData")
+                      )}
+                    </span>
+                  </a>
                   {!isArchived && (
                     <button
                       onClick={(e) => {

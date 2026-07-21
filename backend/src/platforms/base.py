@@ -23,6 +23,8 @@ class RawContentItem:
 @dataclass
 class ProfileInfo:
     followers_count: int | None = None
+    display_name: str | None = None
+    avatar_url: str | None = None
 
 
 class Platform(Protocol):

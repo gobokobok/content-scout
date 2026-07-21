@@ -40,4 +40,8 @@ class MockPlatform:
         return items
 
     async def fetch_profile(self, account: Account) -> ProfileInfo:
-        return ProfileInfo(followers_count=_MOCK_FOLLOWERS)
+        return ProfileInfo(
+            followers_count=_MOCK_FOLLOWERS,
+            display_name=f"Тестовый аккаунт @{account.handle}",
+            avatar_url=None,
+        )

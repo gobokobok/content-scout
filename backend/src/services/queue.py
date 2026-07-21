@@ -22,3 +22,8 @@ async def get_redis_pool() -> ArqRedis:
 async def enqueue_run(run_id: uuid.UUID) -> None:
     pool = await get_redis_pool()
     await pool.enqueue_job("run_analysis", str(run_id))
+
+
+async def enqueue_profile_fetch(account_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    pool = await get_redis_pool()
+    await pool.enqueue_job("fetch_account_profile", str(account_id), str(user_id))

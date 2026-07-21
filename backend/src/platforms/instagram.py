@@ -111,7 +111,12 @@ class InstagramPlatform:
             reason = items[0].get("errorDescription") if items else "empty response"
             raise ApifyRunFailedError(f"@{account.handle}: {reason}")
 
-        return ProfileInfo(followers_count=items[0].get("followersCount"))
+        detail = items[0]
+        return ProfileInfo(
+            followers_count=detail.get("followersCount"),
+            display_name=detail.get("fullName") or None,
+            avatar_url=detail.get("profilePicUrl") or detail.get("profilePicUrlHD"),
+        )
 
 
 def _normalize(item: dict[str, Any]) -> RawContentItem:

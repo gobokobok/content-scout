@@ -73,7 +73,10 @@ export interface AccountResponse {
   normalized_url: string;
   status: string;
   created_at: string;
-  follower_count?: number | null;
+  display_name: string | null;
+  followers_count: number | null;
+  avatar_url: string | null;
+  profile_updated_at: string | null;
 }
 
 export interface AddAccountsResponse {

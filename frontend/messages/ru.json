@@ -88,7 +88,9 @@
     "selectAll": "Выбрать все",
     "runButton": "Анализ",
     "selectedCount": "Выбрано: {count}",
-    "followersShort": "подп."
+    "followersShort": "подп.",
+    "noData": "нет данных",
+    "updatedLabel": "обновлено"
   },
   "RunDialog": {
     "title": "Новый анализ",

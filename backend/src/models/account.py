@@ -33,4 +33,8 @@ class Account(UuidPk, CreatedAt, Base):
     )
     fail_reason: Mapped[str | None] = mapped_column(String(500))
     followers_count: Mapped[int | None] = mapped_column()
+    # Shared "last profile fetch" timestamp for followers_count/display_name/avatar_url — all
+    # three come from the same Platform.fetch_profile() call, so one column covers all of them.
     followers_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    display_name: Mapped[str | None] = mapped_column(String(200))
+    avatar_url: Mapped[str | None] = mapped_column(String(1000))

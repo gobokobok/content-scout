@@ -11,6 +11,7 @@ from src.auth.dependency import CurrentUser
 from src.db import get_session
 from src.models import MAX_ACCOUNTS_PER_LIST, Account, AccountList, PlatformSlug
 from src.services.projects import ProjectNotFoundError, get_owned_project
+from src.services.queue import enqueue_profile_fetch
 from src.services.url_normalizer import InvalidAccountUrlError, normalize_instagram_input
 
 router = APIRouter(prefix="/projects/{project_id}/accounts", tags=["accounts"])
@@ -33,6 +34,10 @@ class AccountOut(BaseModel):
     normalized_url: str
     status: str
     created_at: datetime
+    display_name: str | None
+    followers_count: int | None
+    avatar_url: str | None
+    profile_updated_at: datetime | None
 
     @classmethod
     def from_model(cls, account: Account) -> "AccountOut":
@@ -42,6 +47,10 @@ class AccountOut(BaseModel):
             normalized_url=account.normalized_url,
             status=account.status.value,
             created_at=account.created_at,
+            display_name=account.display_name,
+            followers_count=account.followers_count,
+            avatar_url=account.avatar_url,
+            profile_updated_at=account.followers_updated_at,
         )
 
 
@@ -154,6 +163,8 @@ async def add_accounts(
         slots_left -= 1
 
     await session.commit()
+    for account_out in added:
+        await enqueue_profile_fetch(account_out.id, user.id)
     total = len(existing) + len(added)
     return AddAccountsOut(added=added, errors=errors, total=total)
 

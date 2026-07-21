@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E2-S3] Competitor profile enrichment
+**Completed:** 2026-07-22
+**Handover:**
+- `ProfileInfo` (E5-S4) extended with `display_name`/`avatar_url`; `InstagramPlatform.fetch_profile` now maps Apify detail-response `fullName`→`display_name`, `profilePicUrl`/`profilePicUrlHD`→`avatar_url` alongside `followersCount`.
+- New `src/worker.py:fetch_account_profile(ctx, account_id, user_id)` arq job — separate from the analysis-run lifecycle, since CONVENTIONS.md forbids external calls from routers. `POST /projects/{id}/accounts` enqueues one job per newly added account right after commit (`src/services/queue.py:enqueue_profile_fetch`); on failure the job returns silently, leaving the row's existing data (or just the handle) intact — never blocks add.
+- `Account.display_name` / `Account.avatar_url` — migration `e4f5a6b7c8d9` (now head). Reused E5-S4's `followers_updated_at` as the shared "last profile fetch" timestamp for all three enriched fields rather than adding a second column.
+- `AccountOut` gained `display_name`, `followers_count`, `avatar_url`, `profile_updated_at`.
+- Frontend: Конкуренты list row now shows an avatar (Users icon fallback), display_name/@handle, ru-RU formatted followers, and a short "обновлено DD.MM" date; falls back to «нет данных» only when nothing has ever been fetched. Renamed the page's pre-existing unpopulated `follower_count` stub to `followers_count` and switched its formatter from "K"/"M" to the same "тыс."/"млн" style used in the Результаты table.
+- 3 new tests in `test_profile_enrichment.py` (update on success, fallback-on-failure, missing-account no-op); `test_instagram_platform.py` and `test_accounts.py` updated. mypy + ruff + `tsc --noEmit` + `next lint` all clean.
+**Smoke test:** DEFERRED — requires a real DEV account add against a public IG profile; verify avatar/name/followers appear within a minute and the row stays usable if the fetch fails.
+**Promoted to backlog:** none
+
 ## [E5-S4] Subscriber count next to account name
 **Completed:** 2026-07-22
 **Handover:**

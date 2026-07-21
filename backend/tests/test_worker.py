@@ -78,6 +78,7 @@ async def test_process_run_scrapes_mock_content_and_completes(session: AsyncSess
 
     await session.refresh(account)
     assert account.followers_count == 12_400
+    assert account.display_name == f"Тестовый аккаунт @{account.handle}"
     assert account.followers_updated_at is not None
 
     assert run.total_input_tokens == 300

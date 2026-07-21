@@ -251,33 +251,46 @@ backend/src/platforms/hikerapi.py (new), backend/src/platforms/__init__.py, back
 
 ## [E2-S3] Competitor profile enrichment
 **Epic:** Projects & Competitor Lists
-**Sprint:** unassigned (MVP — next up, single-blogger focus per 2026-07-21 reprioritization)
-**Status:** backlog
+**Sprint:** 7
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** high
 **Depends on:** E2-S2, E5-S4 (reuse `Platform.fetch_profile()` built there rather than re-implementing the details fetch)
 ### Goal
 The Конкуренты list shows basic live details per account — display name/title, follower count, avatar — fetched when an account is added and refreshed on each analysis run.
 ### Acceptance Criteria
-- [ ] `Platform` interface gains `fetch_profile(account) -> ProfileInfo` (display_name, followers, avatar_url); Apify IG profile fetch implements it
-- [ ] Profile fetched async on account add (list shows the row immediately, details fill in); refreshed as part of every run's scraping phase
-- [ ] Конкуренты list displays: аватар, название, @handle, подписчики (formatted ru-RU), последнее обновление
-- [ ] Profile fetches write `apify_result` usage_events like any other scrape
-- [ ] Fetch failure leaves the row usable (handle + «нет данных»), never blocks add/run
+- [x] `Platform` interface gains `fetch_profile(account) -> ProfileInfo` (display_name, followers, avatar_url); Apify IG profile fetch implements it — E5-S4 already added `fetch_profile`/`followers_count`; this story extends `ProfileInfo` with `display_name`/`avatar_url` and wires `InstagramPlatform` to Apify's `fullName`/`profilePicUrl` detail fields
+- [x] Profile fetched async on account add (list shows the row immediately, details fill in); refreshed as part of every run's scraping phase
+- [x] Конкуренты list displays: аватар, название, @handle, подписчики (formatted ru-RU), последнее обновление
+- [x] Profile fetches write `apify_result` usage_events like any other scrape
+- [x] Fetch failure leaves the row usable (handle + «нет данных»), never blocks add/run
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (3 new `test_profile_enrichment.py` tests, `InstagramPlatform.fetch_profile` normalization extended, `test_accounts.py` updated to mock the new enqueue call; mypy + ruff clean; DB-backed tests are CI-only, no local Postgres in this sandbox)
+- [ ] CI green, deployed to DEV — pending this push
+- [ ] Smoke test — DEFERRED (requires a real DEV account add against a public IG profile; same deferral pattern as every Apify-touching story)
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Add a real public IG account on DEV — name, followers, and avatar appear within a minute.
 ### Files to read
 CLAUDE.md, backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/api/accounts.py
 ### Files to create or modify
 backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/models/account.py (+ migration), backend/tests/test_profile_enrichment.py, frontend/app/(app)/projects/[id]/competitors/**, frontend/messages/ru.json
+### Changelog
+- Added a dedicated `fetch_account_profile(ctx, account_id, user_id)` arq job (registered in `WorkerSettings.functions` alongside `run_analysis`) rather than calling Apify from the accounts router — CONVENTIONS.md forbids external calls from routers, so "profile fetched async on account add" needed its own background job, separate from the analysis-run lifecycle. `POST /projects/{id}/accounts` enqueues one job per newly added account (via `services/queue.py:enqueue_profile_fetch`, mirroring the existing `enqueue_run` pattern) right after commit.
+- `user_id` travels with the enqueue call rather than being re-derived in the worker via an Account→AccountList→Project→Workspace→WorkspaceMember join — the router already has `CurrentUser` in scope, so passing it through is simpler than adding a new reverse-lookup service function for a single call site.
+- Reused E5-S4's `Account.followers_updated_at` as the shared "last profile fetch" timestamp for `display_name`/`avatar_url`/`followers_count` too, instead of adding a second timestamp column — all three fields come from the same `fetch_profile()` call, so one column covers "last updated" for the whole profile.
+- Renamed the Конкуренты page's pre-existing (backend-unpopulated) `AccountResponse.follower_count` stub to `followers_count` to match this story's and E5-S4's model/API naming, and replaced its "K"/"M" abbreviation style with the same ru-RU "тыс."/"млн" formatter used in the Результаты table, for consistency across the app.
+- «нет данных» renders only when *both* `display_name` and `followers_count` are null (i.e., the profile fetch never succeeded even once) — a partially-filled profile (e.g. followers but no avatar) still renders what it has rather than falling back to the generic message.
 ### Handover
-—
+- `src/platforms/base.py:ProfileInfo` now carries `display_name`/`avatar_url` alongside E5-S4's `followers_count`; `InstagramPlatform._fetch_profile_once` maps Apify's `fullName`→`display_name`, `profilePicUrl` (falling back to `profilePicUrlHD`)→`avatar_url`. `MockPlatform.fetch_profile` returns fixed test values for all three.
+- `Account.display_name` / `Account.avatar_url` — migration `e4f5a6b7c8d9` (now head, was `d3e4f5a6b7c8`).
+- `src/worker.py:fetch_account_profile` — the new background-enrichment job; on any exception it returns silently (row keeps whatever it had, `handle` always usable) and writes no usage event. `process_run`'s existing per-run profile fetch (E5-S4) now also updates `display_name`/`avatar_url`, not just `followers_count`.
+- `src/services/queue.py:enqueue_profile_fetch(account_id, user_id)` — call after adding accounts; `src/api/accounts.py:add_accounts` calls it once per newly added account post-commit.
+- `AccountOut` (`src/api/accounts.py`) gained `display_name`, `followers_count`, `avatar_url`, `profile_updated_at` (API-facing alias for the `followers_updated_at` column — chosen so the response contract doesn't imply the timestamp is followers-specific).
+- Frontend: `frontend/app/(app)/projects/[id]/competitors/page.tsx` — row now shows an avatar circle (Users icon fallback), display_name as primary text with `@handle` + followers + "обновлено DD.MM" as secondary text, or «нет данных» when nothing has been fetched yet. New `Competitors.noData`/`Competitors.updatedLabel` i18n keys.
+- Next story in this sprint (E5-S3, comments column) touches `api/items.py`/`results-table.tsx`/`xlsx_export.py` only — no overlap with this story's files.
 
 ## [E3-S1] Run creation, cost estimate, worker skeleton
 **Epic:** Analysis Pipeline

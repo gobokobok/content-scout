@@ -145,12 +145,19 @@ async def test_fetch_content_retries_then_raises() -> None:
 
 async def test_fetch_profile_normalizes_followers_count() -> None:
     run_result = SimpleNamespace(default_dataset_id="dataset-1", status="SUCCEEDED")
-    detail_item = {"username": "testuser", "followersCount": 45210}
+    detail_item = {
+        "username": "testuser",
+        "followersCount": 45210,
+        "fullName": "Test User",
+        "profilePicUrl": "https://instagram.com/pic.jpg",
+    }
     platform = _platform_with(_FakeActorClient(run_result), _FakeDatasetClient([detail_item]))
 
     profile = await platform.fetch_profile(_account())
 
     assert profile.followers_count == 45210
+    assert profile.display_name == "Test User"
+    assert profile.avatar_url == "https://instagram.com/pic.jpg"
 
 
 async def test_fetch_profile_uses_details_results_type() -> None:
