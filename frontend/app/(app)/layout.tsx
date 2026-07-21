@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 import { Menu, Pencil, Bell, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { closeTelegramWebApp } from "@/lib/telegram-webapp";
 import { useRunTracker, type TrackedRun } from "@/lib/run-tracker";
 import { ContextMenu } from "@/components/ui/context-menu";
 
@@ -141,40 +140,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {t("admin")}
             </Link>
           )}
-          {isTelegram ? (
-            <>
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  telegramLogout();
-                  router.push("/login");
-                }}
-                className="px-4 py-3.5 text-left text-base text-danger hover:bg-bg transition-colors"
-              >
-                {t("logout")}
-              </button>
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  closeTelegramWebApp();
-                }}
-                className="px-4 py-3.5 text-left text-base text-secondary hover:bg-bg transition-colors"
-              >
-                {t("closeApp")}
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                logout();
-                router.push("/login");
-              }}
-              className="px-4 py-3.5 text-left text-base text-danger hover:bg-bg transition-colors"
-            >
-              {t("logout")}
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setMenuOpen(false);
+              if (isTelegram) telegramLogout();
+              else logout();
+              router.push("/login");
+            }}
+            className="px-4 py-3.5 text-left text-base text-danger hover:bg-bg transition-colors"
+          >
+            {t("logout")}
+          </button>
         </div>
       </ContextMenu>
 

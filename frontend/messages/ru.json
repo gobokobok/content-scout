@@ -22,13 +22,11 @@
     "inviteCodePlaceholder": "Введите код приглашения",
     "orSeparator": "или",
     "tgProcessing": "Выполняется вход через Telegram…",
-    "tgLoggedOut": "Вы вышли из аккаунта.",
     "tgSignInButton": "Войти через Telegram"
   },
   "App": {
     "loading": "Загрузка…",
     "logout": "Выйти",
-    "closeApp": "Закрыть",
     "projects": "Проекты",
     "usage": "Использование",
     "settings": "Настройки",

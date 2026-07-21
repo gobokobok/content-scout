@@ -87,32 +87,16 @@ export default function LoginPage() {
     container.appendChild(script);
   }, [tgConfig]);
 
-  // Inside Telegram the Mini App auto-authenticates via initData, unless the user explicitly
-  // logged out last time — then show a manual sign-in button instead of a blank screen.
-  if (isTelegram) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-16 text-center">
-        <p className="text-secondary">{t("tgLoggedOut")}</p>
-        {tgSignInError && <p className="text-sm text-danger">{tgSignInError}</p>}
-        <button
-          onClick={async () => {
-            setTgSigningIn(true);
-            setTgSignInError(null);
-            try {
-              await telegramSignIn();
-            } catch (err) {
-              setTgSignInError(err instanceof ApiError ? err.messageRu : t("genericError"));
-            } finally {
-              setTgSigningIn(false);
-            }
-          }}
-          disabled={tgSigningIn}
-          className="rounded-control bg-accent px-4 py-2.5 text-base font-medium text-white disabled:opacity-50"
-        >
-          {tgSigningIn ? t("loggingIn") : t("tgSignInButton")}
-        </button>
-      </div>
-    );
+  async function onTelegramSignIn() {
+    setTgSigningIn(true);
+    setTgSignInError(null);
+    try {
+      await telegramSignIn();
+    } catch (err) {
+      setTgSignInError(err instanceof ApiError ? err.messageRu : t("genericError"));
+    } finally {
+      setTgSigningIn(false);
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -168,7 +152,27 @@ export default function LoginPage() {
         <p className="text-sm text-secondary">{t("tgProcessing")}</p>
       )}
 
-      {tgConfig?.enabled && !tgProcessing && (
+      {/* Inside the Mini App we already have initData — a direct sign-in beats mounting the
+          external widget script, which assumes a browser redirect flow. */}
+      {isTelegram && !tgProcessing && (
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex w-full items-center gap-2">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-secondary">{t("orSeparator")}</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+          {tgSignInError && <p className="text-sm text-danger">{tgSignInError}</p>}
+          <button
+            onClick={() => void onTelegramSignIn()}
+            disabled={tgSigningIn}
+            className="w-full rounded-control bg-accent px-4 py-2.5 text-base font-medium text-white disabled:opacity-50"
+          >
+            {tgSigningIn ? t("loggingIn") : t("tgSignInButton")}
+          </button>
+        </div>
+      )}
+
+      {!isTelegram && tgConfig?.enabled && !tgProcessing && (
         <div className="flex flex-col items-center gap-3">
           <div className="flex w-full items-center gap-2">
             <div className="h-px flex-1 bg-border" />

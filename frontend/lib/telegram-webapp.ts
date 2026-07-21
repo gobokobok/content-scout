@@ -7,7 +7,6 @@ declare global {
         initData: string;
         ready: () => void;
         expand: () => void;
-        close: () => void;
       };
     };
   }
@@ -26,8 +25,4 @@ export function initTelegramWebApp(): void {
   if (!isTelegramContext()) return;
   window.Telegram!.WebApp!.ready();
   window.Telegram!.WebApp!.expand();
-}
-
-export function closeTelegramWebApp(): void {
-  window.Telegram?.WebApp?.close();
 }
