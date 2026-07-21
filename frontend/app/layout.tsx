@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Golos_Text, Unbounded } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
@@ -31,7 +32,13 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang="ru">
+    <html lang="ru" suppressHydrationWarning>
+      <head>
+        {/* Telegram does not inject window.Telegram.WebApp on its own — the Mini App
+            must load this script itself. beforeInteractive guarantees it runs before
+            AuthProvider's mount effect checks isTelegramContext(). */}
+        <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
+      </head>
       <body
         className={`${golos.variable} ${unbounded.variable} antialiased bg-bg text-ink font-sans`}
       >

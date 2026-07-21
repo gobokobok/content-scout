@@ -16,6 +16,8 @@ Epics:
 
 Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled). Mobile card layout for tables is now scheduled (E12-S2, Sprint 6 — supersedes the horizontal-scroll-only clause of D16 per D28).
 
+**2026-07-21 reprioritization — tuning toward a single-blogger MVP:** E2-S3, E5-S3, E5-S4 (competitor follower count + comments column) are next up; E8-S6 (Telegram login reliability, new) is critical and blocking the pilot. Everything else currently `backlog` (E3-S3, E3-S4, E3-S5, E7-S3, E8-S3, E8-S4, E9-S1, E9-S2, E10-S1, E10-S2, E10-S3, E11-S1, E11-S2, E11-S3) is explicitly deferred post-MVP — see each story's `Sprint:` line for why.
+
 ---
 
 ## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
@@ -218,7 +220,7 @@ backend/src/api/accounts.py, backend/src/services/url_normalizer.py, backend/tes
 
 ## [E3-S5] Switch scraping backend to HikerAPI
 **Epic:** Analysis Pipeline
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** low
 **Depends on:** E3-S2
@@ -249,10 +251,10 @@ backend/src/platforms/hikerapi.py (new), backend/src/platforms/__init__.py, back
 
 ## [E2-S3] Competitor profile enrichment
 **Epic:** Projects & Competitor Lists
-**Sprint:** unassigned
+**Sprint:** unassigned (MVP — next up, single-blogger focus per 2026-07-21 reprioritization)
 **Status:** backlog
-**Priority:** medium
-**Depends on:** E2-S2, E3-S2
+**Priority:** high
+**Depends on:** E2-S2, E5-S4 (reuse `Platform.fetch_profile()` built there rather than re-implementing the details fetch)
 ### Goal
 The Конкуренты list shows basic live details per account — display name/title, follower count, avatar — fetched when an account is added and refreshed on each analysis run.
 ### Acceptance Criteria
@@ -369,7 +371,7 @@ backend/src/platforms/instagram.py, backend/src/services/metrics.py, backend/tes
 
 ## [E3-S3] Worker run resume logic
 **Epic:** Analysis Pipeline
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** high
 **Depends on:** E3-S2
@@ -398,7 +400,7 @@ backend/src/worker.py, backend/tests/test_worker.py
 
 ## [E3-S4] Two-phase run cost confirmation
 **Epic:** Analysis Pipeline
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — user reconfirmed post-MVP after reviewing: E7-S4's daily run quota + E4-S3's ~4× Claude cost cut already cover most of the risk this story guards against)
 **Status:** backlog
 **Priority:** high
 **Depends on:** E3-S3
@@ -658,9 +660,9 @@ backend/src/services/xlsx_export.py, backend/src/api/export.py, backend/tests/te
 
 ## [E5-S3] Comments count column
 **Epic:** Results Table & Export
-**Sprint:** unassigned
+**Sprint:** unassigned (MVP — next up, single-blogger focus per 2026-07-21 reprioritization)
 **Status:** backlog
-**Priority:** low
+**Priority:** high
 **Depends on:** E5-S1
 ### Goal
 The results table and XLSX export show each publication's comments count — the data is already scraped into `content_items.comments` (E3-S2) but never surfaced past the DB.
@@ -687,9 +689,9 @@ backend/src/api/items.py, backend/tests/test_items_api.py, frontend/components/r
 
 ## [E5-S4] Subscriber count next to account name
 **Epic:** Results Table & Export
-**Sprint:** unassigned
+**Sprint:** unassigned (MVP — next up, single-blogger focus per 2026-07-21 reprioritization)
 **Status:** backlog
-**Priority:** medium
+**Priority:** high
 **Depends on:** E3-S2
 ### Goal
 The Результаты table shows each account's current follower count next to its name, fetched once per account per run. Instagram doesn't return follower count alongside post data — confirmed against Apify's `instagram-scraper` docs, `resultsType: "details"` is a separate call from `resultsType: "posts"` — so this adds one extra Apify call per **account** per run (not per publication). This story introduces `Platform.fetch_profile()`; the still-backlogged E2-S3 (Competitor profile enrichment, Конкуренты list) can build on the same method rather than re-implementing the details fetch.
@@ -865,7 +867,7 @@ backend/src/api/admin.py, backend/tests/test_admin.py, frontend/app/(app)/admin/
 
 ## [E7-S3] Pre-public-launch hardening
 **Epic:** Usage Metering & Admin
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** high
 **Depends on:** E6-S2
@@ -1039,7 +1041,7 @@ backend/src/api/billing.py, backend/src/models/subscription.py, backend/tests/te
 
 ## [E8-S4] Add competitor by sharing a link to the bot
 **Epic:** Telegram Integration & Monetization
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** medium
 **Depends on:** E8-S2
@@ -1102,9 +1104,40 @@ backend/src/api/telegram_webhook.py, backend/src/auth/telegram.py, backend/src/c
 - `app/(app)/layout.tsx`: logout + email hidden when `isTelegram`; login page returns `null` when `isTelegram`
 - ENV added: `TELEGRAM_WEBHOOK_SECRET` (api), `TELEGRAM_BOT_USERNAME` (api), `WEB_URL` (api — Mini App URL sent in bot messages)
 
+## [E8-S6] Telegram Mini App auto-login bootstrap fix
+**Epic:** Telegram Integration & Monetization
+**Sprint:** unassigned (MVP — next up; live-blocking bug for the single-blogger pilot, found + root-caused during 2026-07-21 sprint review)
+**Status:** in-progress — root cause fixed, pending real-device smoke test
+**Priority:** critical
+**Depends on:** E8-S1, E8-S5
+### Goal
+Confirmed 2026-07-21: the web Login Widget flow (`/login`, `/setdomain` registered) works correctly — the 7 untracked `fix:` commits since E8-S1 shipped (`53b2fac`..`02f725c`) were legitimate fixes to that flow, just never tagged to a story. The actual live bug is the **Mini App** (opened via the bot's «Открыть» button), which has been non-functional since E8-S5 shipped.
+Root cause: Telegram does **not** auto-inject `window.Telegram.WebApp` into the Mini App webview — the page must load Telegram's own SDK script (`telegram-web-app.js`) itself to get it populated. This codebase only ever loaded `telegram-widget.js` (the unrelated Login *Widget* script, used on `/login`/`/register`/`/settings`); the Mini App SDK script was never included anywhere. So `isTelegramContext()` ([telegram-webapp.ts:15](frontend/lib/telegram-webapp.ts:15)) always returned `false` even inside the real Mini App, the auto-login branch in [auth-context.tsx:51](frontend/lib/auth-context.tsx:51) never ran, and the user saw the ordinary email/password login form instead of silent auto-auth.
+### Acceptance Criteria
+- [x] Load `https://telegram.org/js/telegram-web-app.js` via `next/script` (`strategy="beforeInteractive"`) in the root layout, so `window.Telegram.WebApp` exists before `AuthProvider`'s mount effect runs
+- [x] `suppressHydrationWarning` added to `<html>` — Telegram's script mutates `document.documentElement.style` (`--tg-viewport-height` custom properties) as a side effect of loading even outside real Telegram, causing an SSR/client hydration mismatch on `<html>`'s attributes; this is expected third-party-script behavior, not a bug to chase
+- [ ] **End-to-end smoke test with a real Telegram account against DEV** — open the Mini App from the bot, confirm auto-login actually completes and lands in the authenticated shell with zero manual login. Not deferred like every prior Telegram smoke test.
+- [ ] If the real-device test still fails after this fix, root-cause from actual console/network output against DEV rather than another speculative patch
+### Definition of Done
+- [ ] All AC checked
+- [x] Local verification: outside real Telegram, `window.Telegram.WebApp.initData` is `""` (confirmed via browser JS eval) so `isTelegramContext()` still correctly returns `false` for normal browser sessions — no regression to non-Telegram login; typecheck + lint clean
+- [ ] Smoke test passed (real Telegram account, not deferred)
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+From a real phone, open the DEV bot and tap «Открыть content-scout» — the Mini App opens already authenticated (no login form), workspace loads directly.
+### Files to read
+CLAUDE.md, frontend/app/layout.tsx, frontend/lib/telegram-webapp.ts, frontend/lib/auth-context.tsx
+### Files to create or modify
+frontend/app/layout.tsx (done)
+### Changelog
+- 2026-07-21: root cause fixed — `telegram-web-app.js` script added to root layout via `next/script`. Verified locally (typecheck, lint, browser check of `isTelegramContext()` behavior). Real-device smoke test on DEV still needed before this can move to `done`.
+### Handover
+—
+
 ## [E9-S1] Public API tokens
 **Epic:** Public API & Engine Integration
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** low
 **Depends on:** E6-S1
@@ -1132,7 +1165,7 @@ backend/src/auth/api_token.py, backend/src/api/tokens.py, backend/tests/test_api
 
 ## [E9-S2] Webhooks for run/shortlist events
 **Epic:** Public API & Engine Integration
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** low
 **Depends on:** E9-S1
@@ -1160,7 +1193,7 @@ backend/src/services/webhooks.py, backend/src/api/webhooks.py, backend/tests/tes
 
 ## [E10-S1] Script generation from shortlist
 **Epic:** Content Generation
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** high
 **Depends on:** E6-S1, E7-S1
@@ -1191,7 +1224,7 @@ backend/src/models/script_request.py (+ migration), backend/src/services/scriptw
 
 ## [E10-S2] Asset generation and download delivery
 **Epic:** Content Generation
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** medium
 **Depends on:** E10-S1, E9-S2
@@ -1220,7 +1253,7 @@ backend/src/services/content_engine/ (base + implementations), backend/src/model
 
 ## [E10-S3] Review and adjust generated content
 **Epic:** Content Generation
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** medium
 **Depends on:** E10-S2
@@ -1249,7 +1282,7 @@ backend/src/api/assets.py, backend/tests/test_asset_review.py, frontend/app/(app
 
 ## [E11-S1] Spike: Instagram Graph API publishing feasibility
 **Epic:** Instagram Connection, Publishing & Analytics
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** medium
 **Depends on:** none
@@ -1275,7 +1308,7 @@ docs/IG_PUBLISHING.md, DECISIONS.md
 
 ## [E11-S2] Connect IG account, publish and schedule
 **Epic:** Instagram Connection, Publishing & Analytics
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** low
 **Depends on:** E11-S1, E10-S3
@@ -1304,7 +1337,7 @@ backend/src/services/ig_publisher.py, backend/src/api/ig_connect.py, backend/src
 
 ## [E11-S3] Own-account analytics
 **Epic:** Instagram Connection, Publishing & Analytics
-**Sprint:** unassigned
+**Sprint:** unassigned (post-MVP per 2026-07-21 reprioritization — single-blogger focus)
 **Status:** backlog
 **Priority:** low
 **Depends on:** E11-S2
