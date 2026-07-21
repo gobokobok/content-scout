@@ -656,6 +656,65 @@ backend/src/services/xlsx_export.py, backend/src/api/export.py, backend/tests/te
 - `api.downloadRunXlsx(runId, sort, order)` added to `frontend/lib/api.ts`
 - Bug found+fixed: project names with Cyrillic characters caused `UnicodeEncodeError` in the `Content-Disposition` header — fixed by using `filename*=UTF-8''<quoted>` (RFC 5987)
 
+## [E5-S3] Comments count column
+**Epic:** Results Table & Export
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** low
+**Depends on:** E5-S1
+### Goal
+The results table and XLSX export show each publication's comments count — the data is already scraped into `content_items.comments` (E3-S2) but never surfaced past the DB.
+### Acceptance Criteria
+- [ ] `ContentItemOut` (`GET /runs/{id}/items`) includes `comments`
+- [ ] Результаты table gains a sortable "Комментарии" column, positioned near лайки/просмотры
+- [ ] XLSX export includes a matching "Комментарии" column/header
+- [ ] Existing sort/pagination/NULL-handling for other columns unaffected
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Open a finished run on DEV — «Комментарии» column shows plausible counts, sorts correctly; export to Excel and confirm the column is present with matching values.
+### Files to read
+CLAUDE.md, backend/src/api/items.py, backend/src/models/content_item.py, frontend/components/results-table.tsx, backend/src/services/xlsx_export.py
+### Files to create or modify
+backend/src/api/items.py, backend/tests/test_items_api.py, frontend/components/results-table.tsx, frontend/messages/ru.json, backend/src/services/xlsx_export.py, backend/tests/test_export.py
+### Handover
+—
+
+## [E5-S4] Subscriber count next to account name
+**Epic:** Results Table & Export
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E3-S2
+### Goal
+The Результаты table shows each account's current follower count next to its name, fetched once per account per run. Instagram doesn't return follower count alongside post data — confirmed against Apify's `instagram-scraper` docs, `resultsType: "details"` is a separate call from `resultsType: "posts"` — so this adds one extra Apify call per **account** per run (not per publication). This story introduces `Platform.fetch_profile()`; the still-backlogged E2-S3 (Competitor profile enrichment, Конкуренты list) can build on the same method rather than re-implementing the details fetch.
+### Acceptance Criteria
+- [ ] `Platform` interface gains `fetch_profile(account) -> ProfileInfo` (at minimum `followers_count`); `InstagramPlatform` implements it via Apify `resultsType: "details"`
+- [ ] Worker fetches profile info once per account per run during the scraping phase (not per item); `Account` gains `followers_count` + `followers_updated_at` columns (+ migration) so the latest known count persists between runs
+- [ ] Profile fetch writes an `apify_result` usage_events row like any other scrape; failure never fails the account's content scrape (falls back to the last known value, or blank if none yet)
+- [ ] Результаты table shows follower count next to the account name (ru-RU formatted, e.g. "12,4 тыс."); XLSX export includes it
+- [ ] Unit tests: `fetch_profile` normalization, worker writes/updates `followers_count`, usage_events row written, profile-fetch failure doesn't fail the run
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run analysis on DEV against 2 real public IG accounts — each row's account name shows a plausible, ru-RU-formatted follower count; usage_events has one extra `apify_result` row per account for the profile fetch.
+### Files to read
+CLAUDE.md, backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/worker.py, backend/src/models/account.py, backend/src/api/items.py, frontend/components/results-table.tsx
+### Files to create or modify
+backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/models/account.py (+ migration), backend/src/worker.py, backend/src/api/items.py, backend/tests/test_instagram_platform.py, backend/tests/test_worker.py, frontend/components/results-table.tsx, frontend/messages/ru.json
+### Handover
+—
+
 ## [E6-S1] Shortlist
 **Epic:** Shortlist & History
 **Sprint:** 4
