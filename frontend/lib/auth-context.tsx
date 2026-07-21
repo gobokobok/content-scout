@@ -30,14 +30,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       setUser(await api.me());
-    } catch {
-      // Only clear auth state if no concurrent login replaced the token while
-      // this call was in-flight (e.g. Telegram redirect racing with an expired
-      // stored token).
+    } catch (err) {
       if (getToken() === tokenAtEntry) {
+        // Definitive failure — no concurrent login replaced the token.
         clearToken();
         setUser(null);
+        throw err; // propagate so callers (login, telegramLogin) can show the error
       }
+      // A concurrent login replaced the token while this call was in-flight;
+      // don't interfere — its own loadUser will complete and set the user.
     } finally {
       setLoading(false);
     }
@@ -69,7 +70,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    void loadUser();
+    void loadUser().catch(() => {
+      // Initial session restore failed — state already cleared inside loadUser.
+    });
   }, [loadUser]);
 
   const login = useCallback(

@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [tgProcessing, setTgProcessing] = useState(false);
 
   const [tgConfig, setTgConfig] = useState<{ enabled: boolean; bot_username: string } | null>(
     null,
@@ -61,9 +62,10 @@ export default function LoginPage() {
     if (photoUrl) data.photo_url = photoUrl;
 
     setSubmitting(true);
+    setTgProcessing(true);
     telegramLogin(data)
       .catch((err) => setError(err instanceof ApiError ? err.messageRu : t("genericError")))
-      .finally(() => setSubmitting(false));
+      .finally(() => { setSubmitting(false); setTgProcessing(false); });
   }, [telegramLogin, t]);
 
   // Mount the Telegram Login Widget using redirect flow (data-auth-url) so it works on
@@ -135,7 +137,11 @@ export default function LoginPage() {
         </button>
       </form>
 
-      {tgConfig?.enabled && (
+      {tgProcessing && (
+        <p className="text-sm text-secondary">{t("tgProcessing")}</p>
+      )}
+
+      {tgConfig?.enabled && !tgProcessing && (
         <div className="flex flex-col items-center gap-3">
           <div className="flex w-full items-center gap-2">
             <div className="h-px flex-1 bg-border" />

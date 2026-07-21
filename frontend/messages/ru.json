@@ -20,7 +20,8 @@
     "passwordTooShort": "Пароль должен быть не короче {min} символов.",
     "inviteCodeLabel": "Код приглашения",
     "inviteCodePlaceholder": "Введите код приглашения",
-    "orSeparator": "или"
+    "orSeparator": "или",
+    "tgProcessing": "Выполняется вход через Telegram…"
   },
   "App": {
     "loading": "Загрузка…",
