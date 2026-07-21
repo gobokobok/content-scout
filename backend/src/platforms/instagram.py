@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from apify_client import ApifyClientAsync
@@ -34,6 +35,7 @@ class InstagramPlatform:
         settings = get_settings()
         self._client = ApifyClientAsync(token=settings.apify_api_token)
         self._actor_id = settings.apify_ig_actor_id
+        self._max_charge_usd = Decimal(str(settings.apify_max_charge_per_fetch_usd))
 
     async def fetch_content(self, account: Account, since: datetime) -> list[RawContentItem]:
         last_exc: Exception | None = None
@@ -56,9 +58,14 @@ class InstagramPlatform:
                 "onlyPostsNewerThan": since.date().isoformat(),
             },
             run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
+            max_total_charge_usd=self._max_charge_usd,
         )
         if run is None:
             raise ApifyRunFailedError(f"Apify actor run for @{account.handle} returned no run")
+        if run.status != "SUCCEEDED":
+            raise ApifyRunFailedError(
+                f"Apify actor run for @{account.handle} ended with status {run.status}"
+            )
 
         page = await self._client.dataset(run.default_dataset_id).list_items()
         # The actor emits an {"error": ...} placeholder instead of a post when a profile is

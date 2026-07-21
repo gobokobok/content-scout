@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     use_mock_platform: bool = True
     apify_api_token: str = ""
     apify_ig_actor_id: str = ""
+    # Apify's pay-per-event pricing auto-caps each run's `maxTotalChargeUsd` at the account's
+    # entire remaining monthly balance when we don't set one ourselves. With 2+ runs in flight
+    # those uncapped reservations can together exceed the real balance, and every run past the
+    # first sits in READY forever (never actually starts) — the account isn't out of budget,
+    # it's just double-booked. Cap it per account fetch (50 results * $0.0027/result ≈ $0.14).
+    apify_max_charge_per_fetch_usd: float = 0.5
 
     anthropic_api_key: str = ""
     summary_model: str = "claude-haiku-4-5-20251001"
