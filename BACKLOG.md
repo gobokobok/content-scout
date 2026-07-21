@@ -16,7 +16,7 @@ Epics:
 
 Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled). Mobile card layout for tables is now scheduled (E12-S2, Sprint 6 — supersedes the horizontal-scroll-only clause of D16 per D28).
 
-**2026-07-21 reprioritization — tuning toward a single-blogger MVP:** E2-S3, E5-S3, E5-S4 (competitor follower count + comments column) are next up; E8-S6 (Telegram login reliability, new) is critical and blocking the pilot. Everything else currently `backlog` (E3-S3, E3-S4, E3-S5, E7-S3, E8-S3, E8-S4, E9-S1, E9-S2, E10-S1, E10-S2, E10-S3, E11-S1, E11-S2, E11-S3) is explicitly deferred post-MVP — see each story's `Sprint:` line for why.
+**2026-07-21 reprioritization — tuning toward a single-blogger MVP:** E2-S3, E5-S3, E5-S4 (competitor follower count + comments column), E5-S5 (virality score, new) are next up; E8-S6 (Telegram Mini App bootstrap fix, new) is critical and blocking the pilot. Everything else currently `backlog` (E3-S3, E3-S4, E3-S5, E7-S3, E8-S3, E8-S4, E9-S1, E9-S2, E10-S1, E10-S2, E10-S3, E11-S1, E11-S2, E11-S3) is explicitly deferred post-MVP — see each story's `Sprint:` line for why.
 
 ---
 
@@ -714,6 +714,39 @@ Run analysis on DEV against 2 real public IG accounts — each row's account nam
 CLAUDE.md, backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/worker.py, backend/src/models/account.py, backend/src/api/items.py, frontend/components/results-table.tsx
 ### Files to create or modify
 backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/models/account.py (+ migration), backend/src/worker.py, backend/src/api/items.py, backend/tests/test_instagram_platform.py, backend/tests/test_worker.py, frontend/components/results-table.tsx, frontend/messages/ru.json
+### Handover
+—
+
+## [E5-S5] Virality score (High/Medium/Low) per publication
+**Epic:** Results Table & Export
+**Sprint:** unassigned (MVP — next up, single-blogger focus per 2026-07-21 reprioritization; sequenced after E5-S4)
+**Status:** backlog
+**Priority:** high
+**Depends on:** E5-S1, E5-S4
+### Goal
+Each publication in the Результаты table gets a Высокая/Средняя/Низкая virality badge, so a blogger scanning a competitor list can spot standout content at a glance instead of reading raw numbers. Scored **self-relative** — did this post massively outperform *that account's own* recent baseline — rather than against a hardcoded global threshold, since a meme account and a niche B2B account have wildly different normal engagement and an absolute cutoff would be meaningless across a competitor list. A separate `engagement_rate` column (needs E5-S4's follower data) covers the different question of comparing raw performance *across* accounts.
+### Acceptance Criteria
+- [ ] Per-account baseline computed at read time within a run (SQL, alongside the existing `days_since_published`/`views_per_day`/`likes_per_day` builders in `metrics.py` — no new persisted columns): `median(likes + comments)` across that account's items in the run; reels additionally get `median(views)` when the account has recorded view data
+- [ ] Per item: `performance_ratio = (likes + comments) / account_median`; for reels, combine with `views / account_median_views` (e.g. `max` of the two) so a reel can register as viral via reach (algorithmic push beyond followers) or via raw engagement
+- [ ] Bucket thresholds are config-driven (`virality_high_ratio` / `virality_low_ratio` in `Settings`, defaults `2.0` / `0.7`), matching the existing tunable-constant pattern from `estimator.py` — not hardcoded
+- [ ] Accounts with fewer than `virality_min_items` (default `3`) items in the run get no badge ("недостаточно данных") rather than a misleading score off a tiny sample
+- [ ] Результаты table shows the badge per row (D28 token colors, e.g. success for high, neutral for medium, muted for low — exact styling at implementation time); XLSX export includes the same column
+- [ ] Secondary sortable `engagement_rate = (likes + comments) / followers` column (cross-account comparison; separate from the badge, requires E5-S4)
+- [ ] A short inline tooltip or docs/UI_GUIDELINES.md note clarifies the badge is relative to *that account's own* baseline, not an absolute/industry benchmark — avoids it being misread
+- [ ] Unit tests: ratio computation against a fixed fixture (known likes/comments/views per account), threshold bucketing, insufficient-sample guard, reel `max(engagement_ratio, view_ratio)` combination
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV, open a finished run with a mixed-type account (≥3 items) — badges show plausible High/Medium/Low; an account with <3 items shows no badge; sorting by `engagement_rate` works; export to Excel and confirm both columns are present.
+### Files to read
+CLAUDE.md, backend/src/services/metrics.py, backend/src/api/items.py, docs/UI_GUIDELINES.md, frontend/components/results-table.tsx
+### Files to create or modify
+backend/src/services/metrics.py, backend/src/config.py, backend/src/api/items.py, backend/tests/test_items_api.py, frontend/components/results-table.tsx, frontend/messages/ru.json, backend/src/services/xlsx_export.py, backend/tests/test_export.py
 ### Handover
 —
 
