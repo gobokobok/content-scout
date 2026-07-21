@@ -141,3 +141,34 @@ async def test_fetch_content_retries_then_raises() -> None:
             await platform.fetch_content(_account(), datetime.now(UTC) - timedelta(days=1))
 
     assert actor.attempts == 3
+
+
+async def test_fetch_profile_normalizes_followers_count() -> None:
+    run_result = SimpleNamespace(default_dataset_id="dataset-1", status="SUCCEEDED")
+    detail_item = {"username": "testuser", "followersCount": 45210}
+    platform = _platform_with(_FakeActorClient(run_result), _FakeDatasetClient([detail_item]))
+
+    profile = await platform.fetch_profile(_account())
+
+    assert profile.followers_count == 45210
+
+
+async def test_fetch_profile_uses_details_results_type() -> None:
+    run_result = SimpleNamespace(default_dataset_id="dataset-1", status="SUCCEEDED")
+    actor_client = _FakeActorClient(run_result)
+    platform = _platform_with(actor_client, _FakeDatasetClient([{"followersCount": 1}]))
+
+    await platform.fetch_profile(_account())
+
+    assert actor_client.call_kwargs is not None
+    assert actor_client.call_kwargs["run_input"]["resultsType"] == "details"
+
+
+async def test_fetch_profile_treats_error_placeholder_as_failure() -> None:
+    run_result = SimpleNamespace(default_dataset_id="dataset-1", status="SUCCEEDED")
+    error_item = {"error": "no_items", "errorDescription": "Empty or private data"}
+    platform = _platform_with(_FakeActorClient(run_result), _FakeDatasetClient([error_item]))
+
+    with patch("src.platforms.instagram.asyncio.sleep", new_callable=AsyncMock):
+        with pytest.raises(Exception, match="Empty or private data"):
+            await platform.fetch_profile(_account())

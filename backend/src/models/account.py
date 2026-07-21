@@ -1,7 +1,8 @@
 import enum
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base, CreatedAt, UuidPk
@@ -31,3 +32,5 @@ class Account(UuidPk, CreatedAt, Base):
         nullable=False,
     )
     fail_reason: Mapped[str | None] = mapped_column(String(500))
+    followers_count: Mapped[int | None] = mapped_column()
+    followers_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -46,6 +46,7 @@ SortField = Literal[
 class ContentItemOut(BaseModel):
     id: uuid.UUID
     account_handle: str
+    followers_count: int | None = None
     published_at: datetime
     type: str
     title: str | None
@@ -127,6 +128,7 @@ async def list_run_items(
         select(
             ContentItem,
             Account.handle,
+            Account.followers_count,
             days_expr.label("days_since_published"),
             views_per_day.label("views_per_day"),
             likes_per_day.label("likes_per_day"),
@@ -144,6 +146,7 @@ async def list_run_items(
         ContentItemOut(
             id=item.id,
             account_handle=handle,
+            followers_count=followers_count,
             published_at=item.published_at,
             type=item.type.value,
             title=item.title,
@@ -156,7 +159,7 @@ async def list_run_items(
             likes_per_day=lpd,
             in_shortlist=bool(in_sl),
         )
-        for item, handle, days, vpd, lpd, in_sl in rows
+        for item, handle, followers_count, days, vpd, lpd, in_sl in rows
     ]
 
     return ItemsPageOut(items=items, total=total or 0, page=page, page_size=PAGE_SIZE)

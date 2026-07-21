@@ -24,6 +24,13 @@ function formatNumber(n: number | null): string {
   return new Intl.NumberFormat("ru-RU").format(Math.round(n));
 }
 
+function formatFollowers(n: number | null): string | null {
+  if (n === null) return null;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".", ",")} млн`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(".", ",")} тыс.`;
+  return new Intl.NumberFormat("ru-RU").format(n);
+}
+
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -169,7 +176,19 @@ export function ResultsTable({
     {
       id: "account",
       header: t("colAccount"),
-      cell: ({ row }) => `@${row.original.account_handle}`,
+      cell: ({ row }) => {
+        const followers = formatFollowers(row.original.followers_count);
+        return (
+          <span className="flex flex-col">
+            <span>@{row.original.account_handle}</span>
+            {followers && (
+              <span className="text-xs font-normal text-secondary">
+                {followers} {t("followersShort")}
+              </span>
+            )}
+          </span>
+        );
+      },
     },
     {
       id: "published_at",

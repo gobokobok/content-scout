@@ -1,10 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
 from src.models import Account, ContentType
-from src.platforms.base import RawContentItem
+from src.platforms.base import ProfileInfo, RawContentItem
 
 _TYPES = [ContentType.reel, ContentType.post, ContentType.carousel]
 _ITEMS_PER_ACCOUNT = 3
+_MOCK_FOLLOWERS = 12_400
 
 
 class MockPlatform:
@@ -37,3 +38,6 @@ class MockPlatform:
                 )
             )
         return items
+
+    async def fetch_profile(self, account: Account) -> ProfileInfo:
+        return ProfileInfo(followers_count=_MOCK_FOLLOWERS)

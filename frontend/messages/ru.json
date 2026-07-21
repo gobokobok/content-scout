@@ -126,6 +126,7 @@
     "status_done": "Готово",
     "status_failed": "Ошибка",
     "colAccount": "Аккаунт",
+    "followersShort": "подп.",
     "colPublishedAt": "Дата публикации",
     "colType": "Тип",
     "colTitle": "Заголовок",
@@ -238,6 +239,7 @@
     "genericError": "Произошла ошибка. Попробуйте ещё раз."
   },
   "ResultsCards": {
+    "followersShort": "подп.",
     "sortLikesPerDay": "Лайков/день",
     "sortLikes": "Лайки",
     "sortPublishedAt": "Дата публикации",

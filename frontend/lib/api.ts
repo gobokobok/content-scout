@@ -116,6 +116,7 @@ export interface RunRequest {
 export interface ContentItemResponse {
   id: string;
   account_handle: string;
+  followers_count: number | null;
   published_at: string;
   type: "reel" | "post" | "carousel" | "video" | "short";
   title: string | null;

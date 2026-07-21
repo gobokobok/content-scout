@@ -50,14 +50,30 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         async def _fetch_one(account):
             async with semaphore:
                 try:
-                    return account, await platform.fetch_content(account, since), None
+                    profile_info = await platform.fetch_profile(account)
+                except Exception:  # noqa: BLE001 — profile fetch never fails the account's scrape
+                    profile_info = None
+                try:
+                    return account, await platform.fetch_content(account, since), profile_info, None
                 except Exception as exc:  # noqa: BLE001
-                    return account, None, exc
+                    return account, None, profile_info, exc
 
         fetch_results = await asyncio.gather(*(_fetch_one(a) for a in accounts))
 
         items_found = 0
-        for account, raw_items, exc in fetch_results:
+        for account, raw_items, profile_info, exc in fetch_results:
+            if profile_info is not None:
+                account.followers_count = profile_info.followers_count
+                account.followers_updated_at = datetime.now(UTC)
+                session.add(
+                    UsageEvent(
+                        user_id=run.requested_by,
+                        run_id=run.id,
+                        kind=KIND_APIFY_RESULT,
+                        quantity=1,
+                        unit_cost_usd=Decimal(str(settings.apify_unit_cost_usd)),
+                    )
+                )
             if exc is not None:
                 account.status = AccountStatus.failed
                 account.fail_reason = str(exc)[:500]

@@ -20,7 +20,14 @@ class RawContentItem:
     raw: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
+class ProfileInfo:
+    followers_count: int | None = None
+
+
 class Platform(Protocol):
     slug: str
 
     async def fetch_content(self, account: Account, since: datetime) -> list[RawContentItem]: ...
+
+    async def fetch_profile(self, account: Account) -> ProfileInfo: ...

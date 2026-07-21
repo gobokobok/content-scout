@@ -35,6 +35,13 @@ function formatNumber(n: number | null): string {
   return new Intl.NumberFormat("ru-RU").format(Math.round(n));
 }
 
+function formatFollowers(n: number | null): string | null {
+  if (n === null) return null;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".", ",")} млн`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(".", ",")} тыс.`;
+  return new Intl.NumberFormat("ru-RU").format(n);
+}
+
 function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 }
@@ -187,6 +194,7 @@ function ContentCard({
   const t = useTranslations("ResultsCards");
   const [expanded, setExpanded] = useState(false);
   const hasSummary = !!item.summary;
+  const followers = formatFollowers(item.followers_count);
 
   return (
     <div className="rounded-card border border-border bg-card p-4">
@@ -198,6 +206,11 @@ function ContentCard({
         </span>
         <span className="flex-1 truncate text-sm font-medium text-ink">
           @{item.account_handle}
+          {followers && (
+            <span className="ml-1 font-normal text-secondary">
+              · {followers} {t("followersShort")}
+            </span>
+          )}
         </span>
         <button
           onClick={() => void onShortlistToggle(item.id, !item.in_shortlist)}

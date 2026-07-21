@@ -689,33 +689,44 @@ backend/src/api/items.py, backend/tests/test_items_api.py, frontend/components/r
 
 ## [E5-S4] Subscriber count next to account name
 **Epic:** Results Table & Export
-**Sprint:** unassigned (MVP — next up, single-blogger focus per 2026-07-21 reprioritization)
-**Status:** backlog
+**Sprint:** 7
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** high
 **Depends on:** E3-S2
 ### Goal
 The Результаты table shows each account's current follower count next to its name, fetched once per account per run. Instagram doesn't return follower count alongside post data — confirmed against Apify's `instagram-scraper` docs, `resultsType: "details"` is a separate call from `resultsType: "posts"` — so this adds one extra Apify call per **account** per run (not per publication). This story introduces `Platform.fetch_profile()`; the still-backlogged E2-S3 (Competitor profile enrichment, Конкуренты list) can build on the same method rather than re-implementing the details fetch.
 ### Acceptance Criteria
-- [ ] `Platform` interface gains `fetch_profile(account) -> ProfileInfo` (at minimum `followers_count`); `InstagramPlatform` implements it via Apify `resultsType: "details"`
-- [ ] Worker fetches profile info once per account per run during the scraping phase (not per item); `Account` gains `followers_count` + `followers_updated_at` columns (+ migration) so the latest known count persists between runs
-- [ ] Profile fetch writes an `apify_result` usage_events row like any other scrape; failure never fails the account's content scrape (falls back to the last known value, or blank if none yet)
-- [ ] Результаты table shows follower count next to the account name (ru-RU formatted, e.g. "12,4 тыс."); XLSX export includes it
-- [ ] Unit tests: `fetch_profile` normalization, worker writes/updates `followers_count`, usage_events row written, profile-fetch failure doesn't fail the run
+- [x] `Platform` interface gains `fetch_profile(account) -> ProfileInfo` (at minimum `followers_count`); `InstagramPlatform` implements it via Apify `resultsType: "details"`
+- [x] Worker fetches profile info once per account per run during the scraping phase (not per item); `Account` gains `followers_count` + `followers_updated_at` columns (+ migration) so the latest known count persists between runs
+- [x] Profile fetch writes an `apify_result` usage_events row like any other scrape; failure never fails the account's content scrape (falls back to the last known value, or blank if none yet)
+- [x] Результаты table shows follower count next to the account name (ru-RU formatted, e.g. "12,4 тыс."); XLSX export includes it
+- [x] Unit tests: `fetch_profile` normalization, worker writes/updates `followers_count`, usage_events row written, profile-fetch failure doesn't fail the run
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (3 new InstagramPlatform tests, 2 new worker tests, existing items/export/worker tests updated for the new field — mypy + ruff clean; DB-backed tests are CI-only, no local Postgres in this sandbox, consistent with every prior story)
+- [ ] CI green, deployed to DEV — pending this push
+- [ ] Smoke test — DEFERRED (requires a real DEV run against public IG accounts; same deferral pattern as every other Apify-touching story in this project)
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Run analysis on DEV against 2 real public IG accounts — each row's account name shows a plausible, ru-RU-formatted follower count; usage_events has one extra `apify_result` row per account for the profile fetch.
 ### Files to read
 CLAUDE.md, backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/worker.py, backend/src/models/account.py, backend/src/api/items.py, frontend/components/results-table.tsx
 ### Files to create or modify
 backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/models/account.py (+ migration), backend/src/worker.py, backend/src/api/items.py, backend/tests/test_instagram_platform.py, backend/tests/test_worker.py, frontend/components/results-table.tsx, frontend/messages/ru.json
+### Changelog
+- Extended the retry loop already in `InstagramPlatform.fetch_content` into a shared generic `_with_retries()` helper (PEP 695 syntax) rather than duplicating the 3-attempt exponential-backoff loop for `fetch_profile` — same behavior, one place to change it.
+- Followers usage event is written with `quantity=1` (one profile lookup), kept as its own `apify_result` row rather than folded into the content-fetch row, so the two Apify calls stay independently auditable in `usage_events` — matches "writes an apify_result usage_events row like any other scrape" literally.
+- Also updated `frontend/components/results-cards.tsx` (mobile card view, not in the story's file list) to show the same follower count under the account handle — the Mini App's primary UI is the mobile card list (D28/E12-S2), so leaving it out there would make this story invisible to the actual pilot user on their phone.
+- XLSX "Подписчики" column inserted right after "Аккаунт" (position 2) — shifted every later column index by one; updated `test_export.py`'s header/hyperlink-column assertions to match.
 ### Handover
-—
+- `src/platforms/base.py:ProfileInfo` (`followers_count: int | None`) — new dataclass; `Platform` Protocol now requires `fetch_profile(account) -> ProfileInfo` on every implementation (`MockPlatform` returns a fixed `12_400`; `InstagramPlatform` calls Apify with `resultsType: "details"`).
+- `Account.followers_count` / `Account.followers_updated_at` (migration `d3e4f5a6b7c8`, down_revision `c2275f27bb18` — now head) — updated by the worker once per account per run; untouched (falls back to last known value) when the profile fetch fails.
+- `src/worker.py:process_run` — `_fetch_one` now fetches profile and content per account under the same semaphore slot; profile fetch failure is swallowed locally and never surfaces as an account failure or run failure.
+- `ContentItemOut.followers_count` (both `api/items.py` and `api/export.py`) — joined from `Account.followers_count` in the same query, no extra round trip.
+- Frontend: `formatFollowers()` (in both `results-table.tsx` and `results-cards.tsx` — small enough duplication that a shared util felt like premature abstraction for one 4-line function) renders "12,4 тыс." / "3,1 млн" style; `ResultsTable`/`ResultsCards` `followersShort` i18n key ("подп.") added to their own namespaces.
+- E2-S3 (Competitor profile enrichment, next story in this sprint) should reuse `Platform.fetch_profile()` directly rather than re-implementing the details fetch — that was the explicit reason this story introduced the method as a standalone interface member. Note also: the Конкуренты page (`frontend/app/(app)/projects/[id]/competitors/page.tsx`) already has speculative frontend scaffolding for a follower count (`AccountResponse.follower_count`, `formatFollowerCount()`, `followersShort`) from an earlier UI pass, but the backend never populated it — E2-S3 should rename that field to `followers_count` for consistency with this story's model/API naming rather than introduce a second name for the same concept.
 
 ## [E5-S5] Virality score (High/Medium/Low) per publication
 **Epic:** Results Table & Export

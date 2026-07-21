@@ -52,7 +52,7 @@ async def _fake_summarize(session, items, *, user_id, run_id, **_kwargs) -> None
 async def test_process_run_scrapes_mock_content_and_completes(session: AsyncSession) -> None:
     project = await make_project(session)
     account_list = await make_account_list(session, project=project)
-    await make_account(session, account_list=account_list)
+    account = await make_account(session, account_list=account_list)
     run = await make_run(session, project=project, duration_days=3)
     await session.commit()
 
@@ -72,8 +72,13 @@ async def test_process_run_scrapes_mock_content_and_completes(session: AsyncSess
 
     usage = (await session.scalars(select(UsageEvent).where(UsageEvent.run_id == run.id))).all()
     apify_events = [u for u in usage if u.kind == KIND_APIFY_RESULT]
-    assert len(apify_events) == 1
-    assert apify_events[0].quantity == 3
+    # One event for the profile fetch (quantity=1) + one for the content fetch (quantity=3).
+    assert len(apify_events) == 2
+    assert sorted(e.quantity for e in apify_events) == [1, 3]
+
+    await session.refresh(account)
+    assert account.followers_count == 12_400
+    assert account.followers_updated_at is not None
 
     assert run.total_input_tokens == 300
     assert run.total_output_tokens == 60
@@ -144,6 +149,47 @@ async def test_process_run_account_failure_does_not_fail_run(session: AsyncSessi
 
     items = (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
     assert all(item.account_id == good_account.id for item in items)
+
+
+async def test_process_run_profile_fetch_failure_falls_back_to_last_known(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, followers_count=999)
+    run = await make_run(session, project=project, duration_days=1)
+    await session.commit()
+
+    class _ProfileFlakyPlatform:
+        slug = "mock"
+
+        async def fetch_content(self, account, since):
+            from src.platforms.mock import MockPlatform
+
+            return await MockPlatform().fetch_content(account, since)
+
+        async def fetch_profile(self, account):
+            raise RuntimeError("apify profile boom")
+
+    with (
+        patch("src.worker.get_platform", return_value=_ProfileFlakyPlatform()),
+        patch("src.worker.summarize_run_items", side_effect=_fake_summarize),
+    ):
+        await process_run(session, run)
+
+    assert run.status == RunStatus.done
+    await session.refresh(account)
+    assert account.followers_count == 999  # unchanged — falls back to the last known value
+    assert account.status == AccountStatus.active  # content scrape still succeeded
+
+    items = (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
+    assert len(items) == 3
+
+    usage = (await session.scalars(select(UsageEvent).where(UsageEvent.run_id == run.id))).all()
+    apify_events = [u for u in usage if u.kind == KIND_APIFY_RESULT]
+    # Only the content fetch — no usage event for the failed profile fetch.
+    assert len(apify_events) == 1
+    assert apify_events[0].quantity == 3
 
 
 async def test_process_run_no_accounts_still_completes(session: AsyncSession) -> None:

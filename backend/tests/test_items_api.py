@@ -98,6 +98,7 @@ async def test_list_items_default_sort_and_shape(session: AsyncSession) -> None:
         assert set(first.keys()) == {
             "id",
             "account_handle",
+            "followers_count",
             "published_at",
             "type",
             "title",

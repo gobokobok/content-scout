@@ -10,6 +10,7 @@ from src.api.shortlist import ShortlistItemOut
 
 HEADERS = [
     "Аккаунт",
+    "Подписчики",
     "Дата публикации",
     "Тип",
     "Заголовок",
@@ -58,6 +59,7 @@ def build_xlsx(items: list[ContentItemOut], project_name: str, run_created_at: d
         ws.append(
             [
                 _safe_text(f"@{item.account_handle}"),
+                item.followers_count,
                 item.published_at.replace(tzinfo=None),  # Excel doesn't handle tz-aware datetimes
                 _TYPE_LABELS.get(item.type, item.type),
                 _safe_text(item.title),
@@ -71,7 +73,7 @@ def build_xlsx(items: list[ContentItemOut], project_name: str, run_created_at: d
             ]
         )
         row_num = ws.max_row
-        url_cell = ws.cell(row=row_num, column=5)
+        url_cell = ws.cell(row=row_num, column=6)
         url_cell.hyperlink = item.url
         url_cell.font = link_font
 

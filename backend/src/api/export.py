@@ -64,6 +64,7 @@ async def export_run_xlsx(
         select(
             ContentItem,
             Account.handle,
+            Account.followers_count,
             days_expr.label("days_since_published"),
             views_per_day.label("views_per_day"),
             likes_per_day.label("likes_per_day"),
@@ -78,6 +79,7 @@ async def export_run_xlsx(
         ContentItemOut(
             id=item.id,
             account_handle=handle,
+            followers_count=followers_count,
             published_at=item.published_at,
             type=item.type.value,
             title=item.title,
@@ -89,7 +91,7 @@ async def export_run_xlsx(
             views_per_day=vpd,
             likes_per_day=lpd,
         )
-        for item, handle, days, vpd, lpd in rows
+        for item, handle, followers_count, days, vpd, lpd in rows
     ]
 
     xlsx_bytes = build_xlsx(items, project_slug, run.created_at)

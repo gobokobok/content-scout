@@ -96,11 +96,12 @@ async def test_export_xlsx_has_russian_headers(session: AsyncSession) -> None:
     wb = load_workbook(io.BytesIO(resp.content))
     ws = wb.active
     assert ws is not None
-    headers = [ws.cell(1, col).value for col in range(1, 12)]
+    headers = [ws.cell(1, col).value for col in range(1, 13)]
     assert headers[0] == "Аккаунт"
-    assert headers[4] == "Ссылка"
-    assert headers[6] == "Лайки"
-    assert headers[7] == "Просмотры"
+    assert headers[1] == "Подписчики"
+    assert headers[5] == "Ссылка"
+    assert headers[7] == "Лайки"
+    assert headers[8] == "Просмотры"
 
 
 async def test_export_xlsx_data_and_hyperlink(session: AsyncSession) -> None:
@@ -117,8 +118,8 @@ async def test_export_xlsx_data_and_hyperlink(session: AsyncSession) -> None:
     # Two data rows + header
     assert ws.max_row == 3
 
-    # Ссылка column (5) in row 2 should have a hyperlink
-    url_cell = ws.cell(2, 5)
+    # Ссылка column (6) in row 2 should have a hyperlink
+    url_cell = ws.cell(2, 6)
     assert url_cell.hyperlink is not None
 
 

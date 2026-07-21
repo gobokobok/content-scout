@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -7,7 +8,7 @@ from apify_client import ApifyClientAsync
 
 from src.config import get_settings
 from src.models import Account, ContentType
-from src.platforms.base import RawContentItem
+from src.platforms.base import ProfileInfo, RawContentItem
 
 
 class ApifyRunFailedError(Exception):
@@ -38,10 +39,16 @@ class InstagramPlatform:
         self._max_charge_usd = Decimal(str(settings.apify_max_charge_per_fetch_usd))
 
     async def fetch_content(self, account: Account, since: datetime) -> list[RawContentItem]:
+        return await self._with_retries(lambda: self._fetch_once(account, since))
+
+    async def fetch_profile(self, account: Account) -> ProfileInfo:
+        return await self._with_retries(lambda: self._fetch_profile_once(account))
+
+    async def _with_retries[T](self, call: Callable[[], Awaitable[T]]) -> T:
         last_exc: Exception | None = None
         for attempt in range(_MAX_ATTEMPTS):
             try:
-                return await self._fetch_once(account, since)
+                return await call()
             except Exception as exc:  # noqa: BLE001 — retried here, re-raised to the caller
                 last_exc = exc
                 if attempt < _MAX_ATTEMPTS - 1:
@@ -81,6 +88,30 @@ class InstagramPlatform:
             raise ApifyRunFailedError(f"@{account.handle}: {reason}")
 
         return [_normalize(item) for item in valid_items]
+
+    async def _fetch_profile_once(self, account: Account) -> ProfileInfo:
+        run = await self._client.actor(self._actor_id).call(
+            run_input={
+                "directUrls": [account.normalized_url],
+                "resultsType": "details",
+            },
+            run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
+            max_total_charge_usd=self._max_charge_usd,
+        )
+        if run is None:
+            raise ApifyRunFailedError(f"Apify profile run for @{account.handle} returned no run")
+        if run.status != "SUCCEEDED":
+            raise ApifyRunFailedError(
+                f"Apify profile run for @{account.handle} ended with status {run.status}"
+            )
+
+        page = await self._client.dataset(run.default_dataset_id).list_items()
+        items = page.items
+        if not items or "error" in items[0]:
+            reason = items[0].get("errorDescription") if items else "empty response"
+            raise ApifyRunFailedError(f"@{account.handle}: {reason}")
+
+        return ProfileInfo(followers_count=items[0].get("followersCount"))
 
 
 def _normalize(item: dict[str, Any]) -> RawContentItem:

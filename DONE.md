@@ -2,6 +2,20 @@
 
 Completed stories land here, newest first. Format:
 
+## [E5-S4] Subscriber count next to account name
+**Completed:** 2026-07-22
+**Handover:**
+- `src/platforms/base.py:ProfileInfo(followers_count)` — new dataclass; `Platform` Protocol gained `fetch_profile(account) -> ProfileInfo`. `MockPlatform.fetch_profile` returns a fixed `12_400`; `InstagramPlatform.fetch_profile` calls Apify with `resultsType: "details"` (vs. `"posts"` for content), sharing a new generic `_with_retries()` retry helper with `fetch_content`.
+- `Account.followers_count` / `Account.followers_updated_at` — migration `d3e4f5a6b7c8` (now head, was `c2275f27bb18`). Updated by the worker once per account per run during the scraping phase; left untouched (falls back to the last known value) whenever the profile fetch fails, so a transient Apify error never blanks out a previously known count.
+- `src/worker.py:process_run` — `_fetch_one` fetches profile + content per account under the same concurrency semaphore; a profile-fetch failure is caught and swallowed locally, never surfaces as an account failure and writes no usage event, while content scraping proceeds independently.
+- `ContentItemOut.followers_count` (`api/items.py`, `api/export.py`) — joined from `Account.followers_count` in the existing results query, no extra round trip.
+- `services/xlsx_export.py` — "Подписчики" column added right after "Аккаунт" (shifted every later column index by one, including the hyperlink cell for "Ссылка").
+- Frontend: `results-table.tsx` (desktop) and `results-cards.tsx` (mobile — the Mini App's primary view) both show a ru-RU formatted follower count ("12,4 тыс.") under/next to the account handle via a small local `formatFollowers()` in each file.
+- Noted for E2-S3 (next story): the Конкуренты page already has speculative frontend scaffolding (`AccountResponse.follower_count`, singular) from an earlier UI pass that the backend never populated — E2-S3 should rename it to `followers_count` to match this story's naming and wire it to the real `fetch_profile()` method instead of re-implementing the details fetch.
+- 5 new backend tests (3 `InstagramPlatform.fetch_profile` unit tests, 2 worker tests for update + fallback-on-failure); `test_items_api.py`/`test_export.py`/`test_worker.py` updated for the new field/column. mypy + ruff clean; frontend `tsc --noEmit` + `next lint` clean.
+**Smoke test:** DEFERRED — requires a real DEV run against public IG accounts (same deferral pattern as every other Apify-touching story in this project); verify a row's account name shows a plausible follower count and `usage_events` gains one extra `apify_result` row per account.
+**Promoted to backlog:** none
+
 ## [E8-S6] Telegram Mini App auto-login bootstrap fix
 **Completed:** 2026-07-22
 **Handover:**
