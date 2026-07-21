@@ -1,29 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { api, ApiError, type RunResponse } from "@/lib/api";
+import { X } from "lucide-react";
+import { api, ApiError } from "@/lib/api";
+import { useRunTracker } from "@/lib/run-tracker";
 
-const POLL_INTERVAL_MS = 2000;
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 
 export function RunDialog({
   projectId,
+  projectName,
   accountIds,
   accountsCount,
   onClose,
 }: {
   projectId: string;
+  projectName: string;
   accountIds: string[] | undefined;
   accountsCount: number;
   onClose: () => void;
 }) {
   const t = useTranslations("RunDialog");
+  const { trackedRuns, track } = useRunTracker();
   const [duration, setDuration] = useState(3);
   const [error, setError] = useState<string | null>(null);
-  const [run, setRun] = useState<RunResponse | null>(null);
+  const [runId, setRunId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const tracked = runId ? trackedRuns.find((tr) => tr.run.id === runId) : undefined;
+  const run = tracked?.run ?? null;
 
   /* Body scroll lock */
   useEffect(() => {
@@ -31,35 +37,20 @@ export function RunDialog({
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  /* Escape to close */
+  /* Escape to close — the run (if any) keeps going in the background regardless */
   useEffect(() => {
-    const handle = (e: KeyboardEvent) => { if (e.key === "Escape") safeClose(); };
+    const handle = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handle);
     return () => document.removeEventListener("keydown", handle);
-  });
-
-  useEffect(() => {
-    if (!run || run.status === "done" || run.status === "failed") {
-      if (pollRef.current) clearInterval(pollRef.current);
-      return;
-    }
-    pollRef.current = setInterval(async () => {
-      try {
-        const updated = await api.getRun(run.id);
-        setRun(updated);
-      } catch {
-        // transient poll failure
-      }
-    }, POLL_INTERVAL_MS);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [run]);
+  }, [onClose]);
 
   async function onConfirm() {
     setStarting(true);
     setError(null);
     try {
       const created = await api.createRun(projectId, { duration_days: duration, account_ids: accountIds });
-      setRun(created);
+      track(created, projectId, projectName);
+      setRunId(created.id);
     } catch (err) {
       setError(err instanceof ApiError ? err.messageRu : t("genericError"));
     } finally {
@@ -67,20 +58,15 @@ export function RunDialog({
     }
   }
 
-  const runInProgress = run && run.status !== "done" && run.status !== "failed";
   const statusKey = run
     ? ({ pending: "statusPending", scraping: "statusScraping", summarizing: "statusSummarizing", done: "statusDone", failed: "statusFailed" } as const)[run.status]
     : null;
-
-  function safeClose() {
-    if (!runInProgress) onClose();
-  }
 
   return (
     /* Responsive: bottom of screen on mobile, centered on desktop */
     <div
       className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-0 md:p-4"
-      onClick={safeClose}
+      onClick={onClose}
     >
       <div
         className="relative flex max-h-[80vh] w-full flex-col overflow-hidden rounded-t-2xl bg-card shadow-2xl md:max-w-md md:rounded-2xl"
@@ -91,8 +77,15 @@ export function RunDialog({
           <div className="h-1 w-10 rounded-full bg-border" />
         </div>
         {/* Title */}
-        <div className="shrink-0 border-b border-border px-4 pb-3">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 pb-3">
           <p className="text-sm font-semibold text-ink">{t("title")}</p>
+          <button
+            onClick={onClose}
+            aria-label={t("minimize")}
+            className="rounded-control p-1 text-secondary hover:bg-bg transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
         {/* Scrollable content */}
         <div
@@ -163,14 +156,17 @@ export function RunDialog({
               {run.status === "failed" && run.error_message && (
                 <p className="text-sm text-danger">{run.error_message}</p>
               )}
-              {(run.status === "done" || run.status === "failed") && (
+              {run.status !== "done" && run.status !== "failed" && (
+                <p className="text-xs text-secondary">{t("backgroundHint")}</p>
+              )}
+              <div className="flex gap-2">
                 <button
                   onClick={onClose}
-                  className="rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white"
+                  className="flex-1 rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white"
                 >
-                  {t("close")}
+                  {run.status === "done" || run.status === "failed" ? t("close") : t("minimize")}
                 </button>
-              )}
+              </div>
             </div>
           )}
         </div>

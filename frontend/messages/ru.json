@@ -21,7 +21,9 @@
     "inviteCodeLabel": "Код приглашения",
     "inviteCodePlaceholder": "Введите код приглашения",
     "orSeparator": "или",
-    "tgProcessing": "Выполняется вход через Telegram…"
+    "tgProcessing": "Выполняется вход через Telegram…",
+    "tgLoggedOut": "Вы вышли из аккаунта.",
+    "tgSignInButton": "Войти через Telegram"
   },
   "App": {
     "loading": "Загрузка…",
@@ -30,7 +32,9 @@
     "projects": "Проекты",
     "usage": "Использование",
     "settings": "Настройки",
-    "admin": "Администрирование"
+    "admin": "Администрирование",
+    "notificationsLabel": "Анализы",
+    "noRuns": "Пока нет запущенных анализов."
   },
   "Projects": {
     "title": "Проекты",
@@ -70,7 +74,8 @@
     "comingSoonHistory": "Здесь появится история запусков."
   },
   "Competitors": {
-    "counter": "{count} / {max}",
+    "infoLabel": "О лимите конкурентов",
+    "infoExplanation": "Можно добавить до 50 конкурентов. Отметьте нужные аккаунты чекбоксами или нажмите «Выбрать все», а затем запустите анализ их публикаций.",
     "empty": "Список конкурентов пуст.",
     "textareaPlaceholder": "Ссылки на профили Instagram или @имена пользователей, по одному на строку",
     "addCompetitorButton": "Добавить конкурента",
@@ -96,6 +101,8 @@
     "starting": "Запуск…",
     "cancel": "Отмена",
     "close": "Закрыть",
+    "minimize": "Свернуть",
+    "backgroundHint": "Анализ продолжится в фоне — можно закрыть окно и вернуться к работе.",
     "statusPending": "Ожидание…",
     "statusScraping": "Сбор публикаций…",
     "statusSummarizing": "Формирование описаний…",

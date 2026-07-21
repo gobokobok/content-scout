@@ -4,18 +4,37 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Menu } from "lucide-react";
+import { Menu, Pencil, Bell, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { closeTelegramWebApp } from "@/lib/telegram-webapp";
+import { useRunTracker, type TrackedRun } from "@/lib/run-tracker";
 import { ContextMenu } from "@/components/ui/context-menu";
+
+const STATUS_KEYS = {
+  pending: "statusPending",
+  scraping: "statusScraping",
+  summarizing: "statusSummarizing",
+  done: "statusDone",
+  failed: "statusFailed",
+} as const;
+
+function RunStatusIcon({ status }: { status: TrackedRun["run"]["status"] }) {
+  if (status === "done") return <CheckCircle className="h-4 w-4 shrink-0 text-success" />;
+  if (status === "failed") return <AlertCircle className="h-4 w-4 shrink-0 text-danger" />;
+  return <Loader2 className="h-4 w-4 shrink-0 animate-spin text-secondary" />;
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("App");
+  const tRun = useTranslations("RunDialog");
   const router = useRouter();
-  const { user, loading, logout, isTelegram } = useAuth();
+  const { user, loading, logout, telegramLogout, isTelegram } = useAuth();
+  const { trackedRuns, unseenCount, markAllSeen } = useRunTracker();
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifAnchorEl, setNotifAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     // Don't redirect if a token exists — loadUser may still be committing its
@@ -43,16 +62,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         >
           content-scout
         </Link>
-        <button
-          onClick={(e) => {
-            setMenuAnchorEl(e.currentTarget);
-            setMenuOpen(true);
-          }}
-          className="rounded-control p-2 text-secondary hover:bg-bg transition-colors"
-          aria-label="Меню"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          {trackedRuns.length > 0 && (
+            <button
+              onClick={(e) => {
+                setNotifAnchorEl(e.currentTarget);
+                setNotifOpen(true);
+                markAllSeen();
+              }}
+              className="relative rounded-control p-2 text-secondary hover:bg-bg transition-colors"
+              aria-label={t("notificationsLabel")}
+            >
+              <Bell className="h-5 w-5" />
+              {unseenCount > 0 && (
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" />
+              )}
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              setMenuAnchorEl(e.currentTarget);
+              setMenuOpen(true);
+            }}
+            className="rounded-control p-2 text-secondary hover:bg-bg transition-colors"
+            aria-label="Меню"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
       </header>
 
       {children}
@@ -63,10 +100,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         anchorEl={menuAnchorEl}
       >
         <div className="flex flex-col py-1">
-          <div className="border-b border-border px-4 pb-2.5 pt-2">
-            <p className="text-sm font-medium text-ink">{user.display_name}</p>
-            {!isTelegram && <p className="text-xs text-secondary">{user.email}</p>}
-          </div>
+          <Link
+            href="/settings"
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center justify-between gap-2 border-b border-border px-4 pb-2.5 pt-2 hover:bg-bg transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium text-ink">{user.display_name}</p>
+              {!isTelegram && <p className="text-xs text-secondary">{user.email}</p>}
+            </div>
+            <Pencil className="h-3.5 w-3.5 shrink-0 text-secondary" />
+          </Link>
           <Link
             href="/"
             onClick={() => setMenuOpen(false)}
@@ -98,15 +142,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           )}
           {isTelegram ? (
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                closeTelegramWebApp();
-              }}
-              className="px-4 py-3.5 text-left text-base text-danger hover:bg-bg transition-colors"
-            >
-              {t("closeApp")}
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  telegramLogout();
+                  router.push("/login");
+                }}
+                className="px-4 py-3.5 text-left text-base text-danger hover:bg-bg transition-colors"
+              >
+                {t("logout")}
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  closeTelegramWebApp();
+                }}
+                className="px-4 py-3.5 text-left text-base text-secondary hover:bg-bg transition-colors"
+              >
+                {t("closeApp")}
+              </button>
+            </>
           ) : (
             <button
               onClick={() => {
@@ -119,6 +175,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {t("logout")}
             </button>
           )}
+        </div>
+      </ContextMenu>
+
+      <ContextMenu
+        open={notifOpen}
+        onClose={() => setNotifOpen(false)}
+        title={t("notificationsLabel")}
+        anchorEl={notifAnchorEl}
+      >
+        <div className="flex max-w-xs flex-col py-1">
+          {trackedRuns.length === 0 && (
+            <p className="px-4 py-3 text-sm text-secondary">{t("noRuns")}</p>
+          )}
+          {trackedRuns.map((tracked) => (
+            <button
+              key={tracked.run.id}
+              onClick={() => {
+                setNotifOpen(false);
+                router.push(`/projects/${tracked.projectId}/results?run=${tracked.run.id}`);
+              }}
+              className="flex items-center gap-2.5 px-4 py-3 text-left hover:bg-bg transition-colors"
+            >
+              <RunStatusIcon status={tracked.run.status} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-ink">{tracked.projectName}</p>
+                <p className="text-xs text-secondary">{tRun(STATUS_KEYS[tracked.run.status])}</p>
+              </div>
+            </button>
+          ))}
         </div>
       </ContextMenu>
     </div>

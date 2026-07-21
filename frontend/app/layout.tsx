@@ -4,6 +4,7 @@ import { Golos_Text, Unbounded } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { AuthProvider } from "@/lib/auth-context";
+import { RunTrackerProvider } from "@/lib/run-tracker";
 import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
@@ -44,7 +45,9 @@ export default async function RootLayout({
       >
         <NextIntlClientProvider messages={messages}>
           <AuthProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <RunTrackerProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </RunTrackerProvider>
           </AuthProvider>
         </NextIntlClientProvider>
       </body>

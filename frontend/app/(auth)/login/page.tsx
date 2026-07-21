@@ -10,13 +10,15 @@ import { useAuth } from "@/lib/auth-context";
 export default function LoginPage() {
   const t = useTranslations("Auth");
   const router = useRouter();
-  const { login, telegramLogin, user, isTelegram } = useAuth();
+  const { login, telegramLogin, telegramSignIn, user, isTelegram } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [tgProcessing, setTgProcessing] = useState(false);
+  const [tgSignInError, setTgSignInError] = useState<string | null>(null);
+  const [tgSigningIn, setTgSigningIn] = useState(false);
 
   const [tgConfig, setTgConfig] = useState<{ enabled: boolean; bot_username: string } | null>(
     null,
@@ -85,8 +87,33 @@ export default function LoginPage() {
     container.appendChild(script);
   }, [tgConfig]);
 
-  // Inside Telegram the Mini App auto-authenticates via initData — no form needed
-  if (isTelegram) return null;
+  // Inside Telegram the Mini App auto-authenticates via initData, unless the user explicitly
+  // logged out last time — then show a manual sign-in button instead of a blank screen.
+  if (isTelegram) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-16 text-center">
+        <p className="text-secondary">{t("tgLoggedOut")}</p>
+        {tgSignInError && <p className="text-sm text-danger">{tgSignInError}</p>}
+        <button
+          onClick={async () => {
+            setTgSigningIn(true);
+            setTgSignInError(null);
+            try {
+              await telegramSignIn();
+            } catch (err) {
+              setTgSignInError(err instanceof ApiError ? err.messageRu : t("genericError"));
+            } finally {
+              setTgSigningIn(false);
+            }
+          }}
+          disabled={tgSigningIn}
+          className="rounded-control bg-accent px-4 py-2.5 text-base font-medium text-white disabled:opacity-50"
+        >
+          {tgSigningIn ? t("loggingIn") : t("tgSignInButton")}
+        </button>
+      </div>
+    );
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

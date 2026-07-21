@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Users, MoreVertical, Plus } from "lucide-react";
+import { Users, MoreVertical, Plus, Info } from "lucide-react";
 import { api, ApiError, type AccountResponse } from "@/lib/api";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
@@ -24,17 +24,18 @@ export default function CompetitorsTabPage() {
   const t = useTranslations("Competitors");
   const params = useParams<{ id: string }>();
   const { addToast } = useToast();
-  const { isArchived } = useProject();
+  const { project, isArchived } = useProject();
   const [accounts, setAccounts] = useState<AccountResponse[] | null>(null);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ input: string; message_ru: string }[]>([]);
-  const [addedCount, setAddedCount] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [menuAccountId, setMenuAccountId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoAnchorEl, setInfoAnchorEl] = useState<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -75,13 +76,14 @@ export default function CompetitorsTabPage() {
 
     setSubmitting(true);
     setErrors([]);
-    setAddedCount(null);
     try {
       const result = await api.addAccounts(params.id, entries);
       setErrors(result.errors);
-      setAddedCount(result.added.length);
       setText("");
-      if (result.added.length > 0) setAddSheetOpen(false);
+      if (result.added.length > 0) {
+        setAddSheetOpen(false);
+        addToast(t("addedCount", { count: result.added.length }));
+      }
       await load();
     } catch (err) {
       addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
@@ -111,11 +113,18 @@ export default function CompetitorsTabPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Top bar: counter + action buttons */}
+      {/* Top bar: info popover + action buttons */}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-secondary">
-          {t("counter", { count, max: MAX_ACCOUNTS })}
-        </span>
+        <button
+          onClick={(e) => {
+            setInfoAnchorEl(e.currentTarget);
+            setInfoOpen(true);
+          }}
+          aria-label={t("infoLabel")}
+          className="rounded-control p-2 text-secondary hover:bg-bg transition-colors"
+        >
+          <Info className="h-5 w-5" />
+        </button>
         {!isArchived && (
           <div className="flex items-center gap-2">
             {count < MAX_ACCOUNTS && (
@@ -139,10 +148,6 @@ export default function CompetitorsTabPage() {
           </div>
         )}
       </div>
-
-      {addedCount !== null && (
-        <p className="text-sm text-secondary">{t("addedCount", { count: addedCount })}</p>
-      )}
 
       {/* Loading skeleton */}
       {accounts === null && <SkeletonList count={4} />}
@@ -243,7 +248,6 @@ export default function CompetitorsTabPage() {
           setAddSheetOpen(false);
           setErrors([]);
           setText("");
-          setAddedCount(null);
         }}
         title={t("addSheetTitle")}
       >
@@ -288,6 +292,11 @@ export default function CompetitorsTabPage() {
         </form>
       </BottomSheet>
 
+      {/* Info popover: competitor limit + selection explanation */}
+      <ContextMenu open={infoOpen} onClose={() => setInfoOpen(false)} anchorEl={infoAnchorEl}>
+        <p className="max-w-xs px-4 py-3 text-sm text-secondary">{t("infoExplanation")}</p>
+      </ContextMenu>
+
       {/* Competitor 3-dot context menu */}
       <ContextMenu
         open={menuAccountId !== null}
@@ -308,6 +317,7 @@ export default function CompetitorsTabPage() {
       {runDialogOpen && (
         <RunDialog
           projectId={params.id}
+          projectName={project?.name ?? ""}
           accountsCount={selected.size}
           accountIds={
             accounts && selected.size === accounts.length ? undefined : Array.from(selected)
