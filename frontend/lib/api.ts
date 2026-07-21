@@ -54,6 +54,7 @@ export interface TokenResponse {
 export interface UserResponse {
   id: string;
   email: string;
+  display_name: string;
   is_admin: boolean;
   has_telegram: boolean;
   token_balance: number;
@@ -229,6 +230,11 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<UserResponse>("/auth/me"),
+  updateDisplayName: (displayName: string) =>
+    request<UserResponse>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify({ display_name: displayName }),
+    }),
   getTelegramConfig: () =>
     request<{ enabled: boolean; bot_username: string }>("/auth/telegram/config"),
   telegramLogin: (data: Record<string, string | number>) =>

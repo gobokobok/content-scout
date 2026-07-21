@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Menu } from "lucide-react";
 import { getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { closeTelegramWebApp } from "@/lib/telegram-webapp";
 import { ContextMenu } from "@/components/ui/context-menu";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -62,11 +63,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         anchorEl={menuAnchorEl}
       >
         <div className="flex flex-col py-1">
-          {!isTelegram && (
-            <div className="border-b border-border px-4 pb-2.5 pt-2">
-              <p className="text-sm text-secondary">{user.email}</p>
-            </div>
-          )}
+          <div className="border-b border-border px-4 pb-2.5 pt-2">
+            <p className="text-sm font-medium text-ink">{user.display_name}</p>
+            {!isTelegram && <p className="text-xs text-secondary">{user.email}</p>}
+          </div>
           <Link
             href="/"
             onClick={() => setMenuOpen(false)}
@@ -97,7 +97,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {t("admin")}
             </Link>
           )}
-          {!isTelegram && (
+          {isTelegram ? (
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                closeTelegramWebApp();
+              }}
+              className="px-4 py-3.5 text-left text-base text-danger hover:bg-bg transition-colors"
+            >
+              {t("closeApp")}
+            </button>
+          ) : (
             <button
               onClick={() => {
                 setMenuOpen(false);

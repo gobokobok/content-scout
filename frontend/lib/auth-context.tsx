@@ -12,6 +12,7 @@ interface AuthContextValue {
   register: (email: string, password: string, inviteCode?: string) => Promise<void>;
   telegramLogin: (data: Record<string, string | number>) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -108,7 +109,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, isTelegram, login, register, telegramLogin, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        isTelegram,
+        login,
+        register,
+        telegramLogin,
+        logout,
+        refreshUser: loadUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

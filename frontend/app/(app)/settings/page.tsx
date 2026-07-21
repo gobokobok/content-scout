@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function SettingsPage() {
   const t = useTranslations("Settings");
-  const { user, isTelegram } = useAuth();
+  const { user, isTelegram, refreshUser } = useAuth();
 
   const [tgConfig, setTgConfig] = useState<{ enabled: boolean; bot_username: string } | null>(
     null,
@@ -16,6 +16,35 @@ export default function SettingsPage() {
   const [linked, setLinked] = useState(user?.has_telegram ?? false);
   const [error, setError] = useState<string | null>(null);
   const tgContainerRef = useRef<HTMLDivElement>(null);
+
+  const [displayName, setDisplayName] = useState(user?.display_name ?? "");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameSaved, setNameSaved] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDisplayName(user?.display_name ?? "");
+  }, [user]);
+
+  const handleSaveName = useCallback(async () => {
+    const trimmed = displayName.trim();
+    if (!trimmed) {
+      setNameError(t("displayNameEmpty"));
+      return;
+    }
+    setNameSaving(true);
+    setNameError(null);
+    setNameSaved(false);
+    try {
+      await api.updateDisplayName(trimmed);
+      await refreshUser();
+      setNameSaved(true);
+    } catch (err) {
+      setNameError(err instanceof ApiError ? err.messageRu : t("genericError"));
+    } finally {
+      setNameSaving(false);
+    }
+  }, [displayName, refreshUser, t]);
 
   useEffect(() => {
     setLinked(user?.has_telegram ?? false);
@@ -67,6 +96,37 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
       <h1 className="mb-6 text-2xl font-semibold text-ink">{t("title")}</h1>
+
+      <section className="mb-4 flex flex-col gap-3 rounded-card border border-border bg-card p-5">
+        <h2 className="text-base font-medium text-ink">{t("displayNameSection")}</h2>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm text-secondary">{t("displayNameLabel")}</span>
+          <input
+            type="text"
+            value={displayName}
+            maxLength={50}
+            onChange={(e) => {
+              setDisplayName(e.target.value);
+              setNameSaved(false);
+            }}
+            className="rounded-control border border-border bg-bg px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+          />
+        </label>
+        {nameError && <p className="text-sm text-danger">{nameError}</p>}
+        {nameSaved && !nameError && (
+          <p className="flex items-center gap-2 text-sm text-success">
+            <CheckCircle className="h-4 w-4" />
+            {t("displayNameSaved")}
+          </p>
+        )}
+        <button
+          onClick={handleSaveName}
+          disabled={nameSaving || displayName.trim() === user?.display_name}
+          className="self-start rounded-control bg-accent px-4 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-50"
+        >
+          {t("displayNameSave")}
+        </button>
+      </section>
 
       <section className="flex flex-col gap-4 rounded-card border border-border bg-card p-5">
         <h2 className="text-base font-medium text-ink">{t("telegramSection")}</h2>

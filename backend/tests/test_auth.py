@@ -141,3 +141,57 @@ async def test_me_rejects_token_for_deleted_user(session: AsyncSession) -> None:
 async def test_password_hash_never_equals_plaintext(session: AsyncSession) -> None:
     user = await make_user(session, password_hash=None)
     assert user.password_hash is None
+
+
+async def test_register_assigns_random_display_name(session: AsyncSession) -> None:
+    async with await client(session) as c:
+        resp = await c.post(
+            "/auth/register", json={"email": "named@example.com", "password": "correcthorse"}
+        )
+    token = resp.json()["access_token"]
+    async with await client(session) as c:
+        me = await c.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.json()["display_name"].startswith("Пользователь")
+
+
+async def test_update_display_name(session: AsyncSession) -> None:
+    async with await client(session) as c:
+        reg = await c.post(
+            "/auth/register", json={"email": "rename@example.com", "password": "correcthorse"}
+        )
+        token = reg.json()["access_token"]
+        resp = await c.patch(
+            "/auth/me",
+            json={"display_name": "Александр"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["display_name"] == "Александр"
+
+
+async def test_update_display_name_rejects_blank(session: AsyncSession) -> None:
+    async with await client(session) as c:
+        reg = await c.post(
+            "/auth/register", json={"email": "blank@example.com", "password": "correcthorse"}
+        )
+        token = reg.json()["access_token"]
+        resp = await c.patch(
+            "/auth/me",
+            json={"display_name": "   "},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 422
+
+
+async def test_update_display_name_rejects_too_long(session: AsyncSession) -> None:
+    async with await client(session) as c:
+        reg = await c.post(
+            "/auth/register", json={"email": "toolong@example.com", "password": "correcthorse"}
+        )
+        token = reg.json()["access_token"]
+        resp = await c.patch(
+            "/auth/me",
+            json={"display_name": "a" * 51},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 422

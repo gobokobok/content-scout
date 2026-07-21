@@ -9,6 +9,7 @@ class User(UuidPk, CreatedAt, Base):
 
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     password_hash: Mapped[str | None] = mapped_column(String(200))
+    display_name: Mapped[str] = mapped_column(String(50), nullable=False)
     is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
     telegram_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, nullable=True)
     token_balance: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

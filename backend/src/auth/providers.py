@@ -1,3 +1,4 @@
+import random
 from typing import Protocol
 
 from sqlalchemy import select
@@ -19,11 +20,21 @@ class AuthProvider(Protocol):
     async def authenticate(self, session: AsyncSession, /, **credentials: str) -> User | None: ...
 
 
+def _random_display_name() -> str:
+    """Placeholder shown until the user picks their own name in Settings."""
+    return f"Пользователь{random.randint(1000, 9999)}"
+
+
 async def create_user_with_workspace(
     session: AsyncSession, *, email: str, password_hash: str | None
 ) -> User:
     """User + personal workspace + owner membership, one transaction (D6)."""
-    user = User(email=email.lower(), password_hash=password_hash, token_balance=50)
+    user = User(
+        email=email.lower(),
+        password_hash=password_hash,
+        display_name=_random_display_name(),
+        token_balance=50,
+    )
     session.add(user)
     await session.flush()
     workspace = Workspace(name="Личное пространство", kind=WorkspaceKind.personal)

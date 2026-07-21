@@ -25,6 +25,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 MIN_PASSWORD_LEN = 8
+MAX_DISPLAY_NAME_LEN = 50
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -58,9 +59,24 @@ class TokenOut(BaseModel):
 class UserOut(BaseModel):
     id: uuid.UUID
     email: str
+    display_name: str
     is_admin: bool
     has_telegram: bool = False
     token_balance: int = 0
+
+
+class DisplayNameIn(BaseModel):
+    display_name: str
+
+    @field_validator("display_name")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Имя не может быть пустым.")
+        if len(v) > MAX_DISPLAY_NAME_LEN:
+            raise ValueError(f"Имя должно быть не длиннее {MAX_DISPLAY_NAME_LEN} символов.")
+        return v
 
 
 @router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
@@ -103,6 +119,21 @@ async def me(user: CurrentUser) -> UserOut:
     return UserOut(
         id=user.id,
         email=user.email,
+        display_name=user.display_name,
+        is_admin=user.is_admin,
+        has_telegram=user.telegram_id is not None,
+        token_balance=user.token_balance,
+    )
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(body: DisplayNameIn, user: CurrentUser, session: SessionDep) -> UserOut:
+    user.display_name = body.display_name
+    await session.commit()
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name,
         is_admin=user.is_admin,
         has_telegram=user.telegram_id is not None,
         token_balance=user.token_balance,
@@ -227,6 +258,8 @@ async def telegram_link(body: TelegramLoginIn, user: CurrentUser, session: Sessi
     return UserOut(
         id=user.id,
         email=user.email,
+        display_name=user.display_name,
         is_admin=user.is_admin,
         has_telegram=user.telegram_id is not None,
+        token_balance=user.token_balance,
     )

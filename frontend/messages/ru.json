@@ -26,6 +26,7 @@
   "App": {
     "loading": "Загрузка…",
     "logout": "Выйти",
+    "closeApp": "Закрыть",
     "projects": "Проекты",
     "usage": "Использование",
     "settings": "Настройки",
@@ -219,6 +220,11 @@
   },
   "Settings": {
     "title": "Настройки",
+    "displayNameSection": "Имя",
+    "displayNameLabel": "Отображаемое имя",
+    "displayNameSave": "Сохранить",
+    "displayNameSaved": "Имя сохранено.",
+    "displayNameEmpty": "Имя не может быть пустым.",
     "telegramSection": "Telegram",
     "telegramLinked": "Telegram-аккаунт привязан. Вы будете получать уведомления о завершении анализа.",
     "telegramLinkHint": "Привяжите Telegram-аккаунт, чтобы получать уведомления о завершении анализа.",

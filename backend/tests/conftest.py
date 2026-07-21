@@ -118,6 +118,7 @@ async def session(migrated_db: str) -> AsyncIterator[AsyncSession]:
 
 async def make_user(session: AsyncSession, **kw) -> User:
     kw.setdefault("token_balance", 1000)
+    kw.setdefault("display_name", "Тест Тестов")
     user = User(email=kw.pop("email", f"u-{uuid.uuid4().hex[:10]}@example.com"), **kw)
     session.add(user)
     await session.flush()
