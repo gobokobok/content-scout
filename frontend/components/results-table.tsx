@@ -31,6 +31,18 @@ function formatFollowers(n: number | null): string | null {
   return new Intl.NumberFormat("ru-RU").format(n);
 }
 
+function formatPercent(n: number | null): string {
+  if (n === null) return "—";
+  return `${(n * 100).toFixed(1).replace(".", ",")}%`;
+}
+
+// E5-S5: relative to that account's own median in the run, never an absolute/industry benchmark.
+const VIRALITY_STYLE: Record<"high" | "medium" | "low", string> = {
+  high: "bg-success/10 text-success",
+  medium: "border border-border bg-bg text-secondary",
+  low: "text-secondary opacity-70",
+};
+
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -122,7 +134,14 @@ export function ResultsTable({
     "days_since_published",
     "views_per_day",
     "likes_per_day",
+    "engagement_rate",
   ]);
+
+  const VIRALITY_LABEL: Record<"high" | "medium" | "low", string> = {
+    high: t("viralityHigh"),
+    medium: t("viralityMedium"),
+    low: t("viralityLow"),
+  };
 
   const columns: ColumnDef<ContentItemResponse>[] = [
     {
@@ -249,6 +268,29 @@ export function ResultsTable({
       id: "comments",
       header: t("colComments"),
       cell: ({ row }) => formatNumber(row.original.comments),
+    },
+    {
+      id: "virality",
+      header: t("colVirality"),
+      cell: ({ row }) => {
+        const virality = row.original.virality;
+        if (!virality) {
+          return <span className="text-secondary">{t("viralityNone")}</span>;
+        }
+        return (
+          <span
+            title={t("viralityTooltip")}
+            className={`inline-flex items-center rounded-chip px-2 py-0.5 text-xs font-medium ${VIRALITY_STYLE[virality]}`}
+          >
+            {VIRALITY_LABEL[virality]}
+          </span>
+        );
+      },
+    },
+    {
+      id: "engagement_rate",
+      header: t("colEngagementRate"),
+      cell: ({ row }) => formatPercent(row.original.engagement_rate),
     },
     {
       id: "days_since_published",

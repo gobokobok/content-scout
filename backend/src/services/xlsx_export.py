@@ -22,6 +22,8 @@ HEADERS = [
     "Дней с публикации",
     "Просмотров/день",
     "Лайков/день",
+    "Виральность",
+    "Вовлечённость",
 ]
 
 _TYPE_LABELS: dict[str, str] = {
@@ -30,6 +32,13 @@ _TYPE_LABELS: dict[str, str] = {
     "short": "Reels",
     "post": "Пост",
     "carousel": "Карусель",
+}
+
+# E5-S5: relative to that account's own median in the run, not an absolute/industry benchmark.
+_VIRALITY_LABELS: dict[str, str] = {
+    "high": "Высокая",
+    "medium": "Средняя",
+    "low": "Низкая",
 }
 
 
@@ -72,12 +81,16 @@ def build_xlsx(items: list[ContentItemOut], project_name: str, run_created_at: d
                 round(item.days_since_published, 1),
                 round(item.views_per_day, 1) if item.views_per_day is not None else None,
                 round(item.likes_per_day, 1) if item.likes_per_day is not None else None,
+                _VIRALITY_LABELS.get(item.virality, "") if item.virality else "",
+                item.engagement_rate,
             ]
         )
         row_num = ws.max_row
         url_cell = ws.cell(row=row_num, column=6)
         url_cell.hyperlink = item.url
         url_cell.font = link_font
+        if item.engagement_rate is not None:
+            ws.cell(row=row_num, column=15).number_format = "0.0%"
 
     buf = io.BytesIO()
     wb.save(buf)

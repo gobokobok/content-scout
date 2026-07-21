@@ -131,6 +131,8 @@ export interface ContentItemResponse {
   days_since_published: number;
   views_per_day: number | null;
   likes_per_day: number | null;
+  engagement_rate: number | null;
+  virality: "high" | "medium" | "low" | null;
   in_shortlist: boolean;
 }
 
@@ -220,7 +222,8 @@ export type ItemSortField =
   | "comments"
   | "days_since_published"
   | "views_per_day"
-  | "likes_per_day";
+  | "likes_per_day"
+  | "engagement_rate";
 
 export const api = {
   getRegisterConfig: () =>

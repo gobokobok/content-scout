@@ -113,6 +113,8 @@ async def test_list_items_default_sort_and_shape(session: AsyncSession) -> None:
             "days_since_published",
             "views_per_day",
             "likes_per_day",
+            "engagement_rate",
+            "virality",
             "in_shortlist",
         }
 
@@ -170,6 +172,70 @@ async def test_post_and_carousel_views_are_null_not_zero(session: AsyncSession) 
         assert by_title["Post B"]["views_per_day"] is None
         assert by_title["Reel A"]["views"] == 1000
         assert by_title["Reel A"]["views_per_day"] is not None
+
+
+async def test_virality_badge_and_engagement_rate(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    # 4 items, 3 at a baseline engagement (median 100) + one clear outlier (5x median) — enough
+    # items to clear the default virality_min_items=3 guard and land the outlier in "high".
+    viral_account = await make_account(
+        session, account_list=account_list, handle="viral", followers_count=1000
+    )
+    # Only 2 items — below virality_min_items=3, so this account must get no badge at all.
+    quiet_account = await make_account(session, account_list=account_list, handle="quiet")
+    run = await make_run(session, project=project, requested_by=owner)
+
+    now = datetime.now(UTC)
+    for i in range(3):
+        await make_content_item(
+            session,
+            run=run,
+            account=viral_account,
+            type=ContentType.post,
+            published_at=now - timedelta(days=1),
+            likes=100,
+            comments=0,
+            views=None,
+            title=f"Baseline {i}",
+        )
+    await make_content_item(
+        session,
+        run=run,
+        account=viral_account,
+        type=ContentType.post,
+        published_at=now - timedelta(days=1),
+        likes=500,
+        comments=0,
+        views=None,
+        title="Outlier",
+    )
+    for i in range(2):
+        await make_content_item(
+            session,
+            run=run,
+            account=quiet_account,
+            type=ContentType.post,
+            published_at=now - timedelta(days=1),
+            likes=10,
+            comments=0,
+            views=None,
+            title=f"Quiet {i}",
+        )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}/items", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        by_title = {item["title"]: item for item in resp.json()["items"]}
+
+        assert by_title["Outlier"]["virality"] == "high"
+        assert by_title["Outlier"]["engagement_rate"] == 500 / 1000
+        assert by_title["Baseline 0"]["virality"] == "medium"
+
+        assert by_title["Quiet 0"]["virality"] is None
 
 
 async def test_items_scoped_to_owning_workspace(session: AsyncSession) -> None:

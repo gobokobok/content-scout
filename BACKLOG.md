@@ -752,36 +752,49 @@ backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/m
 
 ## [E5-S5] Virality score (High/Medium/Low) per publication
 **Epic:** Results Table & Export
-**Sprint:** unassigned (MVP — next up, single-blogger focus per 2026-07-21 reprioritization; sequenced after E5-S4)
-**Status:** backlog
+**Sprint:** 7
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** high
 **Depends on:** E5-S1, E5-S4
 ### Goal
 Each publication in the Результаты table gets a Высокая/Средняя/Низкая virality badge, so a blogger scanning a competitor list can spot standout content at a glance instead of reading raw numbers. Scored **self-relative** — did this post massively outperform *that account's own* recent baseline — rather than against a hardcoded global threshold, since a meme account and a niche B2B account have wildly different normal engagement and an absolute cutoff would be meaningless across a competitor list. A separate `engagement_rate` column (needs E5-S4's follower data) covers the different question of comparing raw performance *across* accounts.
 ### Acceptance Criteria
-- [ ] Per-account baseline computed at read time within a run (SQL, alongside the existing `days_since_published`/`views_per_day`/`likes_per_day` builders in `metrics.py` — no new persisted columns): `median(likes + comments)` across that account's items in the run; reels additionally get `median(views)` when the account has recorded view data
-- [ ] Per item: `performance_ratio = (likes + comments) / account_median`; for reels, combine with `views / account_median_views` (e.g. `max` of the two) so a reel can register as viral via reach (algorithmic push beyond followers) or via raw engagement
-- [ ] Bucket thresholds are config-driven (`virality_high_ratio` / `virality_low_ratio` in `Settings`, defaults `2.0` / `0.7`), matching the existing tunable-constant pattern from `estimator.py` — not hardcoded
-- [ ] Accounts with fewer than `virality_min_items` (default `3`) items in the run get no badge ("недостаточно данных") rather than a misleading score off a tiny sample
-- [ ] Результаты table shows the badge per row (D28 token colors, e.g. success for high, neutral for medium, muted for low — exact styling at implementation time); XLSX export includes the same column
-- [ ] Secondary sortable `engagement_rate = (likes + comments) / followers` column (cross-account comparison; separate from the badge, requires E5-S4)
-- [ ] A short inline tooltip or docs/UI_GUIDELINES.md note clarifies the badge is relative to *that account's own* baseline, not an absolute/industry benchmark — avoids it being misread
-- [ ] Unit tests: ratio computation against a fixed fixture (known likes/comments/views per account), threshold bucketing, insufficient-sample guard, reel `max(engagement_ratio, view_ratio)` combination
+- [x] Per-account baseline computed at read time within a run (SQL, alongside the existing `days_since_published`/`views_per_day`/`likes_per_day` builders in `metrics.py` — no new persisted columns): `median(likes + comments)` across that account's items in the run; reels additionally get `median(views)` when the account has recorded view data
+- [x] Per item: `performance_ratio = (likes + comments) / account_median`; for reels, combine with `views / account_median_views` (e.g. `max` of the two) so a reel can register as viral via reach (algorithmic push beyond followers) or via raw engagement
+- [x] Bucket thresholds are config-driven (`virality_high_ratio` / `virality_low_ratio` in `Settings`, defaults `2.0` / `0.7`), matching the existing tunable-constant pattern from `estimator.py` — not hardcoded
+- [x] Accounts with fewer than `virality_min_items` (default `3`) items in the run get no badge ("недостаточно данных") rather than a misleading score off a tiny sample
+- [x] Результаты table shows the badge per row (D28 token colors: success for high, neutral bordered chip for medium, muted text for low); XLSX export includes the same column
+- [x] Secondary sortable `engagement_rate = (likes + comments) / followers` column (cross-account comparison; separate from the badge, requires E5-S4)
+- [x] A short inline tooltip or docs/UI_GUIDELINES.md note clarifies the badge is relative to *that account's own* baseline, not an absolute/industry benchmark — avoids it being misread (did both: a native `title` tooltip on the badge, plus a UI_GUIDELINES.md paragraph)
+- [x] Unit tests: ratio computation against a fixed fixture (known likes/comments/views per account), threshold bucketing, insufficient-sample guard, reel `max(engagement_ratio, view_ratio)` combination
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (8 pure-Python `bucket_virality` threshold tests in `test_metrics.py`, ran locally without a DB and all pass; a full-stack `test_virality_badge_and_engagement_rate` API test with a real median/outlier fixture and an insufficient-items account; `test_export.py` header/value assertions updated; mypy + ruff + `tsc --noEmit` + `next lint` all clean)
+- [ ] CI green, deployed to DEV — pending this push
+- [ ] Smoke test — DEFERRED (requires a real finished DEV run with a mixed-type account; same deferral pattern as every Apify-touching story). **Flag for the smoke tester:** this story's SQL (window functions — `percentile_cont(...).within_group(...).over(partition_by=...)`, nested inside `NULLIF`/`GREATEST`) is more complex than any prior read-time metric in this codebase and could not be exercised against a real Postgres locally (no local DB in this sandbox, per every prior story) — the `test_virality_badge_and_engagement_rate` CI test is the first real check it runs at all; worth extra scrutiny on the actual DEV smoke test.
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 On DEV, open a finished run with a mixed-type account (≥3 items) — badges show plausible High/Medium/Low; an account with <3 items shows no badge; sorting by `engagement_rate` works; export to Excel and confirm both columns are present.
 ### Files to read
 CLAUDE.md, backend/src/services/metrics.py, backend/src/api/items.py, docs/UI_GUIDELINES.md, frontend/components/results-table.tsx
 ### Files to create or modify
 backend/src/services/metrics.py, backend/src/config.py, backend/src/api/items.py, backend/tests/test_items_api.py, frontend/components/results-table.tsx, frontend/messages/ru.json, backend/src/services/xlsx_export.py, backend/tests/test_export.py
+### Changelog
+- Thresholds/insufficient-sample bucketing is a pure Python function (`metrics.py:bucket_virality(ratio, item_count, settings)`) rather than SQL `CASE` logic, specifically so it's unit-testable without a database — the AC's "threshold bucketing, insufficient-sample guard" tests run fully offline in `test_metrics.py` (8 tests, all passing locally). Only the ratio itself (`virality_ratio_expr`) and the per-account item count (`account_item_count_expr`) are computed in SQL.
+- `NULLIF(median, 0)` used everywhere a ratio divides by a per-account median, so an all-zero-engagement account produces a NULL ratio (routed into "no badge") instead of a division-by-zero crash or a fabricated infinite ratio.
+- Postgres `GREATEST` ignores NULL arguments (only NULL if every argument is NULL) — this is what makes `GREATEST(engagement_ratio, view_ratio)` correctly fall back to pure engagement for non-reel items (`view_ratio` is always NULL there) without a separate CASE branch.
+- Window functions (`.over(partition_by=ContentItem.account_id)`) compute over every row matching the query's `WHERE run_id = ...` before `LIMIT`/`OFFSET`/`ORDER BY` are applied — confirmed this is standard SQL evaluation order, so the per-account baseline is correct across pagination in `items.py` and unaffected by `export.py` having no pagination at all.
+- Extra file touched beyond the story's list: `docs/UI_GUIDELINES.md`'s "Results table" section had drifted (still listed a Просмотры column removed in an earlier UI pass, no mention of followers/comments from this sprint's earlier stories) — updated it to match current reality while adding the required self-relative clarification, rather than leaving a second stale spot next to a freshly-accurate one.
+- Badge styling didn't reuse the shared `Badge` component (`components/ui/index.tsx`) — its 4 variants (default/success/warning/danger) don't cleanly express "success / neutral / muted" without stretching a variant's meaning, so the three states are small inline-styled chips directly in `results-table.tsx`, matching how the existing "type" column already does its own inline chip.
 ### Handover
-—
+- `backend/src/services/metrics.py`: `virality_ratio_expr()` (SQL, window functions), `account_item_count_expr()` (SQL, window function), `engagement_rate_expr()` (SQL, per-row, needs `Account` joined), `bucket_virality(ratio, item_count, settings)` (pure Python — the only piece worth unit testing without a DB).
+- `Settings.virality_high_ratio` (2.0), `virality_low_ratio` (0.7), `virality_min_items` (3) — tunable without a code change, same pattern as `estimator.py`.
+- `ContentItemOut.virality: Literal["high","medium","low"] | None` and `.engagement_rate: float | None` — both `api/items.py` and `api/export.py` compute them identically (copy the same 3 `select()` additions + row-unpack + `bucket_virality()` call if a third read-path is ever added).
+- `xlsx_export.py`: "Виральность" (column 14) is the Russian bucket label or blank; "Вовлечённость" (column 15) is the raw fraction with `number_format = "0.0%"` applied per-cell so Excel renders it as a percentage while keeping it numeric/sortable.
+- Frontend: `results-table.tsx` — `formatPercent()`, `VIRALITY_STYLE` (Tailwind classes per bucket), `VIRALITY_LABEL` (i18n, built inside the component since it needs `t()`). Badge cell has a `title` tooltip; `docs/UI_GUIDELINES.md` carries the same self-relative clarification for anyone not hovering.
+- This closes out Sprint 7 (SPRINT.md) — every story from the 2026-07-21 reprioritization is now done. Next planning step is a `/sprint-review` to pick Sprint 8, per BACKLOG.md's "Post-MVP (not yet ordered)" list (E3-S3/S4, E3-S5, E7-S3, E8-S3/S4, E9/E10/E11).
 
 ## [E6-S1] Shortlist
 **Epic:** Shortlist & History

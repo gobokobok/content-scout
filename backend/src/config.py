@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     claude_input_token_cost_usd: float = 0.000001
     claude_output_token_cost_usd: float = 0.000005
 
+    # E5-S5: self-relative virality badge thresholds (item's performance_ratio vs. that
+    # account's own median in the run) — tunable without a code change, same pattern as the
+    # estimator constants above.
+    virality_high_ratio: float = 2.0
+    virality_low_ratio: float = 0.7
+    virality_min_items: int = 3
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

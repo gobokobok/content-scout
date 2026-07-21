@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E5-S5] Virality score (High/Medium/Low) per publication
+**Completed:** 2026-07-22
+**Handover:**
+- `backend/src/services/metrics.py` — `virality_ratio_expr()` (self-relative `performance_ratio` per item, SQL window functions: `percentile_cont(0.5).within_group(...).over(partition_by=account_id)` for the account's median engagement, and separately for reels' median views; `NULLIF`/`GREATEST` handle the zero-median and non-reel-item edge cases without crashing or fabricating scores); `account_item_count_expr()` (window function, backs the min-items guard); `engagement_rate_expr()` (per-row, needs `Account` joined); `bucket_virality(ratio, item_count, settings)` — deliberately a pure Python function (not SQL `CASE`) so the threshold/insufficient-sample logic is unit-testable without a database.
+- `Settings.virality_high_ratio` (2.0) / `virality_low_ratio` (0.7) / `virality_min_items` (3) — tunable without a code change.
+- `ContentItemOut.virality` / `.engagement_rate` added identically in both `api/items.py` (paginated) and `api/export.py` (full run, no pagination) — window functions compute over the whole `WHERE run_id = ...` result set in both cases regardless of `LIMIT`/`OFFSET`, per standard SQL evaluation order.
+- `xlsx_export.py` — "Виральность" (Russian bucket label or blank) and "Вовлечённость" (raw fraction, `number_format="0.0%"` per cell) columns added.
+- Frontend: `results-table.tsx` gets a badge column (inline-styled chip, not the shared `Badge` component — its variants didn't cleanly map to "success/neutral/muted") with a `title` tooltip, plus a sortable "Вовлечённость" column. `docs/UI_GUIDELINES.md`'s Results table section refreshed to match current reality (was stale from an earlier column removal) and carries the same self-relative clarification.
+- 8 pure-Python `bucket_virality` tests (`test_metrics.py`) ran and passed locally without a DB; a full API test (`test_virality_badge_and_engagement_rate`) exercises a real median/outlier fixture plus an insufficient-items account; `test_export.py` updated. mypy + ruff + `tsc --noEmit` + `next lint` all clean.
+- This closes Sprint 7 (all 5 stories from the 2026-07-21 single-blogger reprioritization) — next step is a `/sprint-review` to plan Sprint 8 from BACKLOG.md's post-MVP list.
+**Smoke test:** DEFERRED — requires a real finished DEV run with a mixed-type, ≥3-item account. Flagged as higher-risk than usual: this story's window-function SQL was never exercised against a real Postgres before this push (no local DB in this sandbox), so give it extra scrutiny.
+**Promoted to backlog:** none
+
 ## [E5-S3] Comments count column
 **Completed:** 2026-07-22
 **Handover:**

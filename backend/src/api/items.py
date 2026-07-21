@@ -8,12 +8,17 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
+from src.config import get_settings
 from src.db import get_session
 from src.models import Account, AnalysisRun, ContentItem, ShortlistItem
 from src.services.metrics import (
+    account_item_count_expr,
+    bucket_virality,
     days_since_published_expr,
+    engagement_rate_expr,
     likes_per_day_expr,
     views_per_day_expr,
+    virality_ratio_expr,
 )
 from src.services.projects import ProjectNotFoundError, get_owned_project
 
@@ -41,6 +46,7 @@ SortField = Literal[
     "days_since_published",
     "views_per_day",
     "likes_per_day",
+    "engagement_rate",
 ]
 
 
@@ -59,6 +65,8 @@ class ContentItemOut(BaseModel):
     days_since_published: float
     views_per_day: float | None
     likes_per_day: float | None
+    engagement_rate: float | None = None
+    virality: Literal["high", "medium", "low"] | None = None
     in_shortlist: bool = False
 
 
@@ -90,10 +98,14 @@ async def list_run_items(
     page: Annotated[int, Query(ge=1)] = 1,
 ) -> ItemsPageOut:
     run = await _get_run(session, user, run_id)
+    settings = get_settings()
 
     days_expr = days_since_published_expr()
     views_per_day = views_per_day_expr()
     likes_per_day = likes_per_day_expr()
+    engagement_rate = engagement_rate_expr()
+    virality_ratio = virality_ratio_expr()
+    account_item_count = account_item_count_expr()
 
     shortlist_exists = (
         select(ShortlistItem.id)
@@ -119,6 +131,7 @@ async def list_run_items(
         "days_since_published": days_expr,
         "views_per_day": views_per_day,
         "likes_per_day": likes_per_day,
+        "engagement_rate": engagement_rate,
     }
     sort_col = sort_columns[sort]
     order_by = sort_col.asc().nulls_last() if order == "asc" else sort_col.desc().nulls_last()
@@ -135,6 +148,9 @@ async def list_run_items(
             days_expr.label("days_since_published"),
             views_per_day.label("views_per_day"),
             likes_per_day.label("likes_per_day"),
+            engagement_rate.label("engagement_rate"),
+            virality_ratio.label("virality_ratio"),
+            account_item_count.label("account_item_count"),
             shortlist_exists.label("in_shortlist"),
         )
         .join(Account, ContentItem.account_id == Account.id)
@@ -161,9 +177,22 @@ async def list_run_items(
             days_since_published=days,
             views_per_day=vpd,
             likes_per_day=lpd,
+            engagement_rate=eng_rate,
+            virality=bucket_virality(ratio, item_count, settings),
             in_shortlist=bool(in_sl),
         )
-        for item, handle, followers_count, days, vpd, lpd, in_sl in rows
+        for (
+            item,
+            handle,
+            followers_count,
+            days,
+            vpd,
+            lpd,
+            eng_rate,
+            ratio,
+            item_count,
+            in_sl,
+        ) in rows
     ]
 
     return ItemsPageOut(items=items, total=total or 0, page=page, page_size=PAGE_SIZE)

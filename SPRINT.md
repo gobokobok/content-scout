@@ -106,7 +106,9 @@ Full story definitions live in `BACKLOG.md`.
 | 1 | E5-S4 | Subscriber count next to account name | done |
 | 2 | E2-S3 | Competitor profile enrichment (depends on E5-S4) | done |
 | 3 | E5-S3 | Comments count column | done |
-| 4 | E5-S5 | Virality score per publication (depends on E5-S4) | in-progress |
+| 4 | E5-S5 | Virality score per publication (depends on E5-S4) | done |
+
+**Sprint 7 complete.** All 5 stories from the 2026-07-21 single-blogger reprioritization shipped. Every story's DEV smoke test is deferred (consistent with this project's established pattern — Apify/Telegram-dependent verification always waits for a real device/account); next session should run a real-device + DEV pass over all of them, starting with E5-S5 (flagged in its BACKLOG.md entry as the highest-risk SQL of the sprint), before starting a new sprint.
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 

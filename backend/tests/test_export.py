@@ -44,7 +44,9 @@ async def _setup(session: AsyncSession):
     ws = await make_workspace(session, owner=owner)
     project = await make_project(session, workspace=ws, name="Test Project")
     account_list = await make_account_list(session, project=project)
-    account = await make_account(session, account_list=account_list, handle="natgeo")
+    account = await make_account(
+        session, account_list=account_list, handle="natgeo", followers_count=1000
+    )
     run = await make_run(session, project=project, requested_by=owner)
     now = datetime.now(UTC)
     await make_content_item(
@@ -97,13 +99,15 @@ async def test_export_xlsx_has_russian_headers(session: AsyncSession) -> None:
     wb = load_workbook(io.BytesIO(resp.content))
     ws = wb.active
     assert ws is not None
-    headers = [ws.cell(1, col).value for col in range(1, 14)]
+    headers = [ws.cell(1, col).value for col in range(1, 16)]
     assert headers[0] == "Аккаунт"
     assert headers[1] == "Подписчики"
     assert headers[5] == "Ссылка"
     assert headers[7] == "Лайки"
     assert headers[8] == "Просмотры"
     assert headers[9] == "Комментарии"
+    assert headers[13] == "Виральность"
+    assert headers[14] == "Вовлечённость"
 
 
 async def test_export_xlsx_data_and_hyperlink(session: AsyncSession) -> None:
@@ -126,6 +130,14 @@ async def test_export_xlsx_data_and_hyperlink(session: AsyncSession) -> None:
 
     # Комментарии column (10) in row 2 (the reel with comments=42)
     assert ws.cell(2, 10).value == 42
+
+    # Only 2 items for this account — below virality_min_items (default 3), so the badge
+    # column stays blank rather than showing a misleading score off a tiny sample.
+    assert ws.cell(2, 14).value in ("", None)
+
+    # Вовлечённость (column 15): (likes + comments) / followers = (300 + 42) / 1000
+    assert ws.cell(2, 15).value == (300 + 42) / 1000
+    assert ws.cell(2, 15).number_format == "0.0%"
 
 
 async def test_export_404_for_wrong_user(session: AsyncSession) -> None:

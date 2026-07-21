@@ -20,9 +20,10 @@
 ```
 
 ## Results table
-- Columns: Аккаунт · Дата публикации · Тип · Заголовок · Ссылка · Описание · Лайки · Просмотры · Дней с публикации · Просмотров/день · Лайков/день · ★ (shortlist)
-- Every column sortable (server-side); active sort indicated; default sort «Просмотров/день» desc.
-- Views for посты/карусели render «—» (never 0); «—» sorts after numbers.
+- Columns: Аккаунт (+ подписчики) · Дата публикации · Тип · Заголовок · Ссылка · Описание · Лайки · Комментарии · Виральность · Вовлечённость · Дней с публикации · Просмотров/день · Лайков/день · ★ (shortlist)
+- Every sortable column is server-side sorted; active sort indicated; default sort «Просмотров/день» desc. Виральность is a badge, not sorted directly — sort by Вовлечённость for a cross-account ranking instead.
+- Просмотры has no dedicated column: Instagram doesn't expose view counts for most post types, so a raw views column was judged misleading and removed (views still feed Просмотров/день for reels).
+- **Виральность** (E5-S5) is scored **relative to that account's own median engagement within the current run** — never an absolute/industry threshold. A meme account and a niche B2B account have wildly different normal engagement, so comparing either to a fixed number would be meaningless. Accounts with fewer than 3 items in the run show «недостаточно данных» instead of a badge. **Вовлечённость** (`engagement_rate = (лайки + комментарии) / подписчики`) is the separate cross-account question — use it, not the badge, to compare raw performance between different competitors.
 - Тип as label + icon: Reels / Пост / Карусель.
 - Заголовок = caption first line, truncated ~60 chars with tooltip; Ссылка opens IG in new tab.
 - Pagination 50 rows/page.

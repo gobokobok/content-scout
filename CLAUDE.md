@@ -35,7 +35,7 @@ Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f
 
 ## Current sprint and active story
 
-- **Sprint:** 7 — single-blogger MVP: Mini App auto-login fix (E8-S6, done) + competitor/results depth (E5-S4, E2-S3, E5-S3, E5-S5). Sprints 1–6 complete. Story order in `SPRINT.md`; run stories back-to-back autonomously.
+- **Sprint:** 7 complete (E8-S6, E5-S4, E2-S3, E5-S3, E5-S5 — all done, DEV smoke tests deferred pending a real-device pass). Sprints 1–7 complete. Next: `/sprint-review` to plan Sprint 8 from `BACKLOG.md`'s post-MVP list.
 
 ## Hard constraints
 
