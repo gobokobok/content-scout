@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E15-S3] Run detail page: Summary + Publications tabs
+**Completed:** 2026-07-22
+**Handover:**
+- New route `frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx` with local tab state (Summary/Publications), replacing the ad-hoc "click a history row to filter Результаты" pattern. Existing project-wide Результаты tab is untouched.
+- Extended `RunOut`/`GET /runs/{id}` (`backend/src/api/runs.py`) with `summary_status`/`summary_text`/`summary_topics` — E15-S1 stored these but never exposed them via the API; this story added that exposure.
+- Publications tab deliberately reuses `GET /projects/{id}/items?run_id=...` (`listProjectItems`) rather than the run-scoped `GET /runs/{id}/items`, because only the former supports `starred_only` — gives full sort/star/export parity with zero new backend surface, `run_id` just pinned. Run-filter icon removed by passing `runs={[]}` to `ResultsControlsBar` (already suppresses the icon internally) — `results-controls.tsx` itself untouched.
+- Top-5-by-virality cards on the Summary tab are clickable, switching to the Publications tab (the AC's "linking into" requirement).
+- `telegram_notify.py`'s completion DM now links to `/projects/{project_id}/runs/{run.id}` instead of `/results?run=...`.
+- 2 new backend tests (`test_runs.py`) + 1 tightened assertion (`test_telegram_notify.py`); `ruff format`/`ruff check`/`mypy src` clean; frontend typecheck/eslint clean. Verified via a temporary scratch route with a mocked `fetch` (this page does live API calls, not props, so the mock exercised the real page end-to-end): done/failed/pending summary states, non-done gating, top-5→Publications navigation, run-filter icon absence — desktop + 375px, no console errors, deleted before commit.
+- **This closes Sprint 8** — all three epics (E13, E16, E15) done. Next up: Sprint 9 (E14 scheduled runs).
+**Smoke test:** DEFERRED — needs a real DEV project with a finished run to confirm the Summary tab's live data, Publications-tab parity with Результаты minus the run-filter icon, and a real Telegram completion DM's link.
+**Promoted to backlog:** none
+
 ## [E15-S2] Top-5-posts-by-virality for a run
 **Completed:** 2026-07-22
 **Handover:**

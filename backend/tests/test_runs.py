@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.tokens import create_access_token
 from src.db import get_session
 from src.main import app
-from src.models import RunStatus
+from src.models import RunStatus, RunSummaryStatus
 from tests.conftest import (
     make_account,
     make_account_list,
@@ -189,3 +189,35 @@ async def test_get_run_scoped_to_owning_workspace(session: AsyncSession) -> None
 
         resp = await c.get(f"/runs/{run.id}", headers=auth_headers(other_user.id))
         assert resp.status_code == 404
+
+
+async def test_get_run_includes_summary_fields(session: AsyncSession) -> None:
+    """E15-S3: the run detail page's Summary tab reads these straight off RunOut."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    run = await make_run(session, project=project, requested_by=owner)
+    run.summary_status = RunSummaryStatus.done
+    run.summary_text = "Конкуренты публикуют в основном ролики про путешествия."
+    run.summary_topics = ["Путешествия", "Еда"]
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["summary_status"] == "done"
+        assert body["summary_text"] == "Конкуренты публикуют в основном ролики про путешествия."
+        assert body["summary_topics"] == ["Путешествия", "Еда"]
+
+
+async def test_get_run_default_summary_status_is_pending(session: AsyncSession) -> None:
+    """Runs created before E15-S1 (or before summary generation runs) default to pending."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    run = await make_run(session, project=project, requested_by=owner)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}", headers=auth_headers(owner.id))
+        body = resp.json()
+        assert body["summary_status"] == "pending"
+        assert body["summary_text"] is None
+        assert body["summary_topics"] is None

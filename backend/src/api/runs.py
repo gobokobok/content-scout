@@ -83,6 +83,10 @@ class RunOut(BaseModel):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    # Run-level AI summary (E15-S1) — surfaced for the run detail page's Summary tab (E15-S3).
+    summary_status: str
+    summary_text: str | None
+    summary_topics: list[str] | None
 
     @classmethod
     def from_model(cls, run: AnalysisRun) -> "RunOut":
@@ -103,6 +107,9 @@ class RunOut(BaseModel):
             created_at=run.created_at,
             started_at=run.started_at,
             finished_at=run.finished_at,
+            summary_status=run.summary_status.value,
+            summary_text=run.summary_text,
+            summary_topics=run.summary_topics,
         )
 
 

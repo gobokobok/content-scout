@@ -74,7 +74,8 @@ async def test_notify_done_sends_message_with_link():
     payload = call_kwargs["json"]
     assert payload["chat_id"] == 99999
     assert "42" in payload["text"]
-    assert "example.com" in payload["text"]
+    # E15-S3: links to the run detail page, not the old /results?run=... query param
+    assert f"https://example.com/projects/{run.project_id}/runs/{run.id}" in payload["text"]
 
 
 @pytest.mark.asyncio

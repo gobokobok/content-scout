@@ -1924,24 +1924,25 @@ backend/src/api/items.py or the new run-summary endpoint from E15-S1, backend/te
 ## [E15-S3] Run detail page: Summary + Publications tabs
 **Epic:** Run Detail View
 **Sprint:** 8
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** high
 **Depends on:** E15-S1, E15-S2, E13-S2, E12-S3
 ### Goal
 Opening a run card from Детали lands on a dedicated run-detail page with two tabs, replacing the ad-hoc "click a history row to filter Результаты by run_id" pattern.
 ### Acceptance Criteria
-- [ ] New route `/projects/[id]/runs/[runId]` with Summary/Publications tabs
-- [ ] Summary tab: run date/time, accounts analyzed, publications analyzed, AI overall summary + top-5 topics (E15-S1), top-5 posts by virality (E15-S2, linking into the Publications tab)
-- [ ] Publications tab: reuses `results-cards`/`results-controls` scoped to this run, with the **run-filter icon removed** (redundant — already scoped to one run); sort/star/export controls unchanged
-- [ ] The existing project-wide Результаты tab (bottom nav) is untouched — this is a new, additional scoped view, not a replacement
-- [ ] Telegram run-completion notifications (`notify_run_complete`) link here instead of `/results?run=...`
+- [x] New route `/projects/[id]/runs/[runId]` with Summary/Publications tabs
+- [x] Summary tab: run date/time, accounts analyzed, publications analyzed, AI overall summary + top-5 topics (E15-S1), top-5 posts by virality (E15-S2, linking into the Publications tab)
+- [x] Publications tab: reuses `results-cards`/`results-controls` scoped to this run, with the **run-filter icon removed** (redundant — already scoped to one run); sort/star/export controls unchanged
+- [x] The existing project-wide Результаты tab (bottom nav) is untouched — this is a new, additional scoped view, not a replacement
+- [x] Telegram run-completion notifications (`notify_run_complete`) link here instead of `/results?run=...`
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 From Детали, open a finished run — Summary tab shows plausible data, Publications tab behaves like Результаты minus the run-filter icon, and a Telegram completion DM's link lands here.
 ### Files to read
@@ -1949,7 +1950,15 @@ CLAUDE.md, DECISIONS.md (D16, D28), frontend/components/results-cards.tsx, front
 ### Files to create or modify
 frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx (new), frontend/lib/api.ts, backend/src/services/telegram_notify.py (link target), frontend/messages/ru.json
 ### Handover
-—
+- **Backend deviation (anticipated in E15-S1/E15-S2's own handovers):** neither prior story exposed its data via the API, so this story additionally touched `backend/src/api/runs.py` — extended `RunOut`/`GET /runs/{id}` with `summary_status`/`summary_text`/`summary_topics` (straight passthrough from the `AnalysisRun` columns E15-S1 added). E15-S2's `GET /runs/{run_id}/top-virality` needed no change — already a standalone endpoint, called directly from the new page.
+- `frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx` (new) — tab state is local (`useState<"summary"|"publications">`), no URL query param (this is a fresh route, not a modification of `/results`, so there was no existing deep-link contract to preserve). Summary tab gates all content on `run.status === "done"` (matches `results/page.tsx`'s existing `showItems` gating pattern) and additionally branches on `run.summary_status` for the AI-overview block (`done` → text + topic chips, `failed` → RU fallback message, `pending` → RU "unavailable" message — the last covers pre-E15-S1 runs whose `summary_status` defaults to `pending` forever, not an in-flight state a client will realistically observe since `generate_run_summary` resolves synchronously before `run.status` flips to `done`). Top-5-by-virality cards are clickable — each sets `tab = "publications"` (the AC's "linking into the Publications tab"; no deep-scroll-to-item, not requested).
+- **Publications tab reuses `listProjectItems` (`GET /projects/{id}/items?run_id=...`), not `listRunItems`** — deliberate choice over the seemingly more obvious `GET /runs/{run_id}/items`: only the project-items endpoint supports `starred_only`, which the AC's "star... controls unchanged" requires. This gives full sort/star/export parity with zero additional backend work, with `run_id` simply pinned instead of user-selectable.
+- **Run-filter icon removal** needed no change to `results-controls.tsx` — passing `runs={[]}` to `ResultsControlsBar` already suppresses the icon (`{runs.length > 0 && (...)}` in the existing component), so the shared component is untouched.
+- Desktop Publications tab has no export button, matching `results/page.tsx`'s existing behavior exactly (export is mobile-only there too, pre-existing gap in this codebase, not something introduced or fixed by this story).
+- Telegram link (`telegram_notify.py`) now points at `/projects/{project_id}/runs/{run.id}` instead of `/results?run=...`.
+- 2 new backend tests in `test_runs.py` (`GET /runs/{id}` surfaces summary fields; defaults to `pending`/`None` for pre-migration runs), 1 existing test in `test_telegram_notify.py` tightened to assert the new link path exactly. `ruff format`/`ruff check`/`mypy src` clean. Frontend: no unit test suite exists in this repo (CI gate is typecheck + eslint); both clean. Verified visually via a temporary `frontend/app/dev-preview/projects/[id]/runs/[runId]` scratch route with a mocked `window.fetch` (the page makes live API calls rather than taking props, so — unlike prior scratch previews that just mounted a presentational component — this one intercepted `fetch` by URL pattern to exercise the real page end-to-end), covering: done run with `summary_status=done`/`failed`, non-done run status gating, top-5-card → Publications-tab navigation, and the run-filter icon's absence. Screenshotted at desktop + 375px, no console errors, deleted before commit.
+- **This closes Sprint 8.** All three epics (E13 nav restructure, E16 Analysis teaser, E15 run detail) are now done — see SPRINT.md for the Sprint 9 (E14 scheduled runs) handoff.
+**Smoke test:** DEFERRED — needs a real DEV project with a finished run to confirm the Summary tab's live data, the Publications tab's parity with Результаты minus the run-filter icon, and that a real Telegram completion DM's link lands here (same deferral pattern as the rest of this project's verification).
 
 ## [E16-S1] Analysis teaser page
 **Epic:** Analysis Teaser

@@ -126,9 +126,11 @@ Full story definitions live in `BACKLOG.md`.
 | 3 | E16-S1 | Analysis teaser page | done |
 | 4 | E15-S1 | Run-level AI summary generation | done |
 | 5 | E15-S2 | Top-5-posts-by-virality for a run | done |
-| 6 | E15-S3 | Run detail page: Summary + Publications tabs | backlog |
+| 6 | E15-S3 | Run detail page: Summary + Publications tabs | done |
 
-**E13 epic complete (2026-07-22 session):** all three nav-restructure stories (E13-S1/S2/S3) shipped back-to-back per explicit user request, scoped to E13 only. E16-S1 and E15-S1/S2/S3 remain backlog, unstarted — next up whenever the sprint continues. All three E13 stories' DEV smoke tests are deferred (no local Postgres/DEV login in this sandbox), consistent with this project's established pattern; verified instead via temporary scratch preview routes with mock data, screenshotted and deleted before each commit.
+**E13 epic complete (2026-07-22 session):** all three nav-restructure stories (E13-S1/S2/S3) shipped back-to-back per explicit user request, scoped to E13 only. All three E13 stories' DEV smoke tests are deferred (no local Postgres/DEV login in this sandbox), consistent with this project's established pattern; verified instead via temporary scratch preview routes with mock data, screenshotted and deleted before each commit.
+
+**Sprint 8 complete (2026-07-22 session):** E16-S1 and E15-S1/S2/S3 shipped back-to-back in a follow-up session (explicit user request: "run epics E16 and E15 back to back"), closing out the sprint. E15-S1 added `AnalysisRun.summary_status`/`summary_text`/`summary_topics` (migration `a9b8c7d6e5f4`) and the `generate_run_summary` worker step; E15-S2 added `GET /runs/{run_id}/top-virality`; E15-S3 introduced the `/projects/[id]/runs/[runId]` route and, since neither prior story had exposed its data via the API, extended `RunOut` to surface E15-S1's fields. All four stories' DEV smoke tests are deferred, same established pattern — verified via ruff/mypy/tsc/eslint locally (CI is the authoritative gate for pytest, no local Postgres in this sandbox) plus temporary scratch preview routes (mocked `fetch` for E15-S3, since its page does live API calls rather than taking props), screenshotted and deleted before each commit. Sprint 9 (E14 scheduled runs) is next.
 
 ## Sprint 9 — Scheduled runs (locked 2026-07-22)
 

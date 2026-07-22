@@ -116,6 +116,9 @@ export interface RunResponse {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  summary_status: "pending" | "done" | "failed";
+  summary_text: string | null;
+  summary_topics: string[] | null;
 }
 
 export interface RunRequest {
@@ -219,6 +222,10 @@ export interface ItemsPageResponse {
   page_size: number;
 }
 
+export interface TopViralityResponse {
+  items: ContentItemResponse[];
+}
+
 export type ItemSortField =
   | "account"
   | "published_at"
@@ -307,6 +314,8 @@ export const api = {
     }),
   getRun: (runId: string) => request<RunResponse>(`/runs/${runId}`),
   listRuns: (projectId: string) => request<RunResponse[]>(`/projects/${projectId}/runs`),
+  getTopVirality: (runId: string, limit = 5) =>
+    request<TopViralityResponse>(`/runs/${runId}/top-virality?limit=${limit}`),
   listRunItems: (
     runId: string,
     params: { sort: ItemSortField; order: "asc" | "desc"; page: number },

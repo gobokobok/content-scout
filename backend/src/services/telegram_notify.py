@@ -25,7 +25,7 @@ async def notify_run_complete(run: AnalysisRun, user: User) -> None:
 
     if run.status == RunStatus.done:
         items = run.progress_items or 0
-        link = f"{settings.web_url.rstrip('/')}/projects/{run.project_id}/results?run={run.id}"
+        link = f"{settings.web_url.rstrip('/')}/projects/{run.project_id}/runs/{run.id}"
         text = (
             f"✅ Анализ завершён!\n\n"
             f"Найдено публикаций: <b>{items}</b>\n\n"
