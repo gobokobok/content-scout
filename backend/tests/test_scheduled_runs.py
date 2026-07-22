@@ -10,6 +10,7 @@ from src.db import get_session
 from src.main import app
 from src.models import AnalysisRun
 from src.services.scheduled_runs import fire_due_schedules, is_due, most_recent_occurrence_utc
+from src.worker import process_run
 from tests.conftest import (
     make_account,
     make_account_list,
@@ -358,3 +359,38 @@ async def test_fire_due_schedules_creates_run_with_schedule_scope(
     assert run.item_limit == 20
     assert run.duration_days is None
     assert run.project_id == project.id
+
+
+# --- E14-S5: a scheduled run's completion notifies Telegram like a manual run ---------------
+
+
+@patch("src.services.scheduled_runs.enqueue_run", new_callable=AsyncMock)
+@patch("src.worker.notify_run_complete", new_callable=AsyncMock)
+async def test_scheduled_run_completion_notifies_telegram(
+    mock_notify: AsyncMock, mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    """A schedule fires straight into the same enqueue_run -> process_run path a manual run
+    takes (src/api/runs.py:create_run), so notify_run_complete needs no schedule-specific
+    call site — this proves that end to end rather than by inspection alone."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_scheduled_run(
+        session,
+        project=project,
+        created_by=owner,
+        day_of_week=2,
+        time_of_day=time(9, 0),
+        timezone="UTC",
+    )
+    await session.commit()
+
+    fired = await fire_due_schedules(session, now=datetime(2026, 7, 22, 9, 2, tzinfo=UTC))
+    assert len(fired) == 1
+    run = fired[0]
+
+    with patch("src.worker.summarize_run_items", new_callable=AsyncMock):
+        await process_run(session, run)
+
+    mock_notify.assert_awaited_once()
+    notified_run, notified_user = mock_notify.await_args.args
+    assert notified_run.id == run.id
+    assert notified_user.id == owner.id

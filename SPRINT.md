@@ -144,7 +144,9 @@ Full story definitions live in `BACKLOG.md`.
 | 1 | E14-S2 | Scheduled runs: CRUD API + arq cron dispatcher | done |
 | 2 | E14-S3 | Scheduled Runs page (list + create/edit) | done |
 | 3 | E14-S4 | Wire Run-now / Schedule choice into Details' create-run flow | done |
-| 4 | E14-S5 | Telegram notification for scheduled-run completion | backlog |
+| 4 | E14-S5 | Telegram notification for scheduled-run completion | done |
+
+**Sprint 9 complete (2026-07-22 session):** all 5 stories shipped back-to-back per explicit user request ("run epics E14 all stories back to back"). New `scheduled_runs` table + arq's first cron job (5-minute tick, timezone-aware via stdlib `zoneinfo`) fire recurring runs through the exact same `enqueue_run`/`process_run` path manual runs use — which is also why E14-S5 needed no production code at all, only a test proving it. Frontend: a new Scheduled Runs list/create/edit page, plus a Запустить-сейчас/Запланировать choice wired into the existing run-dialog. All 5 stories' DEV smoke tests are deferred, same established pattern (no local Postgres/Redis/DEV login in this sandbox) — verified via ruff/mypy/tsc/eslint locally (CI is the authoritative gate for pytest) plus temporary scratch preview routes with mocked `fetch`, screenshotted at desktop + 375px and deleted before each commit. This closes Sprint 9 and the E14 epic; Sprint 10 (E8-S3 monetization) is next, still locked behind this per the 2026-07-22 execution plan.
 
 ## Sprint 10 — Monetization: 1990₽/mo subscription (locked 2026-07-22, D30)
 

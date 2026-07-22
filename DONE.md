@@ -2,6 +2,16 @@
 
 Completed stories land here, newest first. Format:
 
+## [E14-S5] Telegram notification for scheduled-run completion
+**Completed:** 2026-07-22
+**Handover:**
+- **No production code changed.** E14-S2's `_fire_one` already creates the `AnalysisRun` and calls the same `enqueue_run()` a manual run uses — the arq job that eventually calls `notify_run_complete` has no idea whether the run came from a schedule or a manual click, so there was no schedule-specific call site to add.
+- Added `test_scheduled_run_completion_notifies_telegram` to `test_scheduled_runs.py` to prove this end-to-end: fires a due schedule, runs the resulting `AnalysisRun` through the real `process_run`, and asserts `notify_run_complete` is called once with the schedule-originated run and the schedule's `created_by` user.
+- `ruff format`/`ruff check`/`mypy src` clean; new test collects correctly (`pytest --collect-only`).
+- **This closes the E14 epic and Sprint 9** (scheduled runs: schema, CRUD API + arq cron dispatcher, Scheduled Runs page, Run-now/Schedule choice, Telegram notification). Sprint 10 (E8-S3 monetization) is next, no longer blocked.
+**Smoke test:** DEFERRED — needs a real DEV run: create a schedule for a near-future time, wait for it to fire, and confirm the linked Telegram account receives the same completion DM a manual run would send.
+**Promoted to backlog:** none
+
 ## [E14-S4] Wire Run-now / Schedule choice into Details' create-run flow
 **Completed:** 2026-07-22
 **Handover:**
