@@ -142,7 +142,7 @@ Full story definitions live in `BACKLOG.md`.
 |---|---|---|---|
 | 0 | E14-S1 | Scheduled runs: schema and migration | done |
 | 1 | E14-S2 | Scheduled runs: CRUD API + arq cron dispatcher | done |
-| 2 | E14-S3 | Scheduled Runs page (list + create/edit) | backlog |
+| 2 | E14-S3 | Scheduled Runs page (list + create/edit) | done |
 | 3 | E14-S4 | Wire Run-now / Schedule choice into Details' create-run flow | backlog |
 | 4 | E14-S5 | Telegram notification for scheduled-run completion | backlog |
 

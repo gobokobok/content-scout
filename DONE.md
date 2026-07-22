@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E14-S3] Scheduled Runs page (list + create/edit)
+**Completed:** 2026-07-22
+**Handover:**
+- `frontend/lib/api.ts` — `ScheduledRunResponse`/`ScheduledRunRequest` + `listScheduledRuns`/`createScheduledRun`/`updateScheduledRun`/`deleteScheduledRun`. `ScheduledRunRequest` is a full-replace body (create and update both use it), matching the backend's `ScheduledRunIn`.
+- `frontend/app/(app)/projects/[id]/scheduled/page.tsx` — schedule cards (day/time, scope + competitor-count summary, last-run date, active-toggle checkbox that PATCHes in place), 3-dot delete menu (same pattern as `competitors/page.tsx`). `ScheduledRunOut` only has `last_run_id`, not a date, so the page resolves display dates by fetching each referenced run via the existing `api.getRun` (deduped, in parallel) rather than adding a new backend join for a handful of schedules per project.
+- `frontend/app/(app)/projects/[id]/scheduled/scheduled-run-dialog.tsx` — reuses `run-dialog.tsx`'s day/count scope-mode toggle verbatim, adds a competitor multiselect ("Все конкуренты" default, matching `account_ids: null` = whole list), a day-of-week button row, and a native `<input type="time">`. No timezone picker — always submits `"Europe/Moscow"` (or the schedule's existing value on edit), matching the model default; out of this story's AC and this is a single-timezone RU-only MVP.
+- Deliberately does **not** reintroduce per-run competitor selection into the manual "Создать запуск" flow — E13-S3 removed that project-wide. This multiselect is scoped to the *scheduled-run* definition only, per this story's own AC and `ScheduledRun.account_ids`'s design (E14-S1).
+- `tsc --noEmit` and `next lint` both clean (no frontend unit test suite in this repo, per CONVENTIONS.md — CI gate is typecheck + eslint). Verified visually via a temporary `frontend/app/dev-preview/scheduled/[id]` scratch route (mocked `window.fetch`, since this page does live API calls): list view, create dialog (scope toggle, multiselect reveal, weekday/time pickers), delete menu — desktop + 375px, no console errors, deleted before commit.
+- **For E14-S4:** the scope+multiselect+day/time UI lives self-contained in `scheduled-run-dialog.tsx`; E14-S4 wires its own "Запланировать" branch into `run-dialog.tsx` per its AC rather than reusing this component directly.
+**Smoke test:** DEFERRED — needs a real DEV project at 375px: create a schedule, confirm it's listed, edit it, deactivate it, and confirm all changes persist (same deferral pattern as the rest of this project's DEV-login-dependent verification — no DEV credentials in this sandbox).
+**Promoted to backlog:** none
+
 ## [E14-S2] Scheduled runs: CRUD API + arq cron dispatcher
 **Completed:** 2026-07-22
 **Handover:**

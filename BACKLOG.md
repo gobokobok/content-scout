@@ -1786,22 +1786,23 @@ backend/src/api/scheduled_runs.py (new), backend/src/worker.py (`WorkerSettings.
 ## [E14-S3] Scheduled Runs page (list + create/edit)
 **Epic:** Scheduled Runs
 **Sprint:** 9
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** high
 **Depends on:** E14-S2, E13-S2
 ### Goal
 The frontend surface for E14-S2, reached via the "Запланированные запуски" button on Детали.
 ### Acceptance Criteria
-- [ ] List page: existing schedules (competitors scope, day/count scope, day-of-week + time, active toggle, last-run date), back button to Детали
-- [ ] Create/edit form: competitor multiselect, day-window/count-scope toggle (reuses the picker built in E3-S7's `run-dialog.tsx`), day-of-week + time picker, save
-- [ ] Usable at 375px (D16)
+- [x] List page: existing schedules (competitors scope, day/count scope, day-of-week + time, active toggle, last-run date), back button to Детали
+- [x] Create/edit form: competitor multiselect, day-window/count-scope toggle (reuses the picker built in E3-S7's `run-dialog.tsx`), day-of-week + time picker, save
+- [x] Usable at 375px (D16)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [ ] Tests written and passing (no frontend unit test suite in this repo — CI gate is typecheck + eslint, per CONVENTIONS.md; both clean)
+- [ ] CI green, deployed to DEV (pending push)
+- [ ] Smoke test passed (deferred, see below)
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 On DEV at 375px, create a schedule, see it listed, edit it, deactivate it — all persist correctly.
 ### Files to read
@@ -1809,7 +1810,13 @@ CLAUDE.md, DECISIONS.md (D16), frontend/app/(app)/projects/[id]/run-dialog.tsx (
 ### Files to create or modify
 frontend/app/(app)/projects/[id]/scheduled/page.tsx (new), frontend/app/(app)/projects/[id]/scheduled/scheduled-run-dialog.tsx (new), frontend/lib/api.ts, frontend/messages/ru.json
 ### Handover
-—
+- `frontend/lib/api.ts` — `ScheduledRunResponse`/`ScheduledRunRequest` types + `listScheduledRuns`/`createScheduledRun`/`updateScheduledRun`/`deleteScheduledRun`. `ScheduledRunRequest` is a full-replace body (used by both create and update), matching the backend's `ScheduledRunIn`.
+- `frontend/app/(app)/projects/[id]/scheduled/page.tsx` — list of schedule cards (day/time, scope summary, competitor-count summary, last-run date, active checkbox toggling in place via PATCH), 3-dot context menu for delete (same pattern as `competitors/page.tsx`). The list's "last-run date" isn't on `ScheduledRunOut` directly (only `last_run_id`) — the page resolves it by fetching each referenced run via the existing `api.getRun`, deduped and in parallel, since this project's backend doesn't expose a joined "last run" summary and adding one wasn't worth a new endpoint for a handful of schedules per project.
+- `frontend/app/(app)/projects/[id]/scheduled/scheduled-run-dialog.tsx` — reuses `run-dialog.tsx`'s day/count scope-mode toggle and picker verbatim (same option arrays, same visual pattern), adds a competitor multiselect (checkbox list from `api.listAccounts`, "Все конкуренты" checked by default = `account_ids: undefined`), a day-of-week button row (Пн..Вс), and a native `<input type="time">`. No timezone picker in the UI — always submits `"Europe/Moscow"` (or the existing schedule's stored value on edit), matching the model's default; the AC only asked for "day-of-week + time picker", and this is a Russian-only MVP for a single timezone market.
+- `frontend/messages/ru.json` — new `ScheduledRuns` namespace (weekday labels, scope/account labels, dialog copy).
+- Deviation from E13-S3: that story removed per-run competitor selection from manual run creation entirely (`Детали`'s "Создать запуск" always passes `accountIds: undefined` now). This story's multiselect is scoped to the *recurring schedule* definition only, per this story's own AC and mirroring `ScheduledRun.account_ids`'s design (E14-S1) — it does not reintroduce selection into the manual run flow.
+- `tsc --noEmit` and `next lint` both clean. Verified visually via a temporary `frontend/app/dev-preview/scheduled/[id]` scratch route (mocked `window.fetch` for `/scheduled-runs`, `/accounts`, `/runs/:id`, since this page does live API calls) — list view, create dialog (scope toggle, multiselect reveal, weekday/time pickers), 3-dot delete menu, all screenshotted at desktop + 375px with no console errors, deleted before commit.
+- **For E14-S4:** the create/edit dialog's scope+multiselect+day/time UI is self-contained in `scheduled-run-dialog.tsx` — E14-S4 wires a "Запланировать" branch into `run-dialog.tsx` itself rather than reusing this component directly (different entry point, per its own AC).
 
 ## [E14-S4] Wire Run-now / Schedule choice into Details' create-run flow
 **Epic:** Scheduled Runs
