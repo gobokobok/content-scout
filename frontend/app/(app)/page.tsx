@@ -9,6 +9,7 @@ import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { TabChip } from "@/components/ui";
 
 type Tab = "active" | "archived";
 
@@ -104,19 +105,11 @@ export default function WorkspaceHomePage() {
       </div>
 
       {/* Tabs */}
-      <div className="-mx-4 flex border-b border-border px-4">
+      <div className="flex gap-2">
         {(["active", "archived"] as const).map((t2) => (
-          <button
-            key={t2}
-            onClick={() => setTab(t2)}
-            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-              tab === t2
-                ? "border-accent text-accent"
-                : "border-transparent text-secondary hover:text-ink"
-            }`}
-          >
+          <TabChip key={t2} active={tab === t2} onClick={() => setTab(t2)}>
             {t2 === "active" ? t("activeTab") : t("archivedTab")}
-          </button>
+          </TabChip>
         ))}
       </div>
 

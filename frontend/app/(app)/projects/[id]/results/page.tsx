@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Plus } from "lucide-react";
+import { Info, Plus } from "lucide-react";
 import { api, ApiError, type AccountResponse, type RunResponse } from "@/lib/api";
+import { Badge } from "@/components/ui";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { ContextMenu } from "@/components/ui/context-menu";
 import { useProject } from "@/lib/project-context";
 import { RunDialog } from "../run-dialog";
 
@@ -52,27 +54,47 @@ export default function ResultsTabPage() {
     failed: t("status_failed"),
   };
 
-  const statusClass: Record<RunResponse["status"], string> = {
-    pending: "text-secondary",
-    scraping: "text-secondary",
-    summarizing: "text-secondary",
-    done: "text-success",
-    failed: "text-danger",
+  const statusVariant: Record<RunResponse["status"], "success" | "danger" | "warning"> = {
+    pending: "warning",
+    scraping: "warning",
+    summarizing: "warning",
+    done: "success",
+    failed: "danger",
   };
+
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoAnchorEl, setInfoAnchorEl] = useState<HTMLElement | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Create run entry */}
-      {!isArchived && (
+      <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
+
+      <div className="flex items-center justify-between gap-2">
         <button
-          onClick={() => setRunDialogOpen(true)}
-          disabled={accounts === null || accounts.length === 0}
-          className="flex items-center justify-center gap-1.5 rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40 transition-opacity"
+          onClick={(e) => {
+            setInfoAnchorEl(e.currentTarget);
+            setInfoOpen(true);
+          }}
+          aria-label={t("infoLabel")}
+          className="rounded-control p-1.5 text-secondary hover:bg-bg transition-colors"
         >
-          <Plus className="h-4 w-4" />
-          {t("createRunButton")}
+          <Info className="h-5 w-5" />
         </button>
-      )}
+        {!isArchived && (
+          <button
+            onClick={() => setRunDialogOpen(true)}
+            disabled={accounts === null || accounts.length === 0}
+            className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg disabled:opacity-40 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            {t("createRunButton")}
+          </button>
+        )}
+      </div>
+
+      <ContextMenu open={infoOpen} onClose={() => setInfoOpen(false)} anchorEl={infoAnchorEl}>
+        <p className="px-4 py-3 text-sm text-secondary md:max-w-xs">{t("infoExplanation")}</p>
+      </ContextMenu>
 
       {/* Run history */}
       <div className="flex flex-col gap-3">
@@ -102,13 +124,12 @@ export default function ResultsTabPage() {
                     <span className="text-sm font-medium text-ink">
                       {formatDate(run.created_at)}
                     </span>
-                    <span className={`text-sm ${statusClass[run.status]}`}>
-                      {statusLabel[run.status]}
-                    </span>
+                    <Badge variant={statusVariant[run.status]}>{statusLabel[run.status]}</Badge>
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-secondary">
                     <span>{t("cardAccounts", { count: run.progress_accounts })}</span>
                     <span>{t("cardItems", { count: run.progress_items })}</span>
+                    <span>{t("cardTokens", { count: run.progress_items })}</span>
                   </div>
                 </div>
               );

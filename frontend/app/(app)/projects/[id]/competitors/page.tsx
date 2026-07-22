@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { useProject } from "@/lib/project-context";
+import { CompetitorsInfoButton } from "@/components/competitors-info-button";
 
 const MAX_ACCOUNTS = 50;
 
@@ -85,15 +86,18 @@ export default function CompetitorsTabPage() {
       {/* Back to Детали */}
       <Link
         href={`/projects/${params.id}/details`}
-        className="flex items-center gap-1 text-sm text-secondary hover:text-ink transition-colors"
+        className="flex w-fit items-center gap-1 text-sm text-secondary hover:text-ink transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         {t("backToDetails")}
       </Link>
 
-      {/* Action buttons */}
-      {!isArchived && count < MAX_ACCOUNTS && (
-        <div className="flex items-center justify-end gap-2">
+      <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
+
+      {/* Info + action buttons */}
+      <div className="flex items-center justify-between gap-2">
+        <CompetitorsInfoButton />
+        {!isArchived && count < MAX_ACCOUNTS && (
           <button
             onClick={() => setAddSheetOpen(true)}
             className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
@@ -101,8 +105,8 @@ export default function CompetitorsTabPage() {
             <Plus className="h-4 w-4" />
             {t("addCompetitorButton")}
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Loading skeleton */}
       {accounts === null && <SkeletonList count={4} />}

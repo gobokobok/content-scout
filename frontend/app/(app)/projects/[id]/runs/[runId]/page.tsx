@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Film, ImageIcon, Images } from "lucide-react";
+import { ArrowLeft, Film, ImageIcon, Images } from "lucide-react";
 import {
   api,
   downloadXlsx,
@@ -17,6 +17,7 @@ import { ResultsCards } from "@/components/results-cards";
 import { ResultsControlsBar } from "@/components/results-controls";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { TabChip } from "@/components/ui";
 import { VIRALITY_STYLE } from "@/lib/format";
 
 const DEFAULT_SORT: ItemSortField = "likes_per_day";
@@ -172,28 +173,23 @@ export default function RunDetailPage() {
     <div className="flex flex-col gap-4">
       <button
         onClick={() => router.push(`/projects/${params.id}/results`)}
-        className="w-fit text-sm text-secondary hover:text-ink"
+        className="flex w-fit items-center gap-1 text-sm text-secondary hover:text-ink transition-colors"
       >
+        <ArrowLeft className="h-4 w-4" />
         {t("backToResults")}
       </button>
+
+      <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
 
       {!run && <SkeletonRows count={5} />}
 
       {run && (
         <>
-          <div className="flex gap-1 border-b border-border">
+          <div className="flex gap-2">
             {(["summary", "publications"] as const).map((key) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  tab === key
-                    ? "border-b-2 border-accent text-accent"
-                    : "text-secondary hover:text-ink"
-                }`}
-              >
+              <TabChip key={key} active={tab === key} onClick={() => setTab(key)}>
                 {key === "summary" ? t("tabSummary") : t("tabPublications")}
-              </button>
+              </TabChip>
             ))}
           </div>
 
@@ -205,20 +201,24 @@ export default function RunDetailPage() {
 
           {run.status === "done" && tab === "summary" && (
             <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-card border border-border bg-card p-4">
-                  <p className="text-xs text-secondary">{t("dateLabel")}</p>
-                  <p className="mt-1 text-sm font-medium text-ink">
+              <div className="flex flex-col divide-y divide-border rounded-card border border-border bg-card px-4">
+                <div className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm text-secondary">{t("dateLabel")}</span>
+                  <span className="text-sm font-medium text-ink">
                     {formatRunDate(run.started_at ?? run.created_at)}
-                  </p>
+                  </span>
                 </div>
-                <div className="rounded-card border border-border bg-card p-4">
-                  <p className="text-xs text-secondary">{t("accountsAnalyzed")}</p>
-                  <p className="mt-1 text-sm font-medium text-ink">{run.progress_accounts}</p>
+                <div className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm text-secondary">{t("accountsAnalyzed")}</span>
+                  <span className="text-sm font-medium text-ink">{run.progress_accounts}</span>
                 </div>
-                <div className="rounded-card border border-border bg-card p-4">
-                  <p className="text-xs text-secondary">{t("publicationsAnalyzed")}</p>
-                  <p className="mt-1 text-sm font-medium text-ink">{run.progress_items}</p>
+                <div className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm text-secondary">{t("publicationsAnalyzed")}</span>
+                  <span className="text-sm font-medium text-ink">{run.progress_items}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm text-secondary">{t("tokensSpent")}</span>
+                  <span className="text-sm font-medium text-ink">{run.progress_items}</span>
                 </div>
               </div>
 

@@ -66,6 +66,25 @@ const BADGE_VARIANTS: Record<BadgeVariant, string> = {
   danger: "bg-danger/10 text-danger",
 };
 
+export function tabChipClass(active: boolean, className = ""): string {
+  return `inline-block whitespace-nowrap rounded-chip px-3.5 py-1.5 text-sm font-medium transition-colors ${
+    active ? "bg-accent text-white" : "border border-border text-secondary hover:text-ink"
+  } ${className}`;
+}
+
+export function TabChip({
+  active,
+  className = "",
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean }) {
+  return (
+    <button className={tabChipClass(active, className)} {...props}>
+      {children}
+    </button>
+  );
+}
+
 export function Badge({
   variant = "default",
   className = "",

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, CalendarClock, MoreVertical, Plus } from "lucide-react";
+import { ArrowLeft, CalendarClock, Info, MoreVertical, Plus } from "lucide-react";
 import {
   api,
   ApiError,
@@ -12,11 +12,36 @@ import {
   type RunResponse,
   type ScheduledRunResponse,
 } from "@/lib/api";
+import { Badge } from "@/components/ui";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { useProject } from "@/lib/project-context";
 import { ScheduledRunDialog } from "./scheduled-run-dialog";
+
+function ScheduledRunsInfoButton() {
+  const t = useTranslations("ScheduledRuns");
+  const [open, setOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+  return (
+    <>
+      <button
+        onClick={(e) => {
+          setAnchorEl(e.currentTarget);
+          setOpen(true);
+        }}
+        aria-label={t("infoLabel")}
+        className="rounded-control p-1.5 text-secondary hover:bg-bg transition-colors"
+      >
+        <Info className="h-5 w-5" />
+      </button>
+      <ContextMenu open={open} onClose={() => setOpen(false)} anchorEl={anchorEl}>
+        <p className="px-4 py-3 text-sm text-secondary md:max-w-xs">{t("infoExplanation")}</p>
+      </ContextMenu>
+    </>
+  );
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("ru-RU", {
@@ -106,14 +131,17 @@ export default function ScheduledRunsPage() {
     <div className="flex flex-col gap-4">
       <Link
         href={`/projects/${params.id}/details`}
-        className="flex items-center gap-1 text-sm text-secondary hover:text-ink transition-colors"
+        className="flex w-fit items-center gap-1 text-sm text-secondary hover:text-ink transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         {t("backToDetails")}
       </Link>
 
-      {!isArchived && (
-        <div className="flex items-center justify-end">
+      <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
+
+      <div className="flex items-center justify-between gap-2">
+        <ScheduledRunsInfoButton />
+        {!isArchived && (
           <button
             onClick={() => {
               setEditing(null);
@@ -124,8 +152,8 @@ export default function ScheduledRunsPage() {
             <Plus className="h-4 w-4" />
             {t("createButton")}
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {scheduledRuns === null && <SkeletonList count={3} />}
 
@@ -163,15 +191,15 @@ export default function ScheduledRunsPage() {
                     className="flex flex-1 flex-col items-start gap-1 text-left"
                   >
                     <span className="text-sm font-semibold text-ink">
-                      {t(`weekday${s.day_of_week}`)}, {s.time_of_day.slice(0, 5)}
-                    </span>
-                    <span className="text-xs text-secondary">
                       {scopeText} · {accountsText}
                     </span>
                     <span className="text-xs text-secondary">
                       {t("lastRunLabel")}:{" "}
                       {lastRun ? formatDate(lastRun.finished_at ?? lastRun.created_at) : t("never")}
                     </span>
+                    <Badge variant={s.active ? "success" : "default"} className="mt-1">
+                      {s.active ? t("activeLabel") : t("inactiveLabel")}
+                    </Badge>
                   </button>
                   {!isArchived && (
                     <button
@@ -186,16 +214,6 @@ export default function ScheduledRunsPage() {
                     </button>
                   )}
                 </div>
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  <input
-                    type="checkbox"
-                    checked={s.active}
-                    disabled={isArchived}
-                    onChange={() => void onToggleActive(s)}
-                    className="h-4 w-4 rounded border-border accent-accent"
-                  />
-                  {t("activeLabel")}
-                </label>
               </li>
             );
           })}
@@ -222,6 +240,16 @@ export default function ScheduledRunsPage() {
         anchorEl={menuAnchorEl}
       >
         <div className="flex flex-col py-1">
+          <button
+            onClick={() => {
+              if (!menuSchedule) return;
+              setMenuId(null);
+              void onToggleActive(menuSchedule);
+            }}
+            className="px-4 py-2.5 text-left text-sm text-ink hover:bg-bg transition-colors"
+          >
+            {menuSchedule?.active ? t("deactivateAction") : t("activateAction")}
+          </button>
           <button
             onClick={() => menuSchedule && void onDelete(menuSchedule.id)}
             className="px-4 py-2.5 text-left text-sm text-danger hover:bg-bg transition-colors"

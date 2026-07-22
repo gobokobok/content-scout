@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Users, CalendarClock, ChevronRight } from "lucide-react";
+import { Users, CalendarClock, ChevronRight, Heart, FileText, Coins } from "lucide-react";
 import {
   api,
   ApiError,
   type AccountResponse,
   type ProjectStatsResponse,
 } from "@/lib/api";
+import { formatNumber } from "@/lib/format";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 
@@ -62,23 +63,42 @@ export default function DetailsPage() {
     void load();
   }, [load]);
 
+  const totalSubscribers = accounts?.reduce((sum, a) => sum + (a.followers_count ?? 0), 0) ?? 0;
+
+  const kpis =
+    accounts !== null && stats !== null
+      ? [
+          { icon: Users, value: accounts.length, label: t("kpiCompetitors") },
+          { icon: Heart, value: formatNumber(totalSubscribers), label: t("kpiSubscribers") },
+          {
+            icon: FileText,
+            value: formatNumber(stats.lifetime_items_analyzed),
+            label: t("kpiItemsAnalyzed"),
+          },
+          {
+            icon: Coins,
+            value: formatNumber(stats.lifetime_items_analyzed),
+            label: t("kpiTokensSpent"),
+          },
+        ]
+      : [];
+
   return (
     <div className="flex flex-col gap-6">
-      {/* KPI card */}
+      <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
+
+      {/* KPI dashboard card */}
       {accounts === null || stats === null ? (
         <SkeletonCard />
       ) : (
-        <div className="grid grid-cols-2 gap-4 rounded-card border border-border bg-card p-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-2xl font-semibold text-ink">{accounts.length}</span>
-            <span className="text-sm text-secondary">{t("kpiCompetitors")}</span>
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-2xl font-semibold text-ink">
-              {stats.lifetime_items_analyzed}
-            </span>
-            <span className="text-sm text-secondary">{t("kpiItemsAnalyzed")}</span>
-          </div>
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-border bg-border">
+          {kpis.map(({ icon: Icon, value, label }) => (
+            <div key={label} className="flex flex-col items-center gap-1.5 bg-card px-3 py-5 text-center">
+              <Icon className="h-4 w-4 text-accent" />
+              <span className="text-2xl font-semibold text-ink">{value}</span>
+              <span className="text-sm text-secondary">{label}</span>
+            </div>
+          ))}
         </div>
       )}
 
