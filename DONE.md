@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E16-S1] Analysis teaser page
+**Completed:** 2026-07-22
+**Handover:**
+- By the time this story started, E13-S1 had already deleted `/create` and stubbed `/analysis` (Sparkles "coming soon"), so the story's originally-listed "read `create/page.tsx`" file no longer existed — read the current `/analysis` stub directly instead. No functional impact.
+- `frontend/app/(app)/projects/[id]/analysis/page.tsx` — kept the Sparkles/title/comingSoon block, added a 3-card responsive grid (shared `Card`/`Badge` components) for Разбор конкурента / Разбор запуска / Разбор публикации (the last covers "publication deep-dive + script generation" as one card, matching the existing `comingSoon` copy which already describes it as combined). All cards `opacity-60` + `cursor-not-allowed` + `aria-disabled`, "Скоро" badge, zero click handlers.
+- `frontend/messages/ru.json` — `Analysis.cards.{badge,competitor,run,publication}` keys added.
+- No backend changes, no new deps, no ENV vars. This closes Sprint 8's E16 epic — E15-S1/S2/S3 (run detail: AI summary, top-5-by-virality, Summary+Publications tabs) are next.
+- typecheck + eslint (the CI gate) both clean. Verified visually via a temporary `frontend/app/dev-preview/analysis` scratch route (direct import of the real page component), screenshotted at desktop + 375px, deleted before commit.
+**Smoke test:** DEFERRED — needs a real DEV project open on the Анализ tab to confirm the live cards render with no console errors (same deferral pattern as the rest of this project's verification).
+**Promoted to backlog:** none
+
 ## [E13-S3] Competitors page trim
 **Completed:** 2026-07-22
 **Handover:**
