@@ -56,8 +56,23 @@ async def test_full_graph_roundtrip(session: AsyncSession) -> None:
 
 
 async def test_run_duration_check_rejected(session: AsyncSession) -> None:
-    with pytest.raises(IntegrityError, match="duration_days_range"):
+    with pytest.raises(IntegrityError, match="duration_or_item_limit_range"):
         await make_run(session, duration_days=8)
+
+
+async def test_run_item_limit_out_of_range_rejected(session: AsyncSession) -> None:
+    with pytest.raises(IntegrityError, match="duration_or_item_limit_range"):
+        await make_run(session, duration_days=None, item_limit=51)
+
+
+async def test_run_neither_duration_nor_item_limit_rejected(session: AsyncSession) -> None:
+    with pytest.raises(IntegrityError, match="duration_or_item_limit_range"):
+        await make_run(session, duration_days=None, item_limit=None)
+
+
+async def test_run_both_duration_and_item_limit_rejected(session: AsyncSession) -> None:
+    with pytest.raises(IntegrityError, match="duration_or_item_limit_range"):
+        await make_run(session, duration_days=3, item_limit=10)
 
 
 async def test_duplicate_normalized_url_in_list_rejected(session: AsyncSession) -> None:
