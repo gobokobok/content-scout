@@ -30,6 +30,13 @@ class ProfileInfo:
 class Platform(Protocol):
     slug: str
 
-    async def fetch_content(self, account: Account, since: datetime) -> list[RawContentItem]: ...
+    async def fetch_content(
+        self, account: Account, *, since: datetime | None, limit: int | None = None
+    ) -> list[RawContentItem]:
+        """since=None means no date cutoff — fetch the most recent `limit` posts instead of a
+        day window. Exactly one of since/limit is meaningfully set by the caller (mirrors
+        AnalysisRun.duration_days / item_limit), but both are accepted so a platform can apply
+        whichever combination makes sense for it."""
+        ...
 
     async def fetch_profile(self, account: Account) -> ProfileInfo: ...

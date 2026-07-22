@@ -20,6 +20,6 @@ export type Virality = "high" | "medium" | "low";
 // E5-S5: relative to that account's own median in the run, never an absolute/industry benchmark.
 export const VIRALITY_STYLE: Record<Virality, string> = {
   high: "bg-success/10 text-success",
-  medium: "border border-border bg-bg text-secondary",
-  low: "text-secondary opacity-70",
+  medium: "bg-warning/10 text-warning",
+  low: "bg-danger/10 text-danger",
 };

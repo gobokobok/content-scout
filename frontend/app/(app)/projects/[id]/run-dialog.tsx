@@ -7,6 +7,8 @@ import { api, ApiError } from "@/lib/api";
 import { useRunTracker } from "@/lib/run-tracker";
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
+const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
+type ScopeMode = "days" | "count";
 
 export function RunDialog({
   projectId,
@@ -23,7 +25,9 @@ export function RunDialog({
 }) {
   const t = useTranslations("RunDialog");
   const { trackedRuns, track } = useRunTracker();
+  const [scopeMode, setScopeMode] = useState<ScopeMode>("days");
   const [duration, setDuration] = useState(3);
+  const [itemLimit, setItemLimit] = useState(10);
   const [error, setError] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -48,7 +52,11 @@ export function RunDialog({
     setStarting(true);
     setError(null);
     try {
-      const created = await api.createRun(projectId, { duration_days: duration, account_ids: accountIds });
+      const created = await api.createRun(projectId, {
+        duration_days: scopeMode === "days" ? duration : undefined,
+        item_limit: scopeMode === "count" ? itemLimit : undefined,
+        account_ids: accountIds,
+      });
       track(created, projectId, projectName);
       setRunId(created.id);
     } catch (err) {
@@ -94,25 +102,63 @@ export function RunDialog({
         >
           {!run && (
             <div className="flex flex-col gap-4 p-4">
-              {/* Duration picker */}
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-secondary">{t("durationLabel")}</span>
-                <div className="flex flex-wrap gap-2">
-                  {DAY_OPTIONS.map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setDuration(d)}
-                      className={`h-10 w-10 rounded-control text-sm font-medium transition-colors ${
-                        duration === d
-                          ? "bg-accent text-white"
-                          : "border border-border text-ink hover:bg-bg"
-                      }`}
-                    >
-                      {d}
-                    </button>
-                  ))}
-                </div>
+              {/* Scope mode toggle: day window vs. last-N publications */}
+              <div className="inline-flex self-start rounded-control border border-border p-0.5">
+                {(["days", "count"] as ScopeMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setScopeMode(mode)}
+                    className={`rounded-control px-3 py-1.5 text-sm font-medium transition-colors ${
+                      scopeMode === mode
+                        ? "bg-accent text-white"
+                        : "text-secondary hover:text-ink"
+                    }`}
+                  >
+                    {mode === "days" ? t("scopeModeDays") : t("scopeModeCount")}
+                  </button>
+                ))}
               </div>
+
+              {/* Duration / item-count picker */}
+              {scopeMode === "days" ? (
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-secondary">{t("durationLabel")}</span>
+                  <div className="flex flex-wrap gap-2">
+                    {DAY_OPTIONS.map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setDuration(d)}
+                        className={`h-10 w-10 rounded-control text-sm font-medium transition-colors ${
+                          duration === d
+                            ? "bg-accent text-white"
+                            : "border border-border text-ink hover:bg-bg"
+                        }`}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-secondary">{t("itemLimitLabel")}</span>
+                  <div className="flex flex-wrap gap-2">
+                    {ITEM_LIMIT_OPTIONS.map((n) => (
+                      <button
+                        key={n}
+                        onClick={() => setItemLimit(n)}
+                        className={`h-10 min-w-10 rounded-control px-2 text-sm font-medium transition-colors ${
+                          itemLimit === n
+                            ? "bg-accent text-white"
+                            : "border border-border text-ink hover:bg-bg"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <p className="text-sm text-secondary">{t("accountsLabel", { count: accountsCount })}</p>
 

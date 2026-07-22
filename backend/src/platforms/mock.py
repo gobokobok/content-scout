@@ -14,13 +14,17 @@ class MockPlatform:
 
     slug = "mock"
 
-    async def fetch_content(self, account: Account, since: datetime) -> list[RawContentItem]:
+    async def fetch_content(
+        self, account: Account, *, since: datetime | None, limit: int | None = None
+    ) -> list[RawContentItem]:
+        count = limit if limit is not None else _ITEMS_PER_ACCOUNT
         now = datetime.now(UTC)
-        span = max(now - since, timedelta(seconds=_ITEMS_PER_ACCOUNT))
-        step = span / (_ITEMS_PER_ACCOUNT + 1)
+        window = (now - since) if since is not None else timedelta(days=count)
+        span = max(window, timedelta(seconds=count))
+        step = span / (count + 1)
 
         items: list[RawContentItem] = []
-        for i in range(_ITEMS_PER_ACCOUNT):
+        for i in range(count):
             content_type = _TYPES[i % len(_TYPES)]
             published_at = now - step * (i + 1)
             items.append(

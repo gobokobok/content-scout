@@ -43,7 +43,9 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         await session.commit()
 
         accounts = await resolve_target_accounts(session, run.project_id, run.account_ids)
-        since = run.started_at - timedelta(days=run.duration_days)
+        # Exactly one of duration_days/item_limit is set on the run (see AnalysisRun) — a day
+        # window (since, no limit override) or the last N publications (no date cutoff, limit=N).
+        since = run.started_at - timedelta(days=run.duration_days) if run.duration_days else None
         platform = get_platform(PlatformSlug.instagram)
         settings = get_settings()
         semaphore = asyncio.Semaphore(settings.scrape_concurrency)
@@ -55,7 +57,10 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
                 except Exception:  # noqa: BLE001 — profile fetch never fails the account's scrape
                     profile_info = None
                 try:
-                    return account, await platform.fetch_content(account, since), profile_info, None
+                    content = await platform.fetch_content(
+                        account, since=since, limit=run.item_limit
+                    )
+                    return account, content, profile_info, None
                 except Exception as exc:  # noqa: BLE001
                     return account, None, profile_info, exc
 

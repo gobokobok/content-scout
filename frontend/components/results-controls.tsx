@@ -5,8 +5,17 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import type { ItemSortField, RunResponse } from "@/lib/api";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { canDownloadViaTelegram } from "@/lib/telegram-webapp";
 
-const SORT_FIELDS: ItemSortField[] = ["likes_per_day", "likes", "published_at", "account"];
+const SORT_FIELDS: ItemSortField[] = [
+  "likes_per_day",
+  "likes",
+  "published_at",
+  "account",
+  "virality",
+  "engagement_rate",
+  "comments",
+];
 
 function iconButtonClass(active: boolean): string {
   return `inline-flex items-center justify-center rounded-control border p-2 transition-colors ${
@@ -52,6 +61,9 @@ export function ResultsControlsBar({
     likes: t("sortLikes"),
     published_at: t("sortPublishedAt"),
     account: t("sortAccount"),
+    virality: t("sortVirality"),
+    engagement_rate: t("sortEngagementRate"),
+    comments: t("sortComments"),
   };
 
   return (
@@ -62,13 +74,6 @@ export function ResultsControlsBar({
         className={iconButtonClass(false)}
       >
         <ArrowDownUp className="h-4 w-4" />
-      </button>
-      <button
-        onClick={() => setExportOpen(true)}
-        aria-label={t("exportIconLabel")}
-        className={iconButtonClass(false)}
-      >
-        <FileSpreadsheet className="h-4 w-4" />
       </button>
       {runs.length > 0 && (
         <button
@@ -85,6 +90,13 @@ export function ResultsControlsBar({
         className={iconButtonClass(starredOnly)}
       >
         <Star className={`h-4 w-4 ${starredOnly ? "fill-accent" : ""}`} />
+      </button>
+      <button
+        onClick={() => setExportOpen(true)}
+        aria-label={t("exportIconLabel")}
+        className={`${iconButtonClass(false)} ml-auto`}
+      >
+        <FileSpreadsheet className="h-4 w-4" />
       </button>
 
       {/* Sort sheet */}
@@ -118,6 +130,10 @@ export function ResultsControlsBar({
       {/* Export sheet */}
       <BottomSheet open={exportOpen} onClose={() => setExportOpen(false)} title={t("exportSheetTitle")}>
         <div className="px-4 pb-2">
+          <p className="mb-3 text-sm text-secondary">
+            {t("exportSheetExplanation")}
+            {canDownloadViaTelegram() && <> {t("exportSheetTelegramNote")}</>}
+          </p>
           <button
             onClick={() => {
               setExportOpen(false);

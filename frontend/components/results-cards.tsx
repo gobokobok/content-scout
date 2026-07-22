@@ -169,9 +169,11 @@ function ContentCard({
             {viralityLabel[item.virality]}
           </span>
         )}
-        <span className="inline-flex items-center rounded-chip bg-bg border border-border px-2 py-0.5 text-xs text-secondary">
-          {daysSince(item.published_at)}&nbsp;{t("metricsDaysSince")}
-        </span>
+        {expanded && (
+          <span className="inline-flex items-center rounded-chip bg-bg border border-border px-2 py-0.5 text-xs text-secondary">
+            {daysSince(item.published_at)}&nbsp;{t("metricsDaysSince")}
+          </span>
+        )}
         <span className="inline-flex items-center rounded-chip border border-border bg-bg px-2 py-0.5 text-xs text-secondary">
           {formatNumber(item.likes)}&nbsp;{t("metricsLikes")}
         </span>

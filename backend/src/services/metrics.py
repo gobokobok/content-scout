@@ -94,6 +94,33 @@ def virality_ratio(
     return max(candidates) if candidates else None
 
 
+def virality_ratio_expr(
+    median_engagement: ColumnElement[Any],
+    median_views: ColumnElement[Any],
+    item_count: ColumnElement[Any],
+    settings: Settings,
+) -> ColumnElement[Any]:
+    """SQL mirror of virality_ratio() + bucket_virality()'s min-items guard, so results can be
+    sorted by the same "hype index" the badge is based on. Postgres's GREATEST ignores NULL
+    arguments (only NULL if every argument is NULL), matching virality_ratio()'s `max` over
+    non-null candidates.
+    """
+    engagement = _engagement_expr()
+    engagement_ratio = case(
+        (median_engagement.isnot(None) & (median_engagement != 0), engagement / median_engagement),
+        else_=None,
+    )
+    view_ratio = case(
+        (
+            ContentItem.views.isnot(None) & median_views.isnot(None) & (median_views != 0),
+            cast(ContentItem.views, Float) / median_views,
+        ),
+        else_=None,
+    )
+    ratio = func.greatest(engagement_ratio, view_ratio)
+    return case((item_count < settings.virality_min_items, None), else_=ratio)
+
+
 def bucket_virality(
     ratio: float | None, item_count: int, settings: Settings
 ) -> Literal["high", "medium", "low"] | None:

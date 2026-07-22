@@ -29,13 +29,24 @@ class RunStatus(enum.StrEnum):
 
 class AnalysisRun(UuidPk, CreatedAt, Base):
     __tablename__ = "analysis_runs"
-    __table_args__ = (CheckConstraint("duration_days BETWEEN 1 AND 7", name="duration_days_range"),)
+    # Exactly one of duration_days (a day window) / item_limit (last N publications per
+    # account) is set — mutually exclusive ways to scope a scrape, never both.
+    __table_args__ = (
+        CheckConstraint(
+            "(duration_days IS NOT NULL AND item_limit IS NULL"
+            " AND duration_days BETWEEN 1 AND 7)"
+            " OR (item_limit IS NOT NULL AND duration_days IS NULL"
+            " AND item_limit BETWEEN 1 AND 50)",
+            name="duration_or_item_limit_range",
+        ),
+    )
 
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id"), nullable=False, index=True
     )
     requested_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    duration_days: Mapped[int] = mapped_column(nullable=False)
+    duration_days: Mapped[int | None] = mapped_column(nullable=True)
+    item_limit: Mapped[int | None] = mapped_column(nullable=True)
     # NULL = every active account in the project's IG list; otherwise an explicit subset.
     account_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(Uuid()), nullable=True)
     status: Mapped[RunStatus] = mapped_column(

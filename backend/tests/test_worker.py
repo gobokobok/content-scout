@@ -86,6 +86,25 @@ async def test_process_run_scrapes_mock_content_and_completes(session: AsyncSess
     assert run.total_cost_usd > 0
 
 
+async def test_process_run_item_limit_mode_fetches_last_n_publications(
+    session: AsyncSession,
+) -> None:
+    """When item_limit is set instead of duration_days, the worker must pass since=None (no
+    date cutoff) and limit=item_limit through to the platform."""
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    run = await make_run(session, project=project, duration_days=None, item_limit=5)
+    await session.commit()
+
+    with patch("src.worker.summarize_run_items", side_effect=_fake_summarize):
+        await process_run(session, run)
+
+    assert run.status == RunStatus.done
+    items = (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
+    assert len(items) == 5
+
+
 async def test_process_run_only_targets_active_accounts(session: AsyncSession) -> None:
     project = await make_project(session)
     account_list = await make_account_list(session, project=project)
@@ -127,12 +146,12 @@ async def test_process_run_account_failure_does_not_fail_run(session: AsyncSessi
     class _FlakyPlatform:
         slug = "mock"
 
-        async def fetch_content(self, account, since):
+        async def fetch_content(self, account, since=None, limit=None):
             if account.id == bad_account.id:
                 raise RuntimeError("account is private")
             from src.platforms.mock import MockPlatform
 
-            return await MockPlatform().fetch_content(account, since)
+            return await MockPlatform().fetch_content(account, since=since, limit=limit)
 
     with (
         patch("src.worker.get_platform", return_value=_FlakyPlatform()),
@@ -164,10 +183,10 @@ async def test_process_run_profile_fetch_failure_falls_back_to_last_known(
     class _ProfileFlakyPlatform:
         slug = "mock"
 
-        async def fetch_content(self, account, since):
+        async def fetch_content(self, account, since=None, limit=None):
             from src.platforms.mock import MockPlatform
 
-            return await MockPlatform().fetch_content(account, since)
+            return await MockPlatform().fetch_content(account, since=since, limit=limit)
 
         async def fetch_profile(self, account):
             raise RuntimeError("apify profile boom")
@@ -242,14 +261,14 @@ async def test_process_run_cancellation_marks_failed(session: AsyncSession) -> N
     # Use an event to confirm the task is inside the blocking sleep before we cancel.
     inside = asyncio.Event()
 
-    async def _blocking_fetch(account, since):
+    async def _blocking_fetch(account, since=None, limit=None):
         inside.set()
         await asyncio.sleep(60)
         return []
 
     class _BlockingPlatform:
-        async def fetch_content(self, account, since):
-            return await _blocking_fetch(account, since)
+        async def fetch_content(self, account, since=None, limit=None):
+            return await _blocking_fetch(account, since=since, limit=limit)
 
     with patch("src.worker.get_platform", return_value=_BlockingPlatform()):
         task = asyncio.create_task(process_run(session, run))

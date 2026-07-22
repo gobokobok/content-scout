@@ -19,6 +19,7 @@ from src.services.metrics import (
     views_per_day_expr,
     virality_baseline_subquery,
     virality_ratio,
+    virality_ratio_expr,
 )
 from src.services.projects import ProjectNotFoundError, get_owned_project
 
@@ -52,6 +53,7 @@ SortField = Literal[
     "views_per_day",
     "likes_per_day",
     "engagement_rate",
+    "virality",
 ]
 
 
@@ -136,6 +138,12 @@ async def list_run_items(
         "views_per_day": views_per_day,
         "likes_per_day": likes_per_day,
         "engagement_rate": engagement_rate,
+        "virality": virality_ratio_expr(
+            virality_subq.c.median_engagement,
+            virality_subq.c.median_views,
+            virality_subq.c.item_count,
+            settings,
+        ),
     }
     sort_col = sort_columns[sort]
     order_by = sort_col.asc().nulls_last() if order == "asc" else sort_col.desc().nulls_last()
@@ -282,6 +290,12 @@ async def list_project_items(
         "views_per_day": views_per_day,
         "likes_per_day": likes_per_day,
         "engagement_rate": engagement_rate,
+        "virality": virality_ratio_expr(
+            virality_subq.c.median_engagement,
+            virality_subq.c.median_views,
+            virality_subq.c.item_count,
+            settings,
+        ),
     }
     sort_col = sort_columns[sort]
     order_by = sort_col.asc().nulls_last() if order == "asc" else sort_col.desc().nulls_last()

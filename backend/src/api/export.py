@@ -24,6 +24,7 @@ from src.services.metrics import (
     views_per_day_expr,
     virality_baseline_subquery,
     virality_ratio,
+    virality_ratio_expr,
 )
 from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.xlsx_export import build_shortlist_xlsx, build_xlsx, safe_filename_part
@@ -115,6 +116,12 @@ async def export_run_xlsx(
         "views_per_day": views_per_day,
         "likes_per_day": likes_per_day,
         "engagement_rate": engagement_rate,
+        "virality": virality_ratio_expr(
+            virality_subq.c.median_engagement,
+            virality_subq.c.median_views,
+            virality_subq.c.item_count,
+            settings,
+        ),
     }
     sort_col = sort_columns[sort]
     order_by = sort_col.asc().nulls_last() if order == "asc" else sort_col.desc().nulls_last()
@@ -343,6 +350,12 @@ async def export_project_items_xlsx(
         "views_per_day": views_per_day,
         "likes_per_day": likes_per_day,
         "engagement_rate": engagement_rate,
+        "virality": virality_ratio_expr(
+            virality_subq.c.median_engagement,
+            virality_subq.c.median_views,
+            virality_subq.c.item_count,
+            settings,
+        ),
     }
     sort_col = sort_columns[sort]
     order_by = sort_col.asc().nulls_last() if order == "asc" else sort_col.desc().nulls_last()

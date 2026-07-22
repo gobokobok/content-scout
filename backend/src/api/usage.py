@@ -35,7 +35,8 @@ class RunSummaryOut(BaseModel):
     project_id: uuid.UUID
     project_name: str
     status: str
-    duration_days: int
+    duration_days: int | None
+    item_limit: int | None
     progress_items: int
     total_input_tokens: int
     total_output_tokens: int
@@ -92,6 +93,7 @@ async def get_my_runs(
             project_name=project_name,
             status=run.status,
             duration_days=run.duration_days,
+            item_limit=run.item_limit,
             progress_items=run.progress_items,
             total_input_tokens=run.total_input_tokens,
             total_output_tokens=run.total_output_tokens,

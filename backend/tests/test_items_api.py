@@ -238,6 +238,74 @@ async def test_virality_badge_and_engagement_rate(session: AsyncSession) -> None
         assert by_title["Quiet 0"]["virality"] is None
 
 
+async def test_sort_by_virality(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    viral_account = await make_account(
+        session, account_list=account_list, handle="viral", followers_count=1000
+    )
+    # Below virality_min_items=3 — its ratio must sort last regardless of direction.
+    quiet_account = await make_account(session, account_list=account_list, handle="quiet")
+    run = await make_run(session, project=project, requested_by=owner)
+
+    now = datetime.now(UTC)
+    for i in range(3):
+        await make_content_item(
+            session,
+            run=run,
+            account=viral_account,
+            type=ContentType.post,
+            published_at=now - timedelta(days=1),
+            likes=100,
+            comments=0,
+            views=None,
+            title=f"Baseline {i}",
+        )
+    await make_content_item(
+        session,
+        run=run,
+        account=viral_account,
+        type=ContentType.post,
+        published_at=now - timedelta(days=1),
+        likes=500,
+        comments=0,
+        views=None,
+        title="Outlier",
+    )
+    for i in range(2):
+        await make_content_item(
+            session,
+            run=run,
+            account=quiet_account,
+            type=ContentType.post,
+            published_at=now - timedelta(days=1),
+            likes=10,
+            comments=0,
+            views=None,
+            title=f"Quiet {i}",
+        )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(
+            f"/runs/{run.id}/items?sort=virality&order=desc", headers=auth_headers(owner.id)
+        )
+        titles = [item["title"] for item in resp.json()["items"]]
+        assert titles[0] == "Outlier"
+        assert set(titles[-2:]) == {"Quiet 0", "Quiet 1"}
+
+        resp = await c.get(
+            f"/runs/{run.id}/items?sort=virality&order=asc", headers=auth_headers(owner.id)
+        )
+        titles = [item["title"] for item in resp.json()["items"]]
+        # nulls sort last regardless of direction; Outlier has the highest ratio, so it's last
+        # among the non-null items (right before the null/Quiet block) in ascending order.
+        assert set(titles[-2:]) == {"Quiet 0", "Quiet 1"}
+        assert titles[-3] == "Outlier"
+
+
 async def test_items_scoped_to_owning_workspace(session: AsyncSession) -> None:
     owner, run = await _setup_run_with_items(session)
     other_user = await make_user(session)

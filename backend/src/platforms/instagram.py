@@ -38,8 +38,10 @@ class InstagramPlatform:
         self._actor_id = settings.apify_ig_actor_id
         self._max_charge_usd = Decimal(str(settings.apify_max_charge_per_fetch_usd))
 
-    async def fetch_content(self, account: Account, since: datetime) -> list[RawContentItem]:
-        return await self._with_retries(lambda: self._fetch_once(account, since))
+    async def fetch_content(
+        self, account: Account, *, since: datetime | None, limit: int | None = None
+    ) -> list[RawContentItem]:
+        return await self._with_retries(lambda: self._fetch_once(account, since, limit))
 
     async def fetch_profile(self, account: Account) -> ProfileInfo:
         return await self._with_retries(lambda: self._fetch_profile_once(account))
@@ -56,14 +58,21 @@ class InstagramPlatform:
         assert last_exc is not None
         raise last_exc
 
-    async def _fetch_once(self, account: Account, since: datetime) -> list[RawContentItem]:
+    async def _fetch_once(
+        self, account: Account, since: datetime | None, limit: int | None
+    ) -> list[RawContentItem]:
+        run_input: dict[str, Any] = {
+            "directUrls": [account.normalized_url],
+            "resultsType": "posts",
+            "resultsLimit": limit if limit is not None else _RESULTS_LIMIT,
+        }
+        # since=None means "last N publications" mode (item_limit) — no date cutoff, just the
+        # most recent `limit` posts regardless of when they were published.
+        if since is not None:
+            run_input["onlyPostsNewerThan"] = since.date().isoformat()
+
         run = await self._client.actor(self._actor_id).call(
-            run_input={
-                "directUrls": [account.normalized_url],
-                "resultsType": "posts",
-                "resultsLimit": _RESULTS_LIMIT,
-                "onlyPostsNewerThan": since.date().isoformat(),
-            },
+            run_input=run_input,
             run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
             max_total_charge_usd=self._max_charge_usd,
         )

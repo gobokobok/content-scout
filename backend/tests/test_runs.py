@@ -64,6 +64,44 @@ async def test_estimate_reflects_account_count_and_duration(session: AsyncSessio
         assert float(body["estimated_cost_usd"]) > 0
 
 
+async def test_estimate_with_item_limit(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=4)
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs/estimate",
+            json={"item_limit": 10},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["apify_units"] == 40  # 4 accounts * 10 items
+
+
+async def test_run_request_rejects_both_duration_and_item_limit(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=1)
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs/estimate",
+            json={"duration_days": 3, "item_limit": 10},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 422
+
+
+async def test_run_request_rejects_neither_duration_nor_item_limit(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=1)
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs/estimate",
+            json={},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 422
+
+
 async def test_duration_out_of_range_rejected(session: AsyncSession) -> None:
     owner, project = await _setup_project_with_accounts(session, n=1)
 
@@ -93,6 +131,24 @@ async def test_create_run_enqueues_job(mock_enqueue: AsyncMock, session: AsyncSe
         assert body["progress_summarized"] == 0
         assert body["total_input_tokens"] == 0
         assert body["total_output_tokens"] == 0
+
+    mock_enqueue.assert_awaited_once()
+
+
+@patch("src.api.runs.enqueue_run", new_callable=AsyncMock)
+async def test_create_run_with_item_limit(mock_enqueue: AsyncMock, session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=2)
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs",
+            json={"item_limit": 15},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["item_limit"] == 15
+        assert body["duration_days"] is None
 
     mock_enqueue.assert_awaited_once()
 

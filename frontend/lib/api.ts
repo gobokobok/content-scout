@@ -99,7 +99,8 @@ export interface RunResponse {
   id: string;
   project_id: string;
   status: "pending" | "scraping" | "summarizing" | "done" | "failed";
-  duration_days: number;
+  duration_days: number | null;
+  item_limit: number | null;
   progress_accounts: number;
   progress_items: number;
   progress_summarized: number;
@@ -114,7 +115,8 @@ export interface RunResponse {
 }
 
 export interface RunRequest {
-  duration_days: number;
+  duration_days?: number;
+  item_limit?: number;
   account_ids?: string[];
 }
 
@@ -186,7 +188,8 @@ export interface RunSummaryResponse {
   project_id: string;
   project_name: string;
   status: string;
-  duration_days: number;
+  duration_days: number | null;
+  item_limit: number | null;
   progress_items: number;
   total_input_tokens: number;
   total_output_tokens: number;
@@ -225,7 +228,8 @@ export type ItemSortField =
   | "days_since_published"
   | "views_per_day"
   | "likes_per_day"
-  | "engagement_rate";
+  | "engagement_rate"
+  | "virality";
 
 export const api = {
   getRegisterConfig: () =>

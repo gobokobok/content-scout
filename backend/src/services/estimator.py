@@ -13,10 +13,19 @@ class RunEstimate:
     estimated_cost_usd: Decimal
 
 
-def estimate_run(settings: Settings, accounts_count: int, duration_days: int) -> RunEstimate:
-    expected_items = math.ceil(
-        accounts_count * duration_days * settings.avg_items_per_account_per_day
-    )
+def estimate_run(
+    settings: Settings,
+    accounts_count: int,
+    *,
+    duration_days: int | None,
+    item_limit: int | None,
+) -> RunEstimate:
+    if item_limit is not None:
+        expected_items = accounts_count * item_limit
+    else:
+        expected_items = math.ceil(
+            accounts_count * (duration_days or 0) * settings.avg_items_per_account_per_day
+        )
     apify_units = expected_items
     claude_input_tokens = expected_items * settings.avg_claude_input_tokens_per_item
     claude_output_tokens = expected_items * settings.avg_claude_output_tokens_per_item

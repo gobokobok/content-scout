@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,8 +46,16 @@ NO_BALANCE = HTTPException(
 
 
 class RunRequestIn(BaseModel):
-    duration_days: int = Field(ge=1, le=7)
+    # Exactly one of the two — a day window, or the last N publications per account.
+    duration_days: int | None = Field(default=None, ge=1, le=7)
+    item_limit: int | None = Field(default=None, ge=1, le=50)
     account_ids: list[uuid.UUID] | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_scope(self) -> "RunRequestIn":
+        if (self.duration_days is None) == (self.item_limit is None):
+            raise ValueError("Ровно одно из duration_days/item_limit должно быть задано.")
+        return self
 
 
 class EstimateOut(BaseModel):
@@ -62,7 +70,8 @@ class RunOut(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
     status: str
-    duration_days: int
+    duration_days: int | None
+    item_limit: int | None
     progress_accounts: int
     progress_items: int
     progress_summarized: int
@@ -82,6 +91,7 @@ class RunOut(BaseModel):
             project_id=run.project_id,
             status=run.status.value,
             duration_days=run.duration_days,
+            item_limit=run.item_limit,
             progress_accounts=run.progress_accounts,
             progress_items=run.progress_items,
             progress_summarized=run.progress_summarized,
@@ -133,7 +143,9 @@ async def estimate_project_run(
 ) -> EstimateOut:
     await _get_project(session, user, project_id)
     accounts = await resolve_target_accounts(session, project_id, body.account_ids)
-    est = estimate_run(get_settings(), len(accounts), body.duration_days)
+    est = estimate_run(
+        get_settings(), len(accounts), duration_days=body.duration_days, item_limit=body.item_limit
+    )
     return EstimateOut(
         apify_units=est.apify_units,
         claude_input_tokens=est.claude_input_tokens,
@@ -158,11 +170,14 @@ async def create_run(
     if not accounts:
         raise NO_ACCOUNTS
 
-    est = estimate_run(get_settings(), len(accounts), body.duration_days)
+    est = estimate_run(
+        get_settings(), len(accounts), duration_days=body.duration_days, item_limit=body.item_limit
+    )
     run = AnalysisRun(
         project_id=project_id,
         requested_by=user.id,
         duration_days=body.duration_days,
+        item_limit=body.item_limit,
         account_ids=body.account_ids,
         estimated_cost_usd=est.estimated_cost_usd,
     )
