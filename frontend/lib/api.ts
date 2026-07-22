@@ -305,6 +305,25 @@ export const api = {
     request<ItemsPageResponse>(
       `/runs/${runId}/items?sort=${params.sort}&order=${params.order}&page=${params.page}`,
     ),
+  listProjectItems: (
+    projectId: string,
+    params: {
+      runId: string | null;
+      starredOnly: boolean;
+      sort: ItemSortField;
+      order: "asc" | "desc";
+      page: number;
+    },
+  ) => {
+    const q = new URLSearchParams({
+      sort: params.sort,
+      order: params.order,
+      page: String(params.page),
+      starred_only: String(params.starredOnly),
+    });
+    if (params.runId) q.set("run_id", params.runId);
+    return request<ItemsPageResponse>(`/projects/${projectId}/items?${q.toString()}`);
+  },
   listShortlist: (projectId: string) =>
     request<ShortlistItemResponse[]>(`/projects/${projectId}/shortlist/items`),
   addToShortlist: (projectId: string, itemIds: string[]) =>
@@ -383,6 +402,39 @@ export const api = {
     request<{ token: string }>(`/projects/${projectId}/shortlist/export-token`, {
       method: "POST",
     }),
+  mintProjectItemsExportToken: (projectId: string) =>
+    request<{ token: string }>(`/projects/${projectId}/items/export-token`, { method: "POST" }),
+  downloadProjectItemsXlsx: async (
+    projectId: string,
+    params: { runId: string | null; starredOnly: boolean; sort: ItemSortField; order: "asc" | "desc" },
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const token = getToken();
+    const headers = new Headers();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    const q = new URLSearchParams({
+      sort: params.sort,
+      order: params.order,
+      starred_only: String(params.starredOnly),
+    });
+    if (params.runId) q.set("run_id", params.runId);
+    const res = await fetch(`${API_URL}/projects/${projectId}/items/export.xlsx?${q.toString()}`, {
+      headers,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      const detail = body?.detail;
+      throw new ApiError(
+        res.status,
+        detail?.code ?? "unknown_error",
+        detail?.message_ru ?? "Произошла ошибка. Попробуйте ещё раз.",
+      );
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("content-disposition") ?? "";
+    const match = cd.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `content-scout_${projectId}.xlsx`;
+    return { blob, filename };
+  },
 };
 
 /**

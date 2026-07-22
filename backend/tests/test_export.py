@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.tokens import create_access_token
 from src.db import get_session
 from src.main import app
-from src.models import ContentType
+from src.models import ContentType, RunStatus
 from tests.conftest import (
     make_account,
     make_account_list,
@@ -199,6 +199,84 @@ async def test_export_download_token_cannot_mint_for_foreign_run(session: AsyncS
     async with await client(session) as c:
         resp = await c.post(f"/runs/{run.id}/export-token", headers=auth_headers(other.id))
     assert resp.status_code == 404
+
+
+async def test_project_items_export_token_mint_and_use(session: AsyncSession) -> None:
+    owner, run = await _setup(session)
+    async with await client(session) as c:
+        mint_resp = await c.post(
+            f"/projects/{run.project_id}/items/export-token", headers=auth_headers(owner.id)
+        )
+        assert mint_resp.status_code == 200
+        token = mint_resp.json()["token"]
+
+        resp = await c.get(f"/projects/{run.project_id}/items/export.xlsx?dl_token={token}")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+
+async def test_project_items_export_pools_across_runs_and_respects_run_filter(
+    session: AsyncSession,
+) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, handle="natgeo")
+    run_1 = await make_run(session, project=project, requested_by=owner, status=RunStatus.done)
+    run_2 = await make_run(session, project=project, requested_by=owner, status=RunStatus.done)
+    await make_content_item(session, run=run_1, account=account, title="From run 1")
+    await make_content_item(session, run=run_2, account=account, title="From run 2")
+    await session.commit()
+
+    import io
+
+    from openpyxl import load_workbook
+
+    async with await client(session) as c:
+        headers = auth_headers(owner.id)
+
+        resp = await c.get(f"/projects/{project.id}/items/export.xlsx", headers=headers)
+        wb = load_workbook(io.BytesIO(resp.content))
+        assert wb.active.max_row == 3  # header + 2 items across both runs
+
+        resp = await c.get(
+            f"/projects/{project.id}/items/export.xlsx?run_id={run_1.id}", headers=headers
+        )
+        wb = load_workbook(io.BytesIO(resp.content))
+        assert wb.active.max_row == 2  # header + 1 item scoped to run_1
+
+
+async def test_project_items_export_respects_starred_only(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, handle="natgeo")
+    run = await make_run(session, project=project, requested_by=owner, status=RunStatus.done)
+    starred = await make_content_item(session, run=run, account=account, title="Starred")
+    await make_content_item(session, run=run, account=account, title="Not starred")
+    await session.commit()
+
+    import io
+
+    from openpyxl import load_workbook
+
+    async with await client(session) as c:
+        headers = auth_headers(owner.id)
+        await c.post(
+            f"/projects/{project.id}/shortlist/items",
+            json={"item_ids": [str(starred.id)]},
+            headers=headers,
+        )
+
+        resp = await c.get(
+            f"/projects/{project.id}/items/export.xlsx?starred_only=true", headers=headers
+        )
+        wb = load_workbook(io.BytesIO(resp.content))
+        assert wb.active.max_row == 2  # header + the one starred item
 
 
 async def test_shortlist_export_download_token_mint_and_use(session: AsyncSession) -> None:

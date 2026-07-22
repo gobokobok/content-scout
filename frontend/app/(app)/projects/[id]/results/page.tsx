@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { ResultsTable } from "@/components/results-table";
 import { ResultsCards, ShortlistCards } from "@/components/results-cards";
+import { ResultsControlsBar } from "@/components/results-controls";
 import { SkeletonRows, SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
@@ -62,6 +63,7 @@ export default function ResultsTabPage() {
   const [itemsPage, setItemsPage] = useState<{ items: ContentItemResponse[]; total: number } | null>(null);
   const [runSelectorOpen, setRunSelectorOpen] = useState(false);
   const [runSelectorAnchorEl, setRunSelectorAnchorEl] = useState<HTMLElement | null>(null);
+  const [starredOnly, setStarredOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   // ── Shortlist state ────────────────────────────────────────────────────────
@@ -93,17 +95,17 @@ export default function ResultsTabPage() {
   useEffect(() => { void loadRuns(); }, [loadRuns]);
   useEffect(() => { if (subTab === "shortlist") void loadShortlist(); }, [subTab, loadShortlist]);
 
-  // ── Load items for selected run ───────────────────────────────────────────
+  // ── Load items (single run, or "all runs" when selectedRunId is null) ─────
   useEffect(() => {
-    if (!selectedRunId) return;
+    if (runs === null) return; // wait for the default run selection to settle first
     let cancelled = false;
     setItemsPage(null);
     api
-      .listRunItems(selectedRunId, { sort, order, page })
+      .listProjectItems(params.id, { runId: selectedRunId, starredOnly, sort, order, page })
       .then((res) => { if (!cancelled) setItemsPage({ items: res.items, total: res.total }); })
       .catch((err) => { if (cancelled) return; addToast(err instanceof ApiError ? err.messageRu : t("genericError")); });
     return () => { cancelled = true; };
-  }, [selectedRunId, sort, order, page, t, addToast]);
+  }, [runs, params.id, selectedRunId, starredOnly, sort, order, page, t, addToast]);
 
   // ── Sort / shortlist handlers ─────────────────────────────────────────────
   function onSortChange(field: ItemSortField) {
@@ -112,35 +114,35 @@ export default function ResultsTabPage() {
     setPage(1);
   }
 
+  async function refreshItems() {
+    const res = await api.listProjectItems(params.id, { runId: selectedRunId, starredOnly, sort, order, page });
+    setItemsPage({ items: res.items, total: res.total });
+  }
+
   async function handleShortlistToggle(contentItemId: string, add: boolean) {
     try {
       if (add) await api.addToShortlist(params.id, [contentItemId]);
       else await api.removeFromShortlist(params.id, contentItemId);
-      if (selectedRunId) {
-        const res = await api.listRunItems(selectedRunId, { sort, order, page });
-        setItemsPage({ items: res.items, total: res.total });
-      }
+      await refreshItems();
     } catch (err) { addToast(err instanceof ApiError ? err.messageRu : t("genericError")); }
   }
 
   async function handleBulkShortlist(contentItemIds: string[]) {
     try {
       await api.addToShortlist(params.id, contentItemIds);
-      if (selectedRunId) {
-        const res = await api.listRunItems(selectedRunId, { sort, order, page });
-        setItemsPage({ items: res.items, total: res.total });
-      }
+      await refreshItems();
     } catch (err) { addToast(err instanceof ApiError ? err.messageRu : t("genericError")); }
   }
 
   async function handleExport() {
-    if (!selectedRunId) return;
     setExporting(true);
     try {
+      const qs = new URLSearchParams({ sort, order, starred_only: String(starredOnly) });
+      if (selectedRunId) qs.set("run_id", selectedRunId);
       await downloadXlsx(
-        `/runs/${selectedRunId}/export.xlsx?sort=${sort}&order=${order}`,
-        () => api.mintRunExportToken(selectedRunId),
-        () => api.downloadRunXlsx(selectedRunId, sort, order),
+        `/projects/${params.id}/items/export.xlsx?${qs.toString()}`,
+        () => api.mintProjectItemsExportToken(params.id),
+        () => api.downloadProjectItemsXlsx(params.id, { runId: selectedRunId, starredOnly, sort, order }),
         "content-scout-results.xlsx",
       );
     } catch (err) { addToast(err instanceof ApiError ? err.messageRu : t("genericError")); }
@@ -174,7 +176,15 @@ export default function ResultsTabPage() {
     setPage(1);
   }
 
+  function onRunFilterChange(id: string | null) {
+    setSelectedRunId(id);
+    setPage(1);
+  }
+
   const selectedRun = runs?.find((r) => r.id === selectedRunId) ?? null;
+  // null selectedRunId means "all runs" (mobile filter) — the aggregated endpoint already
+  // restricts to done runs server-side, so there's no run-status gate to wait on.
+  const showItems = selectedRunId === null || selectedRun?.status === "done";
   const totalPages = itemsPage ? Math.max(1, Math.ceil(itemsPage.total / 50)) : 1;
 
   const paginationBar = (
@@ -213,8 +223,8 @@ export default function ResultsTabPage() {
   // ── Results tab ────────────────────────────────────────────────────────────
   const resultsContent = (
     <div className="flex flex-col gap-4">
-      {/* Run selector */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Run selector — desktop only; mobile gets the filter icon in ResultsControlsBar below */}
+      <div className="hidden md:flex flex-wrap items-center gap-2">
         {runs !== null && runs.length > 0 && (
           <button
             onClick={(e) => { setRunSelectorAnchorEl(e.currentTarget); setRunSelectorOpen(true); }}
@@ -238,21 +248,37 @@ export default function ResultsTabPage() {
 
       {runs === null && <SkeletonRows count={5} />}
       {runs !== null && runs.length === 0 && <p className="text-secondary">{t("noRuns")}</p>}
-      {selectedRun && selectedRun.status !== "done" && (
+      {selectedRunId !== null && selectedRun && selectedRun.status !== "done" && (
         <p className="text-sm text-secondary">{t(`status_${selectedRun.status}`)}</p>
       )}
-      {selectedRun?.status === "done" && itemsPage === null && <SkeletonRows count={5} />}
-      {selectedRun?.status === "done" && itemsPage && itemsPage.items.length === 0 && (
+
+      {showItems && runs !== null && runs.length > 0 && (
+        <div className="flex flex-col gap-3 md:hidden">
+          <ResultsControlsBar
+            sort={sort}
+            order={order}
+            onSortChange={onSortChange}
+            runs={runs}
+            selectedRunId={selectedRunId}
+            onRunSelect={onRunFilterChange}
+            runLabel={formatRunLabel}
+            starredOnly={starredOnly}
+            onToggleStarred={() => { setStarredOnly((v) => !v); setPage(1); }}
+            onExport={handleExport}
+            exporting={exporting}
+          />
+        </div>
+      )}
+
+      {showItems && itemsPage === null && <SkeletonRows count={5} />}
+      {showItems && itemsPage && itemsPage.items.length === 0 && (
         <p className="text-secondary">{t("empty")}</p>
       )}
 
-      {selectedRun?.status === "done" && itemsPage && itemsPage.items.length > 0 && (
+      {showItems && itemsPage && itemsPage.items.length > 0 && (
         <>
           <div className="flex flex-col gap-3 md:hidden">
-            <ResultsCards items={itemsPage.items} sort={sort} order={order}
-              onSortChange={onSortChange} onShortlistToggle={handleShortlistToggle}
-              onExport={selectedRun.status === "done" ? handleExport : undefined}
-              exporting={exporting} />
+            <ResultsCards items={itemsPage.items} onShortlistToggle={handleShortlistToggle} />
             {totalPages > 1 && paginationBar}
           </div>
           <div className="hidden md:flex md:flex-col md:gap-3">

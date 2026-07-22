@@ -1,4 +1,3 @@
-import uuid
 from typing import Any, Literal
 
 from sqlalchemy import Float, Subquery, case, cast, func, select
@@ -46,24 +45,29 @@ def engagement_rate_expr() -> ColumnElement[Any]:
     return _engagement_expr() / cast(func.nullif(Account.followers_count, 0), Float)
 
 
-def virality_baseline_subquery(run_id: uuid.UUID) -> Subquery:
+def virality_baseline_subquery(item_filter: ColumnElement[bool]) -> Subquery:
     """E5-S5: per-account median engagement/views + item count within a run, one row per
-    account_id — join this onto the item query (by account_id) rather than using a window
-    function. Postgres does not support `OVER` for ordered-set aggregates like
+    (run_id, account_id) — join this onto the item query (by run_id + account_id) rather than
+    using a window function. Postgres does not support `OVER` for ordered-set aggregates like
     `percentile_cont` (only plain `GROUP BY` aggregation), so the per-account baseline has to
     be computed as its own grouped subquery and joined back onto each item.
+
+    Grouped by run_id too (not just account_id) so this same function covers both a single-run
+    query (item_filter = ContentItem.run_id == run_id) and a cross-run project query — a
+    baseline must never mix items from two different runs for the same account.
     """
     engagement = _engagement_expr()
     reel_views = case((ContentItem.views.isnot(None), cast(ContentItem.views, Float)), else_=None)
     return (
         select(
+            ContentItem.run_id.label("run_id"),
             ContentItem.account_id.label("account_id"),
             func.percentile_cont(0.5).within_group(engagement).label("median_engagement"),
             func.percentile_cont(0.5).within_group(reel_views).label("median_views"),
             func.count().label("item_count"),
         )
-        .where(ContentItem.run_id == run_id)
-        .group_by(ContentItem.account_id)
+        .where(item_filter)
+        .group_by(ContentItem.run_id, ContentItem.account_id)
         .subquery()
     )
 

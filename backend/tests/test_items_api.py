@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.tokens import create_access_token
 from src.db import get_session
 from src.main import app
-from src.models import ContentType
+from src.models import ContentType, RunStatus
 from tests.conftest import (
     make_account,
     make_account_list,
@@ -246,6 +246,114 @@ async def test_items_scoped_to_owning_workspace(session: AsyncSession) -> None:
 
     async with await client(session) as c:
         resp = await c.get(f"/runs/{run.id}/items", headers=auth_headers(other_user.id))
+        assert resp.status_code == 404
+
+
+async def test_project_items_all_runs_pools_across_runs(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, handle="natgeo")
+    run_1 = await make_run(session, project=project, requested_by=owner, status=RunStatus.done)
+    run_2 = await make_run(session, project=project, requested_by=owner, status=RunStatus.done)
+
+    await make_content_item(session, run=run_1, account=account, title="From run 1")
+    await make_content_item(session, run=run_2, account=account, title="From run 2")
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/items", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 2
+        titles = {item["title"] for item in body["items"]}
+        assert titles == {"From run 1", "From run 2"}
+
+
+async def test_project_items_filters_by_run_id(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, handle="natgeo")
+    run_1 = await make_run(session, project=project, requested_by=owner, status=RunStatus.done)
+    run_2 = await make_run(session, project=project, requested_by=owner, status=RunStatus.done)
+
+    await make_content_item(session, run=run_1, account=account, title="From run 1")
+    await make_content_item(session, run=run_2, account=account, title="From run 2")
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(
+            f"/projects/{project.id}/items?run_id={run_1.id}", headers=auth_headers(owner.id)
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        assert body["items"][0]["title"] == "From run 1"
+
+
+async def test_project_items_excludes_non_done_runs(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, handle="natgeo")
+    done_run = await make_run(session, project=project, requested_by=owner, status=RunStatus.done)
+    pending_run = await make_run(
+        session, project=project, requested_by=owner, status=RunStatus.pending
+    )
+
+    await make_content_item(session, run=done_run, account=account, title="Done item")
+    await make_content_item(session, run=pending_run, account=account, title="Pending item")
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/items", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        titles = {item["title"] for item in resp.json()["items"]}
+        assert titles == {"Done item"}
+
+
+async def test_project_items_starred_only_filter(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, handle="natgeo")
+    run = await make_run(session, project=project, requested_by=owner, status=RunStatus.done)
+
+    starred = await make_content_item(session, run=run, account=account, title="Starred")
+    await make_content_item(session, run=run, account=account, title="Not starred")
+    await session.commit()
+
+    async with await client(session) as c:
+        headers = auth_headers(owner.id)
+        await c.post(
+            f"/projects/{project.id}/shortlist/items",
+            json={"item_ids": [str(starred.id)]},
+            headers=headers,
+        )
+
+        resp = await c.get(f"/projects/{project.id}/items?starred_only=true", headers=headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        assert body["items"][0]["title"] == "Starred"
+        assert body["items"][0]["in_shortlist"] is True
+
+
+async def test_project_items_scoped_to_owning_workspace(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    other_user = await make_user(session)
+    await make_workspace(session, owner=other_user)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/items", headers=auth_headers(other_user.id))
         assert resp.status_code == 404
 
 
