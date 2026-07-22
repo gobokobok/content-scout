@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E13-S2] Details dashboard: KPI card, nav links, run-history cards, create-run entry
+**Completed:** 2026-07-22
+**Handover:**
+- New `GET /projects/{project_id}/stats` (`backend/src/api/projects.py`, `ProjectStatsOut.lifetime_items_analyzed`) — `SUM(AnalysisRun.progress_items)` across all runs for the project, any status, via `func.coalesce(..., 0)`; scoped through the existing `_get_owned_project` 404 pattern. `frontend/lib/api.ts`: `ProjectStatsResponse` + `api.getProjectStats`.
+- `frontend/app/(app)/projects/[id]/details/page.tsx` replaces the E13-S1 placeholder: KPI card (competitors count from the existing accounts list + lifetime items from the new stats endpoint, 2-column grid built to add more stats without a layout change), full-width nav rows to Конкуренты and Запланированные запуски (`/scheduled` — 404s until E14-S3 ships, expected), run-history cards (date/accounts/publications/tokens, clickable to `/results?run=<id>` only when `status === "done"`), and a "Создать запуск" button opening the existing `RunDialog` against the whole active account list (`accountIds: undefined` — per-run selection is gone as of E13-S3).
+- "Tokens consumed" reuses `progress_items` directly — 1 token is debited per scraped publication in this system (`worker.py`), so it's the same number as "publications analyzed", not a separately tracked field.
+- New tests: `test_project_stats_sums_items_across_runs`, `test_project_stats_zero_with_no_runs`, `test_project_stats_scoped_to_workspace` in `backend/tests/test_projects.py`. ruff/mypy/tsc/next-lint all clean locally; pytest itself needs the CI Postgres service (no local DB in this sandbox, consistent with every prior story here).
+- `/history` route (run table + shortlist history) is unchanged and now partially redundant with Детали's run cards — flagged as a cleanup candidate once E15-S3 (run detail view) exists and nothing links to `/history` anymore.
+**Smoke test:** DEFERRED — needs a real DEV project with at least one finished run to confirm KPI counts, nav links, and run-card data end-to-end (same deferral pattern as the rest of this project's Apify-dependent verification). Verified locally via a temporary `frontend/app/dev-preview/details` scratch route with mock data, screenshotted at desktop + 375px, deleted before commit.
+**Promoted to backlog:** none
+
 ## [E13-S1] Bottom nav restructure: Детали / Результаты / Анализ
 **Completed:** 2026-07-22
 **Handover:**

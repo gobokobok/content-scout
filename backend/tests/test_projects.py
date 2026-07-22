@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.tokens import create_access_token
 from src.db import get_session
 from src.main import app
-from tests.conftest import make_project, make_user, make_workspace
+from tests.conftest import make_project, make_run, make_user, make_workspace
 
 
 class _TestClient(AsyncClient):
@@ -101,3 +101,44 @@ async def test_unauthenticated_rejected(session: AsyncSession) -> None:
     async with await client(session) as c:
         resp = await c.get("/projects")
         assert resp.status_code == 401
+
+
+async def test_project_stats_sums_items_across_runs(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    await make_run(session, project=project, requested_by=owner, progress_items=4)
+    await make_run(session, project=project, requested_by=owner, progress_items=6)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/stats", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert resp.json() == {"lifetime_items_analyzed": 10}
+
+
+async def test_project_stats_zero_with_no_runs(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/stats", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert resp.json() == {"lifetime_items_analyzed": 0}
+
+
+async def test_project_stats_scoped_to_workspace(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    await session.commit()
+
+    other_user = await make_user(session)
+    await make_workspace(session, owner=other_user)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/stats", headers=auth_headers(other_user.id))
+        assert resp.status_code == 404

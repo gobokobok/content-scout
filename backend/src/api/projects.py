@@ -4,12 +4,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.db import get_session
-from src.models import Project
+from src.models import AnalysisRun, Project
 from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.workspace import get_user_workspace
 
@@ -29,6 +29,10 @@ class ProjectCreateIn(BaseModel):
 
 class ProjectUpdateIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+
+
+class ProjectStatsOut(BaseModel):
+    lifetime_items_analyzed: int
 
 
 class ProjectOut(BaseModel):
@@ -84,6 +88,19 @@ async def list_projects(
 async def get_project(project_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> ProjectOut:
     project = await _get_owned_project(session, user, project_id)
     return ProjectOut.from_model(project)
+
+
+@router.get("/{project_id}/stats", response_model=ProjectStatsOut)
+async def get_project_stats(
+    project_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> ProjectStatsOut:
+    project = await _get_owned_project(session, user, project_id)
+    total = await session.scalar(
+        select(func.coalesce(func.sum(AnalysisRun.progress_items), 0)).where(
+            AnalysisRun.project_id == project.id
+        )
+    )
+    return ProjectStatsOut(lifetime_items_analyzed=int(total or 0))
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)

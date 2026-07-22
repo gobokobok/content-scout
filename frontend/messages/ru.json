@@ -241,7 +241,22 @@
     "comingSoon": "Скоро здесь появятся платные инструменты глубокого анализа: разбор конкурента, разбор запуска и разбор отдельной публикации с генерацией сценария."
   },
   "Details": {
-    "comingSoon": "Дашборд проекта скоро появится здесь."
+    "kpiCompetitors": "Конкурентов",
+    "kpiItemsAnalyzed": "Публикаций проанализировано",
+    "competitorsLink": "Конкуренты",
+    "scheduledLink": "Запланированные запуски",
+    "createRunButton": "Создать запуск",
+    "runsTitle": "История запусков",
+    "runsEmpty": "Запусков ещё не было.",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз.",
+    "cardAccounts": "Аккаунтов: {count}",
+    "cardItems": "Публикаций: {count}",
+    "cardTokens": "Токенов: {count}",
+    "status_pending": "Ожидание",
+    "status_scraping": "Сбор публикаций",
+    "status_summarizing": "Формирование описаний",
+    "status_done": "Готово",
+    "status_failed": "Ошибка"
   },
   "Settings": {
     "title": "Настройки",

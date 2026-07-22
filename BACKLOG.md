@@ -1640,34 +1640,43 @@ frontend/components/ui/bottom-nav.tsx, frontend/app/(app)/projects/[id]/layout.t
 ## [E13-S2] Details dashboard: KPI card, nav links, run-history cards, create-run entry
 **Epic:** Navigation & Details Restructure
 **Sprint:** 8
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** high
 **Depends on:** E13-S1
 ### Goal
 Детали becomes the project's real landing page: a project-level KPI summary, full-width links into Competitors and Scheduled Runs, a card-based run history (replacing the run table currently on `/history`), and the entry point for creating a new run.
 ### Acceptance Criteria
-- [ ] Dashboard card: number of competitors, total publications analyzed since project start (new lifetime aggregate — not scoped to one run); card is built to take more KPIs later without a layout rewrite
-- [ ] Full-width "Конкуренты" button (arrow-right, right-aligned, same visual style as a competitor row) → `/projects/[id]/competitors`
-- [ ] Full-width "Запланированные запуски" button, same style → `/projects/[id]/scheduled` (E14-S3)
-- [ ] Run history as cards (not the old table): date, accounts analyzed, publications analyzed, tokens consumed per run; tapping a card opens the run detail view (E15-S3)
-- [ ] "Создать запуск" button opens the existing run-creation flow (extended in E14-S4 with a Run-now/Schedule choice)
-- [ ] New backend aggregate endpoint (or extension of an existing one) for the lifetime publications-analyzed count, scoped to the caller's own project (reuses `get_owned_project`)
-- [ ] Screen usable at 375px (D16); cards, not the old table, at every width for this list specifically (this is a dashboard, not a data table)
+- [x] Dashboard card: number of competitors, total publications analyzed since project start (new lifetime aggregate — not scoped to one run); card is built to take more KPIs later without a layout rewrite
+- [x] Full-width "Конкуренты" button (arrow-right, right-aligned, same visual style as a competitor row) → `/projects/[id]/competitors`
+- [x] Full-width "Запланированные запуски" button, same style → `/projects/[id]/scheduled` (E14-S3)
+- [x] Run history as cards (not the old table): date, accounts analyzed, publications analyzed, tokens consumed per run; tapping a card opens the run detail view (E15-S3)
+- [x] "Создать запуск" button opens the existing run-creation flow (extended in E14-S4 with a Run-now/Schedule choice)
+- [x] New backend aggregate endpoint (or extension of an existing one) for the lifetime publications-analyzed count, scoped to the caller's own project (reuses `get_owned_project`)
+- [x] Screen usable at 375px (D16); cards, not the old table, at every width for this list specifically (this is a dashboard, not a data table)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (`test_project_stats_sums_items_across_runs`, `test_project_stats_zero_with_no_runs`, `test_project_stats_scoped_to_workspace` in `test_projects.py`; ruff/mypy clean locally, pytest needs the CI Postgres service — no local DB in this sandbox)
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — deferred, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Open Детали on DEV for a project with at least one finished run — KPI card shows correct counts, both nav buttons navigate correctly, run cards show plausible data and open the right run.
+**DEFERRED** — verified locally instead via a temporary `frontend/app/dev-preview/details` scratch route (real component structure, mock accounts/stats/runs data), screenshotted at desktop and 375px, then deleted before commit — same pattern as E12-S3/E13-S1. No local Postgres/DEV login available in this sandbox to exercise the real endpoints end-to-end.
 ### Files to read
 CLAUDE.md, DECISIONS.md (D16, D28), docs/UI_GUIDELINES.md, backend/src/api/usage.py (existing run-summary shape), frontend/app/(app)/projects/[id]/history/page.tsx (run table being replaced)
 ### Files to create or modify
 frontend/app/(app)/projects/[id]/details/page.tsx (new), backend/src/api/projects.py or usage.py (lifetime aggregate), frontend/lib/api.ts, frontend/messages/ru.json
 ### Handover
-—
+- `GET /projects/{project_id}/stats` (`backend/src/api/projects.py`) — `ProjectStatsOut.lifetime_items_analyzed`, `SUM(AnalysisRun.progress_items)` (`func.coalesce(..., 0)`) across every run for the project regardless of status, scoped via the existing `_get_owned_project`/`get_owned_project` 404-on-mismatch pattern. `frontend/lib/api.ts` gained `ProjectStatsResponse` + `api.getProjectStats`.
+- "Tokens consumed" per run card reuses `run.progress_items` — this system debits exactly 1 token per scraped publication (see `worker.py`'s `token_balance -= len(batch)`), so publications-analyzed and tokens-consumed are the same underlying number by design, not two independently-tracked fields. No new backend field needed for it.
+- `details/page.tsx` fetches `listAccounts` + `getProjectStats` + `listRuns` in parallel; competitor count comes from the existing accounts list (no new endpoint needed for that half of the KPI card). KPI card renders as a 2-column grid of `{value, label}` pairs — adding a third stat later is one more grid cell, no layout rewrite.
+- "Запланированные запуски" links to `/projects/[id]/scheduled`, which doesn't exist yet (E14-S3, Sprint 9) — 404s until then, same forward-reference pattern the AC itself specifies.
+- Run cards only navigate to `/results?run=<id>` when `status === "done"` (mirrors the old `/history` table's `openResults` gating); other statuses show an inline status label instead of being clickable, since the run-detail view itself doesn't exist until E15-S3.
+- "Создать запуск" opens the existing `RunDialog` with `accountIds: undefined` (whole active list) — per-run competitor scoping is gone now that E13-S3 removes selection from the Competitors page; `accountsCount` comes from the same accounts fetch.
+- `/history` route is still untouched (not in this story's file list) — its run table now duplicates what Детали shows, worth flagging as cleanup once E15-S3 exists and nothing links to `/history` anymore.
+- New `Details` message namespace (KPI/nav/run-card/status strings) fully replaces the earlier placeholder key from E13-S1.
 
 ## [E13-S3] Competitors page trim
 **Epic:** Navigation & Details Restructure

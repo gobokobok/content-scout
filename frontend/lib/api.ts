@@ -69,6 +69,10 @@ export interface ProjectResponse {
   archived_at: string | null;
 }
 
+export interface ProjectStatsResponse {
+  lifetime_items_analyzed: number;
+}
+
 export interface AccountResponse {
   id: string;
   handle: string;
@@ -272,6 +276,7 @@ export const api = {
   createProject: (name: string) =>
     request<ProjectResponse>("/projects", { method: "POST", body: JSON.stringify({ name }) }),
   getProject: (id: string) => request<ProjectResponse>(`/projects/${id}`),
+  getProjectStats: (id: string) => request<ProjectStatsResponse>(`/projects/${id}/stats`),
   renameProject: (id: string, name: string) =>
     request<ProjectResponse>(`/projects/${id}`, {
       method: "PATCH",
