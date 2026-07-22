@@ -56,14 +56,16 @@
   "ProjectShell": {
     "back": "← Проекты",
     "breadcrumbProjects": "Проекты",
+    "sectionDetails": "Детали",
     "sectionCompetitors": "Конкуренты",
     "sectionResults": "Публикации конкурентов",
-    "sectionCreate": "Создать",
     "sectionHistory": "История",
+    "sectionAnalysis": "Анализ",
+    "tabDetails": "Детали",
     "tabCompetitors": "Конкуренты",
-    "tabResults": "Анализ",
+    "tabResults": "Результаты",
     "tabShortlist": "Шорт-лист",
-    "tabCreate": "Создать",
+    "tabAnalysis": "Анализ",
     "tabHistory": "История",
     "notFound": "Проект не найден.",
     "archivedBadge": "В архиве",
@@ -234,9 +236,12 @@
     "copied": "Скопировано",
     "navLink": "Использование"
   },
-  "Create": {
-    "title": "Создать публикацию",
-    "comingSoon": "Скоро здесь появится инструмент для создания публикаций — постов, каруселей и Reels — на основе записей из вашего шорт-листа."
+  "Analysis": {
+    "title": "Углублённый анализ",
+    "comingSoon": "Скоро здесь появятся платные инструменты глубокого анализа: разбор конкурента, разбор запуска и разбор отдельной публикации с генерацией сценария."
+  },
+  "Details": {
+    "comingSoon": "Дашборд проекта скоро появится здесь."
   },
   "Settings": {
     "title": "Настройки",

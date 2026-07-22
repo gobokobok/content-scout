@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E13-S1] Bottom nav restructure: Детали / Результаты / Анализ
+**Completed:** 2026-07-22
+**Handover:**
+- `frontend/components/ui/bottom-nav.tsx` and the desktop tab bar in `frontend/app/(app)/projects/[id]/layout.tsx` both now render exactly Детали (`LayoutDashboard`) / Результаты (`BarChart2`) / Анализ (`Sparkles`), in that order.
+- Root project route `/projects/[id]` now redirects to `/projects/[id]/details` (was `/competitors`).
+- `/projects/[id]/create` deleted. Two new stub routes take its place in the nav: `/projects/[id]/analysis` (Sparkles "coming soon" pattern — reuses the exact visual the old `/create` page used; `Analysis` message namespace) and `/projects/[id]/details` (bare placeholder for now; `Details` message namespace). E16-S1 will flesh out `/analysis` with the real teaser cards; E13-S2 (next, same session) replaces `/details` with the full dashboard.
+- `sectionHeading()` in the shared layout now branches on `/details` and `/analysis`; the dead `/create` branch and `sectionCreate` key are gone.
+- Incidental fix: `ProjectShell.tabResults` previously said "Анализ" while pointing at the `results` segment (a naming leftover) — now correctly says "Результаты".
+- No backend changes. No frontend unit test suite exists in this repo (CI gate is typecheck + eslint per CONVENTIONS.md); both pass. Verified visually via a temporary `frontend/app/dev-preview/nav` scratch route (mounted the real nav components with mock props, screenshotted desktop + 375px, deleted before commit) — same pattern as E12-S3, since this sandbox has no local Postgres/DEV login.
+**Smoke test:** DEFERRED — needs a real DEV project open on desktop and 375px to confirm the live nav end-to-end (same deferral pattern as the rest of this project's Apify/Telegram-dependent verification).
+**Promoted to backlog:** none
+
 ## [E12-S3] Mobile results controls consolidation + polish
 **Completed:** 2026-07-22
 **Handover:**

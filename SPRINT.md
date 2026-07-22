@@ -120,7 +120,7 @@ Full story definitions live in `BACKLOG.md`.
 
 | # | Story | Title | Status |
 |---|---|---|---|
-| 0 | E13-S1 | Bottom nav restructure: Детали / Результаты / Анализ | backlog |
+| 0 | E13-S1 | Bottom nav restructure: Детали / Результаты / Анализ | done |
 | 1 | E13-S2 | Details dashboard: KPI card, nav links, run-history cards, create-run entry | backlog |
 | 2 | E13-S3 | Competitors page trim | backlog |
 | 3 | E16-S1 | Analysis teaser page | backlog |

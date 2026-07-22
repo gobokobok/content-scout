@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Users, BarChart2, PlusCircle } from "lucide-react";
+import { LayoutDashboard, BarChart2, Sparkles } from "lucide-react";
 
 const TABS = [
-  { segment: "competitors", labelKey: "tabCompetitors", Icon: Users },
+  { segment: "details", labelKey: "tabDetails", Icon: LayoutDashboard },
   { segment: "results", labelKey: "tabResults", Icon: BarChart2 },
-  { segment: "create", labelKey: "tabCreate", Icon: PlusCircle },
+  { segment: "analysis", labelKey: "tabAnalysis", Icon: Sparkles },
 ] as const;
 
 export function ProjectBottomNav({ projectId }: { projectId: string }) {

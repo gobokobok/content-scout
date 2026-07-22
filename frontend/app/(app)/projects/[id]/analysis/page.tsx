@@ -3,8 +3,8 @@
 import { useTranslations } from "next-intl";
 import { Sparkles } from "lucide-react";
 
-export default function CreatePage() {
-  const t = useTranslations("Create");
+export default function AnalysisPage() {
+  const t = useTranslations("Analysis");
 
   return (
     <div className="flex flex-col items-center justify-center gap-6 px-4 py-16 text-center">

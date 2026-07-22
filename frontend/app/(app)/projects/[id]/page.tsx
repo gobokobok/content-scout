@@ -8,7 +8,7 @@ export default function ProjectIndexPage() {
   const params = useParams<{ id: string }>();
 
   useEffect(() => {
-    router.replace(`/projects/${params.id}/competitors`);
+    router.replace(`/projects/${params.id}/details`);
   }, [router, params.id]);
 
   return null;

@@ -12,9 +12,9 @@ import { ProjectContext } from "@/lib/project-context";
 import { CompetitorsInfoButton } from "@/components/competitors-info-button";
 
 const TABS = [
-  { segment: "competitors", labelKey: "tabCompetitors" as const },
+  { segment: "details", labelKey: "tabDetails" as const },
   { segment: "results", labelKey: "tabResults" as const },
-  { segment: "create", labelKey: "tabCreate" as const },
+  { segment: "analysis", labelKey: "tabAnalysis" as const },
 ];
 
 export default function ProjectShellLayout({ children }: { children: React.ReactNode }) {
@@ -48,10 +48,11 @@ export default function ProjectShellLayout({ children }: { children: React.React
   const isArchived = project?.archived_at !== null && project?.archived_at !== undefined;
 
   function sectionHeading(): string {
+    if (pathname?.includes("/details")) return t("sectionDetails");
     if (pathname?.includes("/competitors")) return t("sectionCompetitors");
     if (pathname?.includes("/results")) return t("sectionResults");
     if (pathname?.includes("/history")) return t("sectionHistory");
-    if (pathname?.includes("/create")) return t("sectionCreate");
+    if (pathname?.includes("/analysis")) return t("sectionAnalysis");
     return "";
   }
 
