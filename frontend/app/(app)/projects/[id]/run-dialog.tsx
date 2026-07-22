@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -8,7 +9,10 @@ import { useRunTracker } from "@/lib/run-tracker";
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
+const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+const DEFAULT_TIMEZONE = "Europe/Moscow";
 type ScopeMode = "days" | "count";
+type LaunchMode = "now" | "schedule";
 
 export function RunDialog({
   projectId,
@@ -28,8 +32,12 @@ export function RunDialog({
   const [scopeMode, setScopeMode] = useState<ScopeMode>("days");
   const [duration, setDuration] = useState(3);
   const [itemLimit, setItemLimit] = useState(10);
+  const [launchMode, setLaunchMode] = useState<LaunchMode>("now");
+  const [dayOfWeek, setDayOfWeek] = useState(0);
+  const [timeOfDay, setTimeOfDay] = useState("09:00");
   const [error, setError] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
+  const [scheduled, setScheduled] = useState(false);
   const [starting, setStarting] = useState(false);
 
   const tracked = runId ? trackedRuns.find((tr) => tr.run.id === runId) : undefined;
@@ -52,13 +60,26 @@ export function RunDialog({
     setStarting(true);
     setError(null);
     try {
-      const created = await api.createRun(projectId, {
-        duration_days: scopeMode === "days" ? duration : undefined,
-        item_limit: scopeMode === "count" ? itemLimit : undefined,
-        account_ids: accountIds,
-      });
-      track(created, projectId, projectName);
-      setRunId(created.id);
+      if (launchMode === "schedule") {
+        await api.createScheduledRun(projectId, {
+          duration_days: scopeMode === "days" ? duration : undefined,
+          item_limit: scopeMode === "count" ? itemLimit : undefined,
+          account_ids: accountIds,
+          day_of_week: dayOfWeek,
+          time_of_day: `${timeOfDay}:00`,
+          timezone: DEFAULT_TIMEZONE,
+          active: true,
+        });
+        setScheduled(true);
+      } else {
+        const created = await api.createRun(projectId, {
+          duration_days: scopeMode === "days" ? duration : undefined,
+          item_limit: scopeMode === "count" ? itemLimit : undefined,
+          account_ids: accountIds,
+        });
+        track(created, projectId, projectName);
+        setRunId(created.id);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.messageRu : t("genericError"));
     } finally {
@@ -100,7 +121,7 @@ export function RunDialog({
           className="overflow-y-auto"
           style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
         >
-          {!run && (
+          {!run && !scheduled && (
             <div className="flex flex-col gap-4 p-4">
               {/* Scope mode toggle: day window vs. last-N publications */}
               <div className="inline-flex self-start rounded-control border border-border p-0.5">
@@ -162,10 +183,64 @@ export function RunDialog({
 
               <p className="text-sm text-secondary">{t("accountsLabel", { count: accountsCount })}</p>
 
-              {/* Token info note */}
-              <p className="rounded-card border border-border bg-bg px-3 py-2.5 text-sm text-secondary">
-                {t("tokenInfo")}
-              </p>
+              {/* Run-now / Schedule choice (E14-S4) */}
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-secondary">{t("launchModeLabel")}</span>
+                <div className="inline-flex self-start rounded-control border border-border p-0.5">
+                  {(["now", "schedule"] as LaunchMode[]).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setLaunchMode(mode)}
+                      className={`rounded-control px-3 py-1.5 text-sm font-medium transition-colors ${
+                        launchMode === mode
+                          ? "bg-accent text-white"
+                          : "text-secondary hover:text-ink"
+                      }`}
+                    >
+                      {mode === "now" ? t("launchModeNow") : t("launchModeSchedule")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {launchMode === "schedule" && (
+                <>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-medium text-secondary">{t("dayOfWeekLabel")}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {WEEKDAYS.map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setDayOfWeek(d)}
+                          className={`h-10 min-w-10 rounded-control px-2 text-sm font-medium transition-colors ${
+                            dayOfWeek === d
+                              ? "bg-accent text-white"
+                              : "border border-border text-ink hover:bg-bg"
+                          }`}
+                        >
+                          {t(`weekday${d}`)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-medium text-secondary">{t("timeOfDayLabel")}</span>
+                    <input
+                      type="time"
+                      value={timeOfDay}
+                      onChange={(e) => setTimeOfDay(e.target.value)}
+                      className="w-full rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Token info note — only relevant for an immediate run */}
+              {launchMode === "now" && (
+                <p className="rounded-card border border-border bg-bg px-3 py-2.5 text-sm text-secondary">
+                  {t("tokenInfo")}
+                </p>
+              )}
 
               {error && <p className="text-sm text-danger">{error}</p>}
 
@@ -181,7 +256,32 @@ export function RunDialog({
                   disabled={starting}
                   className="flex-1 rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
                 >
-                  {starting ? t("starting") : t("confirmButton")}
+                  {starting
+                    ? t("starting")
+                    : launchMode === "now"
+                      ? t("confirmButton")
+                      : t("scheduleButton")}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {scheduled && (
+            <div className="flex flex-col gap-4 p-4">
+              <p className="text-base font-medium text-ink">{t("scheduledTitle")}</p>
+              <p className="text-sm text-secondary">{t("scheduledHint")}</p>
+              <div className="flex gap-2">
+                <Link
+                  href={`/projects/${projectId}/scheduled`}
+                  className="flex-1 rounded-control border border-border px-4 py-2.5 text-center text-sm text-ink hover:bg-bg"
+                >
+                  {t("goToScheduled")}
+                </Link>
+                <button
+                  onClick={onClose}
+                  className="flex-1 rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white"
+                >
+                  {t("close")}
                 </button>
               </div>
             </div>

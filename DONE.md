@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E14-S4] Wire Run-now / Schedule choice into Details' create-run flow
+**Completed:** 2026-07-22
+**Handover:**
+- `run-dialog.tsx` — new `launchMode: "now" | "schedule"` toggle after the scope picker. `"now"` is the exact pre-existing flow, untouched. `"schedule"` reveals a day-of-week row + `<input type="time">` and calls the new `api.createScheduledRun` (E14-S2/S3) instead of `api.createRun`, reusing the same `accountIds` prop the run flow already had (still always `undefined`/whole-list, per E13-S3 — no new selection UI here).
+- New render branch for a post-schedule confirmation ("Расписание создано" + link to `/projects/[id]/scheduled`), alongside the existing form/progress branches — schedules have no in-progress state to poll, unlike runs.
+- `ru.json`'s `RunDialog` namespace gained the launch-mode toggle, day/time picker, and confirmation copy.
+- `tsc --noEmit`/`next lint` clean. Verified via a temporary `frontend/app/dev-preview/rundialog` scratch route (mocked `fetch`, wrapped in `RunTrackerProvider`): "now" mode unchanged, "schedule" mode reveals pickers + renames the button + shows the confirmation screen — desktop + 375px, no console errors, deleted before commit.
+- **This closes the E14 epic (Sprint 9)** except E14-S5 (Telegram notification for scheduled-run completion), which is backend-only.
+**Smoke test:** DEFERRED — needs a real DEV project: create a run both ways in one session, confirm "now" starts immediately and "schedule" lands on the Scheduled Runs list (same deferral pattern as the rest of this project's DEV-login-dependent verification).
+**Promoted to backlog:** none
+
 ## [E14-S3] Scheduled Runs page (list + create/edit)
 **Completed:** 2026-07-22
 **Handover:**
