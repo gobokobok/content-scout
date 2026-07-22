@@ -84,6 +84,13 @@ class ItemsPageOut(BaseModel):
     page_size: int
 
 
+class TopViralityOut(BaseModel):
+    items: list[ContentItemOut]
+
+
+TOP_VIRALITY_DEFAULT_LIMIT = 5
+
+
 async def _get_run(session: AsyncSession, user: CurrentUser, run_id: uuid.UUID) -> AnalysisRun:
     run = await session.get(AnalysisRun, run_id)
     if run is None:
@@ -225,6 +232,119 @@ async def list_run_items(
     ]
 
     return ItemsPageOut(items=items, total=total or 0, page=page, page_size=PAGE_SIZE)
+
+
+@router.get("/runs/{run_id}/top-virality", response_model=TopViralityOut)
+async def list_top_virality_items(
+    run_id: uuid.UUID,
+    user: CurrentUser,
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=20)] = TOP_VIRALITY_DEFAULT_LIMIT,
+) -> TopViralityOut:
+    """E15-S2: the N most viral posts of a run, for the run-summary view (E15-S3).
+
+    Purely virality_ratio_expr sorted desc with a limit — items with insufficient sample
+    size (per virality_min_items) resolve to a NULL ratio and are excluded, same guard as
+    the results table's virality badge (services/metrics.py:bucket_virality).
+    """
+    run = await _get_run(session, user, run_id)
+    settings = get_settings()
+
+    days_expr = days_since_published_expr()
+    views_per_day = views_per_day_expr()
+    likes_per_day = likes_per_day_expr()
+    engagement_rate = engagement_rate_expr()
+    virality_subq = virality_baseline_subquery(ContentItem.run_id == run_id)
+    virality_expr = virality_ratio_expr(
+        virality_subq.c.median_engagement,
+        virality_subq.c.median_views,
+        virality_subq.c.item_count,
+        settings,
+    )
+
+    shortlist_exists = (
+        select(ShortlistItem.id)
+        .where(
+            ShortlistItem.content_item_id == ContentItem.id,
+            ShortlistItem.project_id == run.project_id,
+            ShortlistItem.removed_at.is_(None),
+        )
+        .correlate(ContentItem)
+        .exists()
+    )
+
+    stmt = (
+        select(
+            ContentItem,
+            Account.handle,
+            Account.followers_count,
+            days_expr.label("days_since_published"),
+            views_per_day.label("views_per_day"),
+            likes_per_day.label("likes_per_day"),
+            engagement_rate.label("engagement_rate"),
+            virality_subq.c.median_engagement,
+            virality_subq.c.median_views,
+            virality_subq.c.item_count,
+            shortlist_exists.label("in_shortlist"),
+        )
+        .join(Account, ContentItem.account_id == Account.id)
+        .join(
+            virality_subq,
+            (virality_subq.c.account_id == ContentItem.account_id)
+            & (virality_subq.c.run_id == ContentItem.run_id),
+        )
+        .where(ContentItem.run_id == run_id, virality_expr.isnot(None))
+        .order_by(virality_expr.desc())
+        .limit(limit)
+    )
+    rows = await session.execute(stmt)
+
+    items = [
+        ContentItemOut(
+            id=item.id,
+            account_handle=handle,
+            followers_count=followers_count,
+            published_at=item.published_at,
+            type=item.type.value,
+            title=item.title,
+            url=item.url,
+            summary=item.summary,
+            likes=item.likes,
+            views=item.views,
+            comments=item.comments,
+            days_since_published=days,
+            views_per_day=vpd,
+            likes_per_day=lpd,
+            engagement_rate=eng_rate,
+            virality=bucket_virality(
+                virality_ratio(
+                    likes=item.likes,
+                    comments=item.comments,
+                    views=item.views,
+                    median_engagement=median_engagement,
+                    median_views=median_views,
+                ),
+                item_count,
+                settings,
+            ),
+            in_shortlist=bool(in_sl),
+        )
+        for (
+            item,
+            handle,
+            followers_count,
+            days,
+            vpd,
+            lpd,
+            eng_rate,
+            median_engagement,
+            median_views,
+            item_count,
+            in_sl,
+        ) in rows
+    ]
+
+    return TopViralityOut(items=items)
 
 
 @router.get("/projects/{project_id}/items", response_model=ItemsPageOut)

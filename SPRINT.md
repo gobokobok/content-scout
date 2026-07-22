@@ -125,7 +125,7 @@ Full story definitions live in `BACKLOG.md`.
 | 2 | E13-S3 | Competitors page trim | done |
 | 3 | E16-S1 | Analysis teaser page | done |
 | 4 | E15-S1 | Run-level AI summary generation | done |
-| 5 | E15-S2 | Top-5-posts-by-virality for a run | backlog |
+| 5 | E15-S2 | Top-5-posts-by-virality for a run | done |
 | 6 | E15-S3 | Run detail page: Summary + Publications tabs | backlog |
 
 **E13 epic complete (2026-07-22 session):** all three nav-restructure stories (E13-S1/S2/S3) shipped back-to-back per explicit user request, scoped to E13 only. E16-S1 and E15-S1/S2/S3 remain backlog, unstarted — next up whenever the sprint continues. All three E13 stories' DEV smoke tests are deferred (no local Postgres/DEV login in this sandbox), consistent with this project's established pattern; verified instead via temporary scratch preview routes with mock data, screenshotted and deleted before each commit.

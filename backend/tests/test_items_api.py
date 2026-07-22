@@ -306,6 +306,114 @@ async def test_sort_by_virality(session: AsyncSession) -> None:
         assert titles[-3] == "Outlier"
 
 
+async def test_top_virality_excludes_insufficient_sample_and_orders_desc(
+    session: AsyncSession,
+) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    viral_account = await make_account(
+        session, account_list=account_list, handle="viral", followers_count=1000
+    )
+    # Below virality_min_items=3 — must be excluded entirely, not just sorted last.
+    quiet_account = await make_account(session, account_list=account_list, handle="quiet")
+    run = await make_run(session, project=project, requested_by=owner)
+
+    now = datetime.now(UTC)
+    for i in range(3):
+        await make_content_item(
+            session,
+            run=run,
+            account=viral_account,
+            type=ContentType.post,
+            published_at=now - timedelta(days=1),
+            likes=100,
+            comments=0,
+            views=None,
+            title=f"Baseline {i}",
+        )
+    await make_content_item(
+        session,
+        run=run,
+        account=viral_account,
+        type=ContentType.post,
+        published_at=now - timedelta(days=1),
+        likes=500,
+        comments=0,
+        views=None,
+        title="Outlier",
+    )
+    for i in range(2):
+        await make_content_item(
+            session,
+            run=run,
+            account=quiet_account,
+            type=ContentType.post,
+            published_at=now - timedelta(days=1),
+            likes=10,
+            comments=0,
+            views=None,
+            title=f"Quiet {i}",
+        )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}/top-virality", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        titles = [item["title"] for item in resp.json()["items"]]
+
+        assert titles[0] == "Outlier"
+        assert "Quiet 0" not in titles
+        assert "Quiet 1" not in titles
+        assert len(titles) == 4  # 3 baseline + 1 outlier; quiet account excluded
+
+
+async def test_top_virality_respects_limit(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, handle="prolific")
+    run = await make_run(session, project=project, requested_by=owner)
+
+    now = datetime.now(UTC)
+    # 6 qualifying items (>= virality_min_items=3), each with a distinct engagement so
+    # the ratio ordering is unambiguous.
+    for i in range(6):
+        await make_content_item(
+            session,
+            run=run,
+            account=account,
+            type=ContentType.post,
+            published_at=now - timedelta(days=1),
+            likes=10 * (i + 1),
+            comments=0,
+            views=None,
+            title=f"Item {i}",
+        )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}/top-virality", headers=auth_headers(owner.id))
+        assert len(resp.json()["items"]) == 5  # default limit
+
+        resp = await c.get(f"/runs/{run.id}/top-virality?limit=2", headers=auth_headers(owner.id))
+        titles = [item["title"] for item in resp.json()["items"]]
+        assert titles == ["Item 5", "Item 4"]
+
+
+async def test_top_virality_scoped_to_owning_workspace(session: AsyncSession) -> None:
+    owner, run = await _setup_run_with_items(session)
+    other_user = await make_user(session)
+    await make_workspace(session, owner=other_user)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}/top-virality", headers=auth_headers(other_user.id))
+        assert resp.status_code == 404
+
+
 async def test_items_scoped_to_owning_workspace(session: AsyncSession) -> None:
     owner, run = await _setup_run_with_items(session)
     other_user = await make_user(session)

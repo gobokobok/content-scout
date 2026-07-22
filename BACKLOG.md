@@ -1892,21 +1892,22 @@ backend/src/services/run_summary.py (new), backend/src/models/run_summary.py or 
 ## [E15-S2] Top-5-posts-by-virality for a run
 **Epic:** Run Detail View
 **Sprint:** 8
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** medium
 **Depends on:** E5-S5 (virality), E12-S3 (SQL `virality_ratio_expr`)
 ### Goal
 Surface the 5 most viral posts of a run — no new modeling needed, this is purely `virality_ratio_expr` sorted desc with a limit, exposed for the run-summary view.
 ### Acceptance Criteria
-- [ ] Existing items endpoint (or the new run-summary endpoint from E15-S1) supports returning the top 5 by virality ratio for a given run, reusing `virality_ratio_expr` from `services/metrics.py`
-- [ ] Items with insufficient sample size (per `virality_min_items`) are excluded, same as the existing badge logic
+- [x] Existing items endpoint (or the new run-summary endpoint from E15-S1) supports returning the top 5 by virality ratio for a given run, reusing `virality_ratio_expr` from `services/metrics.py`
+- [x] Items with insufficient sample size (per `virality_min_items`) are excluded, same as the existing badge logic
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 For a finished DEV run with ≥5 qualifying items, the returned top-5 matches manually sorting the Publications tab by virality descending.
 ### Files to read
@@ -1914,7 +1915,11 @@ CLAUDE.md, backend/src/services/metrics.py
 ### Files to create or modify
 backend/src/api/items.py or the new run-summary endpoint from E15-S1, backend/tests/test_items_api.py
 ### Handover
-—
+- New `GET /runs/{run_id}/top-virality?limit=5` (`backend/src/api/items.py:list_top_virality_items`, `TopViralityOut`) — a dedicated endpoint rather than extending E15-S1's run-summary storage (E15-S1 stores fields on `AnalysisRun`, not an endpoint), and rather than overloading the existing paginated `/runs/{run_id}/items` (different response shape, no pagination needed for a fixed top-N). Reuses `ContentItemOut` for the item shape so the frontend gets a type it already knows, and can reuse it to link into the Publications tab (per E15-S3's AC).
+- Query mirrors `list_run_items`'s existing virality join (`virality_baseline_subquery` + `virality_ratio_expr`), filtered with `.where(virality_expr.isnot(None))` (excludes insufficient-sample items entirely, rather than just sorting them last as the general sort does) and `.order_by(virality_expr.desc()).limit(limit)`. `limit` is query-param-configurable (1–20, default 5) in case E15-S3 wants a different count later.
+- Row-to-`ContentItemOut` mapping is duplicated from `list_run_items`/`list_project_items` rather than extracted into a shared helper — matches this file's existing style (the two pre-existing endpoints already duplicate this same block); no refactor of the untouched endpoints, out of scope for this story.
+- 3 new tests in `test_items_api.py`: excludes-insufficient-sample + orders desc, respects the `limit` query param (default 5, explicit 2), scoped to owning workspace (404 for a foreign user) — reusing the same fixture pattern as the existing `test_sort_by_virality`. `ruff format`/`ruff check`/`mypy src` clean; endpoint import-sanity-checked. No new dependencies, no ENV vars, no migration.
+**Smoke test:** DEFERRED — needs a real finished DEV run with ≥5 qualifying items to confirm the returned top-5 matches manually sorting the Publications tab by virality descending.
 
 ## [E15-S3] Run detail page: Summary + Publications tabs
 **Epic:** Run Detail View

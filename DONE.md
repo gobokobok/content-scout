@@ -2,6 +2,16 @@
 
 Completed stories land here, newest first. Format:
 
+## [E15-S2] Top-5-posts-by-virality for a run
+**Completed:** 2026-07-22
+**Handover:**
+- New `GET /runs/{run_id}/top-virality?limit=5` (`backend/src/api/items.py:list_top_virality_items`, `TopViralityOut`) — reuses `ContentItemOut` shape and the existing `virality_baseline_subquery`/`virality_ratio_expr` join from `list_run_items`, filtered to non-null ratios (excludes insufficient-sample items entirely) and ordered desc with a configurable `limit` (1–20, default 5).
+- A dedicated endpoint rather than folding into E15-S1's run-summary storage (that story stores fields on `AnalysisRun`, not an endpoint) or the paginated `/runs/{run_id}/items` (different, non-paginated shape).
+- 3 new tests in `test_items_api.py`. `ruff format`/`ruff check`/`mypy src` clean. No new dependencies, no ENV vars, no migration.
+- **For E15-S3:** this endpoint plus E15-S1's stored summary fields are both ready to consume for the run detail page's Summary tab.
+**Smoke test:** DEFERRED — needs a real finished DEV run with ≥5 qualifying items to confirm the returned top-5 matches manually sorting the Publications tab by virality descending.
+**Promoted to backlog:** none
+
 ## [E15-S1] Run-level AI summary generation
 **Completed:** 2026-07-22
 **Handover:**
