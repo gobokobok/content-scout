@@ -13,10 +13,16 @@ Epics:
 - **E10 Content Generation** — scripts + assets from shortlist items, typed пост/карусель/reels (D23), parallel jobs, review & edit, download delivery
 - **E11 Instagram Connection, Publishing & Analytics** — blogger connects own IG account (Graph API, D24), publish/schedule generated content, own-account analytics
 - **E12 UI/UX Modernization** — light design system v1 (D28), mobile card layouts, bottom navigation, UX states; doubles as Telegram Mini App readiness
+- **E13 Navigation & Details Restructure** — bottom nav collapses to Детали/Результаты/Анализ; new Details dashboard (KPI card, links to Competitors/Scheduled Runs, run-history cards, create-run entry point); Competitors page trimmed of selection UI
+- **E14 Scheduled Runs** — recurring analysis on a day-of-week + time schedule, new arq cron infra, Telegram summary notification on completion
+- **E15 Run Detail View** — opening a run from Details shows Summary (AI overview of what competitors post about, top viral topics, top 5 posts) and Publications tabs
+- **E16 Analysis Teaser** — placeholder page for future paid deep-analysis products (competitor/run/publication deep-dive, script rewrite)
 
 Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled). Mobile card layout for tables is now scheduled (E12-S2, Sprint 6 — supersedes the horizontal-scroll-only clause of D16 per D28).
 
-**2026-07-21 reprioritization — tuning toward a single-blogger MVP:** E2-S3, E5-S3, E5-S4 (competitor follower count + comments column), E5-S5 (virality score, new) are next up; E8-S6 (Telegram Mini App bootstrap fix, new) is critical and blocking the pilot. Everything else currently `backlog` (E3-S3, E3-S4, E3-S5, E7-S3, E8-S3, E8-S4, E9-S1, E9-S2, E10-S1, E10-S2, E10-S3, E11-S1, E11-S2, E11-S3) is explicitly deferred post-MVP — see each story's `Sprint:` line for why.
+**2026-07-21 reprioritization — tuning toward a single-blogger MVP:** E2-S3, E5-S3, E5-S4 (competitor follower count + comments column), E5-S5 (virality score, new) are next up; E8-S6 (Telegram Mini App bootstrap fix, new) is critical and blocking the pilot. Everything else currently `backlog` (E3-S3, E3-S4, E3-S5, E7-S3, E8-S4, E9-S1, E9-S2, E10-S1, E10-S2, E10-S3, E11-S1, E11-S2, E11-S3) is explicitly deferred post-MVP — see each story's `Sprint:` line for why.
+
+**2026-07-22 execution plan — locked, extends the MVP:** Sprint 7 shipped (see DONE.md) plus two untracked-but-real feature batches now backfilled as stories: E12-S3 (mobile results controls consolidation + polish) and E3-S7 (run scope: last-N-publications mode). New epics E13–E16 (Details/nav restructure, scheduled runs, run-detail Summary+Publications tabs, Analysis teaser) are locked for **Sprint 8** (E13, E16, E15 — reshape the IA) and **Sprint 9** (E14 — needs new arq cron infra). E8-S3 (Telegram Stars subscription) is re-scoped per D30 (single 1990₽/2000-token tier) and slotted for **Sprint 10**, after the new IA lands so its entry point has a home.
 
 ---
 
@@ -1092,19 +1098,21 @@ backend/src/services/telegram_notify.py, backend/src/worker.py, backend/tests/te
 
 ## [E8-S3] Telegram Stars subscriptions
 **Epic:** Telegram Integration & Monetization
-**Sprint:** unassigned (post-Sprint-6 — D27: no payments until the Telegram test launch has run with real test users)
+**Sprint:** 10 (locked 2026-07-22 execution plan — after E13/E14/E15/E16 land so the subscription entry point has a UI home)
 **Status:** backlog
 **Priority:** high
-**Depends on:** E8-S5, E7-S1
+**Depends on:** E8-S5, E7-S1, E13-S1 (nav restructure — subscription screen is reached from a profile/settings entry point, not the 3-tab bottom nav)
 ### Goal
 Users subscribe to a usage plan paid in Telegram Stars inside the Mini App. The Mini App shell itself (initData auth, bot entry point) ships earlier in E8-S5 — this story is billing only.
+
+**Re-scoped 2026-07-22 per D30:** launch is a **single tier** — 1990 ₽/month → 2000 tokens, credited onto the existing `User.token_balance` int column (already live and already gating runs, see `backend/src/api/runs.py`'s `NO_BALANCE` check and `backend/src/worker.py`'s balance debit) — not D26's full multi-tier X-factor pricing config, which remains a later extension.
 ### Acceptance Criteria
-- [ ] Subscription plans grant token balances per D26 (initial: $5 → 500 токенов / X=10, $20 / X=7, $100 / X=5; plans + X-factors in pricing config, adjustable without code changes); `POST` flow creates a Telegram Stars invoice for a plan or a one-off top-up, confirmed via Bot API payment webhook
-- [ ] Credit ledger: each completed run/script debits `ceil(internal_cost_usd × X ÷ 0.01)` tokens, recorded per operation; «Использование» shows balance + itemized per-run/per-script token consumption («анализ от 12.08 — 100 токенов»)
-- [ ] X-factors, internal USD costs, and unit prices appear in **no** API response or UI string (test asserts this on the usage/billing endpoints); user-facing world is tokens only
-- [ ] Run cost estimate dialog (D10) shows the estimate in tokens for subscribed users
-- [ ] Runs/generation blocked with a clear Russian message when the balance is exhausted, with a link to top up
+- [ ] Recurring Telegram Stars subscription invoice (Bot API subscription support) for the single 1990₽-equivalent/2000-token plan; `POST` flow creates the invoice, confirmed via Bot API successful-payment webhook; new `subscriptions` table (user_id, status, current_period_end, telegram_charge_id)
+- [ ] Each successful billing cycle credits `token_balance += 2000` (reuses the existing column — no new ledger)
+- [ ] «Использование»/subscription screen shows current balance, price ("≈1990 ₽/мес"), and a subscribe button opening Telegram's native invoice sheet
+- [ ] The existing `insufficient_token_balance` run-creation error links to this subscription screen instead of a dead end
 - [ ] Mini App respects D16 (usable at Telegram's in-app viewport sizes) and D20 (loads whatever domain/proxy stage is currently active — no Mini-App-specific network path)
+- [ ] D26's internal `usage_events` cost ledger is untouched by this story — it stays layer-1 only; no X-factor/internal-cost value is introduced or exposed
 ### Definition of Done
 - [ ] All AC checked
 - [ ] Tests written and passing
@@ -1113,9 +1121,9 @@ Users subscribe to a usage plan paid in Telegram Stars inside the Mini App. The 
 - [ ] DONE.md updated
 - [ ] BACKLOG.md updated
 ### Smoke test
-Open the Mini App from the bot on DEV, buy a plan with test Stars, confirm balance updates and a blocked run unblocks after payment.
+Open the Mini App from the bot on DEV, subscribe with test Stars, confirm `token_balance` increases by 2000 and a previously blocked run unblocks after payment.
 ### Files to read
-CLAUDE.md, docs/ARCHITECTURE.md (Telegram Mini App, Usage Metering sections), backend/src/api/usage.py, backend/src/auth/telegram.py
+CLAUDE.md, DECISIONS.md (D19, D26, D30), docs/ARCHITECTURE.md (Telegram Mini App, Usage Metering sections), backend/src/api/usage.py, backend/src/api/runs.py, backend/src/auth/telegram.py
 ### Files to create or modify
 backend/src/api/billing.py, backend/src/models/subscription.py, backend/tests/test_billing.py, frontend/app/(app)/**, frontend/lib/telegram-webapp.ts, frontend/messages/ru.json
 ### Handover
@@ -1522,3 +1530,417 @@ frontend/components/results-cards.tsx (new), frontend/components/ui/bottom-nav.t
 - All list screens — skeleton loaders, errors → toasts, designed empty states (FolderOpen/Users icons)
 - Results/shortlist — cards at <768px, table at ≥768px
 - `ru.json` — `ResultsCards` namespace; `Projects.emptyHint`
+
+## [E12-S3] Mobile results controls consolidation + polish
+**Epic:** UI/UX Modernization
+**Sprint:** 7 (untracked — shipped 2026-07-22 as direct fixes/polish during the Sprint 7 session, backfilled here per the sprint-review "untracked fixes" check)
+**Status:** done
+**Completed:** 2026-07-22
+**Priority:** medium
+**Depends on:** E12-S2, E5-S5 (virality badges), E5-S3 (comments column)
+### Goal
+Three separate rows of mobile results controls (run-selector, token-warning, sort+export) collapse into one icon row, and a batch of related UX polish lands: virality badge colors that read correctly against the design system, less visual noise on collapsed cards, and new sort options for the metrics added in E5-S3/E5-S5.
+### Acceptance Criteria
+- [x] Single icon row: sort (bottom sheet, active option emphasized), export (bottom sheet with export button + explanatory copy — includes the Telegram-downloads-folder note when `canDownloadViaTelegram()`), run-filter (bottom sheet listing runs + "все запуски"), star (shows only shortlisted items, respecting the active run filter)
+- [x] Sort/filter/star grouped left; export icon pushed right (`ml-auto`)
+- [x] Все/Отмеченные tabs removed — the star filter supersedes them
+- [x] Virality badges: medium → soft yellow, low → soft red (previously both grey, indistinguishable from other chips); high stays green
+- [x] Days-since-publication chip hidden on collapsed cards, shown only when a card is expanded
+- [x] New sort options: virality (new SQL-level `virality_ratio_expr`, since the badge itself is only bucketed), engagement rate, comments
+- [x] Export always exports exactly the currently filtered/visible list
+### Definition of Done
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED (same pattern as the rest of Sprint 7; needs a real finished DEV run to eyeball on a phone)
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+On a phone/Telegram webview at 375px, open Результаты for a project with a finished run: confirm the single control row, sort by each new option, star-filter with and without a run selected, export and confirm the file matches the visible filter.
+### Files to read
+CLAUDE.md, DECISIONS.md (D28), frontend/components/results-cards.tsx, frontend/lib/format.ts
+### Files to create or modify
+frontend/components/results-controls.tsx (new), frontend/app/(app)/projects/[id]/results/page.tsx, frontend/components/results-cards.tsx, frontend/lib/format.ts, frontend/lib/api.ts, backend/src/services/metrics.py (`virality_ratio_expr`), backend/src/api/items.py, backend/src/api/export.py, frontend/messages/ru.json
+### Handover
+- `frontend/components/results-controls.tsx` — new single-row control bar (`SORT_FIELDS`/`SORT_LABELS` include `virality`, `engagement_rate`, `comments`); replaces the old inline tab/sort/export/run-filter markup that used to live directly in `results/page.tsx`.
+- `backend/src/services/metrics.py:virality_ratio_expr(median_engagement, median_views, item_count, settings)` — SQL-level version of the existing Python `bucket_virality` ratio, wired into the `sort_columns` dict in both `api/items.py` and `api/export.py` (paginated + full-run export).
+- `frontend/lib/format.ts:VIRALITY_STYLE` — `medium: "bg-warning/10 text-warning"`, `low: "bg-danger/10 text-danger"` (both were grey before).
+- Orphaned `/projects/[id]/shortlist/page.tsx` was flagged (not fixed) as dead code once the tabs were removed — separate cleanup task, not done here.
+- Commits: `b955fba` (single-row collapse), `9468564` + `7679080` (tabs removal, colors, sort options, export copy — the second commit fixed a CI-only constraint-name test mismatch, unrelated to this story's own logic).
+
+## [E3-S7] Run scope: last-N-publications mode
+**Epic:** Analysis Pipeline
+**Sprint:** 7 (untracked — shipped 2026-07-22 alongside E12-S3, backfilled here)
+**Status:** done
+**Completed:** 2026-07-22
+**Priority:** medium
+**Depends on:** E3-S1, E3-S2
+### Goal
+Alongside the existing "last N days" run window, a user can instead scope a run to "last N publications per account" (5–50) — useful for low-frequency posters where a day window returns too little, or high-frequency posters where it returns too much.
+### Acceptance Criteria
+- [x] `AnalysisRun.duration_days` and `.item_limit` are both nullable; exactly one is set, enforced by a Postgres CHECK constraint (`duration_or_item_limit_range`)
+- [x] Run-creation dialog gets a day-window/count segmented toggle; count mode offers 5/10/15/20/30/50
+- [x] Estimator (`estimate_run`) branches: `accounts_count × item_limit` in count mode vs. the existing duration-based calc
+- [x] `Platform.fetch_content` takes keyword-only `since: datetime | None` + `limit: int | None`; Instagram scraper omits `onlyPostsNewerThan` and uses `resultsLimit` directly in count mode; `MockPlatform` mirrors the branching
+- [x] History/run-summary views render whichever of the two is set ("N дней" / "последние N публикаций")
+### Definition of Done
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED (needs a real DEV run in count mode against public IG accounts)
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+On DEV, start a run in "last N publications" mode against a low-frequency account; confirm the worker fetches exactly N items per account regardless of how old they are, and History shows "последние N публикаций" for that run.
+### Files to read
+CLAUDE.md, docs/ARCHITECTURE.md (run lifecycle), backend/src/models/analysis_run.py, backend/src/platforms/base.py
+### Files to create or modify
+backend/src/models/analysis_run.py, backend/alembic/versions/b8c4d5e6f7a1_run_item_limit.py (new), backend/src/services/estimator.py, backend/src/api/runs.py, backend/src/api/usage.py, backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/platforms/mock.py, backend/src/worker.py, frontend/app/(app)/projects/[id]/run-dialog.tsx, frontend/app/(app)/projects/[id]/history/page.tsx, frontend/lib/api.ts, frontend/messages/ru.json
+### Handover
+- Migration `b8c4d5e6f7a1` is head; downgrade backfills `duration_days=7` before restoring the old NOT NULL.
+- Found and fixed a real bug in passing: `RunSummaryOut` in `api/usage.py` had `duration_days: int` (non-optional) — would have 500'd on any item_limit-mode run. Now `int | None` + `item_limit: int | None`.
+- `RunRequestIn` uses a `model_validator(mode="after")` to enforce exactly-one-of at the API layer, mirroring the DB constraint.
+- Commit: `9468564` (shipped together with E12-S3's frontend polish in the same push), fixed up in `7679080` after CI caught a stale constraint-name assertion in `test_run_duration_check_rejected`.
+
+## [E13-S1] Bottom nav restructure: Детали / Результаты / Анализ
+**Epic:** Navigation & Details Restructure
+**Sprint:** 8 (locked 2026-07-22 execution plan)
+**Status:** backlog
+**Priority:** high
+**Depends on:** none
+### Goal
+The project bottom nav (and desktop tab bar) collapses from the current Конкуренты/Результаты/Создать to exactly three items: **Детали**, **Результаты**, **Анализ**. Детали becomes the project's landing page; Конкуренты and Создать stop being top-level tabs and move behind Детали (E13-S2, E13-S3, E16-S1).
+### Acceptance Criteria
+- [ ] `ProjectBottomNav` and the desktop tab bar in `layout.tsx` both show exactly Детали/Результаты/Анализ, in that order
+- [ ] Root project route (`/projects/[id]`) redirects to `/projects/[id]/details` instead of `/competitors`
+- [ ] `/projects/[id]/create` route removed (superseded by Детали's inline create-run entry point, E13-S2, and by E16-S1's Анализ teaser)
+- [ ] `sectionHeading()` in the shared layout recognizes the new `/details` and `/analysis` segments
+- [ ] Existing deep links to `/results?run=...` (used by Telegram notifications, E15-S3) keep working unchanged
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Open a project on DEV at both desktop and 375px — bottom/tab nav shows only the three new items, landing on Детали; old `/competitors` and `/create` links redirect or 404 gracefully.
+### Files to read
+CLAUDE.md, DECISIONS.md (D28), frontend/components/ui/bottom-nav.tsx, frontend/app/(app)/projects/[id]/layout.tsx, frontend/app/(app)/projects/[id]/page.tsx
+### Files to create or modify
+frontend/components/ui/bottom-nav.tsx, frontend/app/(app)/projects/[id]/layout.tsx, frontend/app/(app)/projects/[id]/page.tsx, frontend/messages/ru.json
+### Handover
+—
+
+## [E13-S2] Details dashboard: KPI card, nav links, run-history cards, create-run entry
+**Epic:** Navigation & Details Restructure
+**Sprint:** 8
+**Status:** backlog
+**Priority:** high
+**Depends on:** E13-S1
+### Goal
+Детали becomes the project's real landing page: a project-level KPI summary, full-width links into Competitors and Scheduled Runs, a card-based run history (replacing the run table currently on `/history`), and the entry point for creating a new run.
+### Acceptance Criteria
+- [ ] Dashboard card: number of competitors, total publications analyzed since project start (new lifetime aggregate — not scoped to one run); card is built to take more KPIs later without a layout rewrite
+- [ ] Full-width "Конкуренты" button (arrow-right, right-aligned, same visual style as a competitor row) → `/projects/[id]/competitors`
+- [ ] Full-width "Запланированные запуски" button, same style → `/projects/[id]/scheduled` (E14-S3)
+- [ ] Run history as cards (not the old table): date, accounts analyzed, publications analyzed, tokens consumed per run; tapping a card opens the run detail view (E15-S3)
+- [ ] "Создать запуск" button opens the existing run-creation flow (extended in E14-S4 with a Run-now/Schedule choice)
+- [ ] New backend aggregate endpoint (or extension of an existing one) for the lifetime publications-analyzed count, scoped to the caller's own project (reuses `get_owned_project`)
+- [ ] Screen usable at 375px (D16); cards, not the old table, at every width for this list specifically (this is a dashboard, not a data table)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Open Детали on DEV for a project with at least one finished run — KPI card shows correct counts, both nav buttons navigate correctly, run cards show plausible data and open the right run.
+### Files to read
+CLAUDE.md, DECISIONS.md (D16, D28), docs/UI_GUIDELINES.md, backend/src/api/usage.py (existing run-summary shape), frontend/app/(app)/projects/[id]/history/page.tsx (run table being replaced)
+### Files to create or modify
+frontend/app/(app)/projects/[id]/details/page.tsx (new), backend/src/api/projects.py or usage.py (lifetime aggregate), frontend/lib/api.ts, frontend/messages/ru.json
+### Handover
+—
+
+## [E13-S3] Competitors page trim
+**Epic:** Navigation & Details Restructure
+**Sprint:** 8
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E13-S1
+### Goal
+The Competitors page stops being a run-creation surface (that moves to Детали, E13-S2/E14-S4) and becomes a pure competitor-list management screen, reachable only from Детали.
+### Acceptance Criteria
+- [ ] Selection checkboxes and "select all" removed
+- [ ] "Запустить анализ" button removed (run creation lives on Детали now)
+- [ ] Back button to Детали added
+- [ ] Add-competitor flow and everything else (avatar/name/followers display from E2-S3, remove, 50-cap info popover) unchanged
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Open Конкуренты from Детали on DEV — no checkboxes, no run button, back button returns to Детали, add/remove still works.
+### Files to read
+CLAUDE.md, frontend/app/(app)/projects/[id]/competitors/page.tsx
+### Files to create or modify
+frontend/app/(app)/projects/[id]/competitors/page.tsx, frontend/messages/ru.json
+### Handover
+—
+
+## [E14-S1] Scheduled runs: schema and migration
+**Epic:** Scheduled Runs
+**Sprint:** 9 (locked 2026-07-22 execution plan)
+**Status:** backlog
+**Priority:** high
+**Depends on:** E3-S7 (reuses the duration_days/item_limit XOR pattern)
+### Goal
+A durable definition of a recurring run: which competitors, what scope (day window or last-N, per E3-S7), and which day-of-week + time to fire.
+### Acceptance Criteria
+- [ ] New `scheduled_runs` table: project_id, account_ids scope (nullable = whole list, mirrors `AnalysisRun.account_ids`), duration_days/item_limit (same XOR CHECK pattern as `AnalysisRun`), day_of_week, time_of_day, timezone, active, created_by, last_run_id, migration via Alembic
+- [ ] Model exposed through `src/models/__init__.py` per existing convention
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Migration applies cleanly on DEV; `\d scheduled_runs` shows the expected columns and constraint.
+### Files to read
+CLAUDE.md, CONVENTIONS.md, backend/src/models/analysis_run.py (XOR constraint pattern to mirror)
+### Files to create or modify
+backend/src/models/scheduled_run.py (new), backend/alembic/versions/<new>.py, backend/src/models/__init__.py
+### Handover
+—
+
+## [E14-S2] Scheduled runs: CRUD API + arq cron dispatcher
+**Epic:** Scheduled Runs
+**Sprint:** 9
+**Status:** backlog
+**Priority:** high
+**Depends on:** E14-S1
+### Goal
+Users can create/list/update/delete scheduled runs via API, and a new recurring background job fires due schedules automatically — the first use of arq's cron scheduling in this codebase (today `WorkerSettings.functions` only lists on-demand jobs).
+### Acceptance Criteria
+- [ ] `POST/GET/PATCH/DELETE /projects/{id}/scheduled-runs`, workspace-owned via the existing `get_owned_project` pattern
+- [ ] `WorkerSettings.cron_jobs` gains a tick function (e.g. every 5 minutes) that finds schedules due in the current window (day_of_week + time_of_day, respecting each schedule's timezone) and creates+enqueues an `AnalysisRun` the same way `POST /projects/{id}/runs` does today (reuses `estimate_run`/`enqueue_run`, respects the token-balance gate in `worker.py`)
+- [ ] A schedule that fires while its `token_balance` is exhausted behaves the same as a manual run hitting the same limit (partial/skip, never crashes the cron tick)
+- [ ] `last_run_id` updated after each fire, for display on the Scheduled Runs list (E14-S3)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Create a schedule for a near-future day/time on DEV, wait for it to fire, confirm a new run appears in Детали's run history without any manual trigger.
+### Files to read
+CLAUDE.md, backend/src/worker.py, backend/src/services/queue.py, backend/src/api/runs.py (run-creation logic being reused), arq cron docs
+### Files to create or modify
+backend/src/api/scheduled_runs.py (new), backend/src/worker.py (`WorkerSettings.cron_jobs`), backend/src/services/scheduled_runs.py (new), backend/tests/test_scheduled_runs.py (new)
+### Handover
+—
+
+## [E14-S3] Scheduled Runs page (list + create/edit)
+**Epic:** Scheduled Runs
+**Sprint:** 9
+**Status:** backlog
+**Priority:** high
+**Depends on:** E14-S2, E13-S2
+### Goal
+The frontend surface for E14-S2, reached via the "Запланированные запуски" button on Детали.
+### Acceptance Criteria
+- [ ] List page: existing schedules (competitors scope, day/count scope, day-of-week + time, active toggle, last-run date), back button to Детали
+- [ ] Create/edit form: competitor multiselect, day-window/count-scope toggle (reuses the picker built in E3-S7's `run-dialog.tsx`), day-of-week + time picker, save
+- [ ] Usable at 375px (D16)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV at 375px, create a schedule, see it listed, edit it, deactivate it — all persist correctly.
+### Files to read
+CLAUDE.md, DECISIONS.md (D16), frontend/app/(app)/projects/[id]/run-dialog.tsx (scope picker to reuse)
+### Files to create or modify
+frontend/app/(app)/projects/[id]/scheduled/page.tsx (new), frontend/app/(app)/projects/[id]/scheduled/scheduled-run-dialog.tsx (new), frontend/lib/api.ts, frontend/messages/ru.json
+### Handover
+—
+
+## [E14-S4] Wire Run-now / Schedule choice into Details' create-run flow
+**Epic:** Scheduled Runs
+**Sprint:** 9
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E14-S3, E13-S2
+### Goal
+Detали's single "Создать запуск" entry point offers both immediate and scheduled runs, instead of Scheduled Runs being a wholly separate flow.
+### Acceptance Criteria
+- [ ] After picking competitors + scope, user chooses "Запустить сейчас" (existing `run-dialog.tsx` flow, unchanged) or "Запланировать" (branches into day-of-week + time picker, posts to the E14-S2 API instead of starting a run immediately)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+From Детали, create a run both ways in one session — "now" starts immediately, "schedule" lands on the Scheduled Runs list instead.
+### Files to read
+CLAUDE.md, frontend/app/(app)/projects/[id]/run-dialog.tsx
+### Files to create or modify
+frontend/app/(app)/projects/[id]/run-dialog.tsx, frontend/messages/ru.json
+### Handover
+—
+
+## [E14-S5] Telegram notification for scheduled-run completion
+**Epic:** Scheduled Runs
+**Sprint:** 9
+**Status:** backlog
+**Priority:** low
+**Depends on:** E14-S2
+### Goal
+A scheduled run's completion is announced to the user's linked Telegram account, same as manual runs today.
+### Acceptance Criteria
+- [ ] Scheduled-run completions call the existing `notify_run_complete` path — same copy as manual runs for launch
+- [ ] Follow-up story (not this one) will customize the message once the desired "summary" content is specified by the user
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+A scheduled run fires on DEV; the linked Telegram account receives the same completion DM a manual run would send.
+### Files to read
+CLAUDE.md, backend/src/services/telegram_notify.py
+### Files to create or modify
+backend/src/services/scheduled_runs.py (call site only — no changes to telegram_notify.py itself expected)
+### Handover
+—
+
+## [E15-S1] Run-level AI summary generation
+**Epic:** Run Detail View
+**Sprint:** 8 (locked 2026-07-22 execution plan)
+**Status:** backlog
+**Priority:** high
+**Depends on:** E4-S2 (per-item summaries already exist), E3-S7
+### Goal
+Once a run finishes scraping + summarizing every item, one additional Claude call synthesizes an overview: what competitors are posting about, which topics trend toward higher virality, and a top-5 topic list.
+### Acceptance Criteria
+- [ ] New prompt documented in `docs/PROMPTS.md`, fed all item captions/per-item summaries for the run
+- [ ] Output: 2–4 sentence overall summary (RU) + top-5-topics list; stored on a new `run_summaries` table (or JSON column on `AnalysisRun` — pick whichever avoids a join for the common read path) keyed by run_id
+- [ ] Triggered once, at the end of `process_run`, never re-run on every page view
+- [ ] New `usage_events` row for this Claude call (D12 — every external cost recorded at the moment it's incurred, no retrofits)
+- [ ] Failure of this step is non-fatal to the run (mirrors `notify_run_complete`'s never-raises pattern) — a run can be "done" with items but a pending/failed summary, surfaced gracefully in E15-S3
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+A finished DEV run gets a plausible Russian summary and top-5 topics within the pipeline's normal completion time; `usage_events` gained exactly one row for it.
+### Files to read
+CLAUDE.md, docs/PROMPTS.md, backend/src/services/summarize.py (E4 prompt patterns to follow), backend/src/worker.py (`process_run`)
+### Files to create or modify
+backend/src/services/run_summary.py (new), backend/src/models/run_summary.py or migration adding a column to analysis_run.py, backend/src/worker.py, docs/PROMPTS.md, backend/tests/test_run_summary.py (new)
+### Handover
+—
+
+## [E15-S2] Top-5-posts-by-virality for a run
+**Epic:** Run Detail View
+**Sprint:** 8
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E5-S5 (virality), E12-S3 (SQL `virality_ratio_expr`)
+### Goal
+Surface the 5 most viral posts of a run — no new modeling needed, this is purely `virality_ratio_expr` sorted desc with a limit, exposed for the run-summary view.
+### Acceptance Criteria
+- [ ] Existing items endpoint (or the new run-summary endpoint from E15-S1) supports returning the top 5 by virality ratio for a given run, reusing `virality_ratio_expr` from `services/metrics.py`
+- [ ] Items with insufficient sample size (per `virality_min_items`) are excluded, same as the existing badge logic
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+For a finished DEV run with ≥5 qualifying items, the returned top-5 matches manually sorting the Publications tab by virality descending.
+### Files to read
+CLAUDE.md, backend/src/services/metrics.py
+### Files to create or modify
+backend/src/api/items.py or the new run-summary endpoint from E15-S1, backend/tests/test_items_api.py
+### Handover
+—
+
+## [E15-S3] Run detail page: Summary + Publications tabs
+**Epic:** Run Detail View
+**Sprint:** 8
+**Status:** backlog
+**Priority:** high
+**Depends on:** E15-S1, E15-S2, E13-S2, E12-S3
+### Goal
+Opening a run card from Детали lands on a dedicated run-detail page with two tabs, replacing the ad-hoc "click a history row to filter Результаты by run_id" pattern.
+### Acceptance Criteria
+- [ ] New route `/projects/[id]/runs/[runId]` with Summary/Publications tabs
+- [ ] Summary tab: run date/time, accounts analyzed, publications analyzed, AI overall summary + top-5 topics (E15-S1), top-5 posts by virality (E15-S2, linking into the Publications tab)
+- [ ] Publications tab: reuses `results-cards`/`results-controls` scoped to this run, with the **run-filter icon removed** (redundant — already scoped to one run); sort/star/export controls unchanged
+- [ ] The existing project-wide Результаты tab (bottom nav) is untouched — this is a new, additional scoped view, not a replacement
+- [ ] Telegram run-completion notifications (`notify_run_complete`) link here instead of `/results?run=...`
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+From Детали, open a finished run — Summary tab shows plausible data, Publications tab behaves like Результаты minus the run-filter icon, and a Telegram completion DM's link lands here.
+### Files to read
+CLAUDE.md, DECISIONS.md (D16, D28), frontend/components/results-cards.tsx, frontend/components/results-controls.tsx, frontend/app/(app)/projects/[id]/results/page.tsx
+### Files to create or modify
+frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx (new), frontend/lib/api.ts, backend/src/services/telegram_notify.py (link target), frontend/messages/ru.json
+### Handover
+—
+
+## [E16-S1] Analysis teaser page
+**Epic:** Analysis Teaser
+**Sprint:** 8 (locked 2026-07-22 execution plan)
+**Status:** backlog
+**Priority:** low
+**Depends on:** E13-S1
+### Goal
+The third bottom-nav tab, Анализ, is a placeholder for future paid deep-analysis products — not functional yet, just a preview of what's coming.
+### Acceptance Criteria
+- [ ] Route `/projects/[id]/analysis` reuses the existing "coming soon" visual pattern from the now-removed `/create` page (Sparkles icon + centered text)
+- [ ] Lists disabled cards for: competitor deep-dive, run deep-dive, publication deep-dive + rewritten-script generation — short RU description each, no functionality
+- [ ] Old `/create` route deleted (superseded — see E13-S1)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Tapping Анализ on DEV shows the teaser cards, nothing clickable does anything, no console errors.
+### Files to read
+CLAUDE.md, frontend/app/(app)/projects/[id]/create/page.tsx (pattern being repurposed)
+### Files to create or modify
+frontend/app/(app)/projects/[id]/analysis/page.tsx (new, repurposes create/page.tsx), frontend/app/(app)/projects/[id]/create/page.tsx (delete), frontend/messages/ru.json
+### Handover
+—

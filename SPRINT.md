@@ -108,7 +108,49 @@ Full story definitions live in `BACKLOG.md`.
 | 3 | E5-S3 | Comments count column | done |
 | 4 | E5-S5 | Virality score per publication (depends on E5-S4) | done |
 
-**Sprint 7 complete.** All 5 stories from the 2026-07-21 single-blogger reprioritization shipped and CI-green (a real CI failure surfaced two bugs — a Postgres `percentile_cont`/window-function incompatibility in E5-S5, and a test-session isolation bug in E2-S3's background worker job — both fixed same-day, see their BACKLOG.md Changelog entries). Every story's DEV smoke test is still deferred (consistent with this project's established pattern — Apify/Telegram-dependent verification always waits for a real device/account); next session should run a real-device + DEV pass over all of them before starting a new sprint.
+**Sprint 7 complete.** All 5 stories from the 2026-07-21 single-blogger reprioritization shipped and CI-green (a real CI failure surfaced two bugs — a Postgres `percentile_cont`/window-function incompatibility in E5-S5, and a test-session isolation bug in E2-S3's background worker job — both fixed same-day, see their BACKLOG.md Changelog entries). Every story's DEV smoke test is still deferred (consistent with this project's established pattern — Apify/Telegram-dependent verification always waits for a real device/account); a real-device + DEV pass over all of them is still owed, tracked as a standing carry-over rather than a blocking gate.
+
+**Also shipped in the Sprint 7 window, untracked at the time, now backfilled as stories (see DONE.md):** E12-S3 (mobile results controls consolidation — single icon row, virality badge recolor, new virality/engagement/comments sort options, export sheet copy) and E3-S7 (run scope: last-N-publications mode, alongside the existing day-window scope).
+
+## Sprint 8 — Navigation restructure: Details, Results, Analysis (locked 2026-07-22)
+
+**Goal:** per the 2026-07-22 execution-plan session, extend the MVP with a reshaped project IA — bottom nav collapses to three tabs (Детали/Результаты/Анализ), Детали becomes a real dashboard (KPIs, competitor/scheduled-run links, run-history cards, create-run entry), opening a run gets its own Summary+Publications detail view, and Анализ ships as a teaser for future paid deep-analysis products. This sprint reshapes the IA that Sprint 9 (scheduled runs) and Sprint 10 (monetization) both build their entry points on top of.
+
+**Stories (in order):**
+
+| # | Story | Title | Status |
+|---|---|---|---|
+| 0 | E13-S1 | Bottom nav restructure: Детали / Результаты / Анализ | backlog |
+| 1 | E13-S2 | Details dashboard: KPI card, nav links, run-history cards, create-run entry | backlog |
+| 2 | E13-S3 | Competitors page trim | backlog |
+| 3 | E16-S1 | Analysis teaser page | backlog |
+| 4 | E15-S1 | Run-level AI summary generation | backlog |
+| 5 | E15-S2 | Top-5-posts-by-virality for a run | backlog |
+| 6 | E15-S3 | Run detail page: Summary + Publications tabs | backlog |
+
+## Sprint 9 — Scheduled runs (locked 2026-07-22)
+
+**Goal:** recurring analysis runs on a day-of-week + time schedule, notified to Telegram on completion. First use of arq's cron scheduling in this codebase — new infra, not just new UI.
+
+**Stories (in order):**
+
+| # | Story | Title | Status |
+|---|---|---|---|
+| 0 | E14-S1 | Scheduled runs: schema and migration | backlog |
+| 1 | E14-S2 | Scheduled runs: CRUD API + arq cron dispatcher | backlog |
+| 2 | E14-S3 | Scheduled Runs page (list + create/edit) | backlog |
+| 3 | E14-S4 | Wire Run-now / Schedule choice into Details' create-run flow | backlog |
+| 4 | E14-S5 | Telegram notification for scheduled-run completion | backlog |
+
+## Sprint 10 — Monetization: 1990₽/mo subscription (locked 2026-07-22, D30)
+
+**Goal:** first paid tier — 1990₽/month for 2000 tokens via Telegram Stars (D19), credited onto the existing `User.token_balance` column. Placed after Sprint 8 so the subscription entry point has a UI home (profile/settings, not the 3-tab bottom nav).
+
+**Stories (in order):**
+
+| # | Story | Title | Status |
+|---|---|---|---|
+| 0 | E8-S3 | Telegram Stars subscriptions (re-scoped per D30 — single tier) | backlog |
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 
@@ -118,4 +160,7 @@ Full story definitions live in `BACKLOG.md`.
 - **Sprint 5:** E6-S2, E7-S1, E7-S2 — history, usage rollups, admin view → **usable MVP** (E7-S2 carried into Sprint 6)
 - **Sprint 6:** hardening + cost + redesign + **Telegram test launch, no payments** (see above)
 - **Sprint 7 (proposed, 2026-07-21 reprioritization — single-blogger MVP focus):** E8-S6 Telegram Mini App bootstrap fix (critical, live-blocking bug for the pilot — root cause fixed, pending real-device smoke test, see BACKLOG.md), E5-S4 subscriber count in results table, E2-S3 competitor profile enrichment (depends on E5-S4's `fetch_profile`), E5-S3 comments count column, E5-S5 virality score per publication (depends on E5-S4)
-- **Post-MVP (not yet ordered):** E3-S3/E3-S4 (run resume, two-phase cost confirmation), E3-S5 HikerAPI switch, E7-S3 pre-public-launch hardening, E8-S3 Telegram Stars subscriptions + D26 token billing, E8-S4 share-to-bot, E9 Public API, E10 Content Generation, E11 IG Connection/Publishing/Analytics (spike first) — see BACKLOG.md and docs/ARCHITECTURE.md § Roadmap beyond MVP
+- **Sprint 8 (locked, 2026-07-22 execution plan):** E13-S1/S2/S3 (nav restructure: Детали/Результаты/Анализ, Details dashboard, Competitors trim), E16-S1 (Analysis teaser), E15-S1/S2/S3 (run detail: AI summary, top-5-by-virality, Summary+Publications tabs)
+- **Sprint 9 (locked, 2026-07-22 execution plan):** E14-S1..S5 — scheduled runs (schema, CRUD + arq cron dispatcher, Scheduled Runs page, Run-now/Schedule wiring, Telegram notification)
+- **Sprint 10 (locked, 2026-07-22 execution plan, D30):** E8-S3 re-scoped — single 1990₽/mo → 2000-token subscription via Telegram Stars
+- **Post-MVP (not yet ordered):** E3-S3/E3-S4 (run resume, two-phase cost confirmation), E3-S5 HikerAPI switch, E7-S3 pre-public-launch hardening, E8-S4 share-to-bot, E9 Public API, E10 Content Generation, E11 IG Connection/Publishing/Analytics (spike first) — see BACKLOG.md and docs/ARCHITECTURE.md § Roadmap beyond MVP

@@ -2,6 +2,36 @@
 
 Completed stories land here, newest first. Format:
 
+## [E12-S3] Mobile results controls consolidation + polish
+**Completed:** 2026-07-22
+**Handover:**
+- Shipped as direct fixes/polish during the Sprint 7 session, no story ID at the time — backfilled into BACKLOG.md/DONE.md during the 2026-07-22 execution-plan session per the sprint-review "untracked fixes" check.
+- `frontend/components/results-controls.tsx` (new) replaces three separate mobile control rows (run-selector, token-warning, sort+export) with one icon row: sort (bottom sheet), export (bottom sheet, includes the Telegram-downloads-folder note via `canDownloadViaTelegram()`), run-filter (bottom sheet + "все запуски"), star (shortlist-only, respects the active run filter). Sort/filter/star grouped left, export pushed right (`ml-auto`).
+- Все/Отмеченные tabs removed from `results/page.tsx` — the star filter supersedes them; unused `SubTab` state, `shortlistContent` block, and related handlers deleted. Orphaned `/projects/[id]/shortlist/page.tsx` was flagged (not fixed) as dead code, separate cleanup task.
+- `backend/src/services/metrics.py:virality_ratio_expr(median_engagement, median_views, item_count, settings)` — SQL-level virality ratio (reuses `virality_baseline_subquery`), wired into `sort_columns` in both `api/items.py` and `api/export.py` so "Виральность" is a real sort option, not just a display bucket. "Вовлечённость"/"Комментарии" added as sort options too.
+- `frontend/lib/format.ts:VIRALITY_STYLE` — medium recolored grey→soft yellow (`bg-warning/10 text-warning`), low grey→soft red (`bg-danger/10 text-danger`); high stays green. Both were indistinguishable grey chips before.
+- `results-cards.tsx` — days-since-publication chip now only renders when a card is expanded (`{expanded && (...)}`), decluttering collapsed cards.
+- Verified via temporary `frontend/app/dev-preview/**` scratch routes (mounted the real components with mock data, screenshotted via the Browser pane, then deleted before committing — no local Postgres or DEV login credentials available in this sandbox).
+- Commits: `b955fba` (single-row collapse), `9468564` + `7679080` (tabs removal, colors, sort options, export copy; second commit fixed a CI-only stale-constraint-name test assertion left over from E3-S7, unrelated to this story's own logic). CI green including `deploy-dev` on both.
+**Smoke test:** DEFERRED — needs a real finished DEV run to eyeball on a phone/Telegram webview (same deferral pattern as the rest of Sprint 7).
+**Promoted to backlog:** none
+
+## [E3-S7] Run scope: last-N-publications mode
+**Completed:** 2026-07-22
+**Handover:**
+- Shipped alongside E12-S3 in the same commits, no story ID at the time — backfilled per the sprint-review "untracked fixes" check.
+- `AnalysisRun.duration_days`/`.item_limit` both nullable, exactly one set, enforced by CHECK constraint `duration_or_item_limit_range` (migration `b8c4d5e6f7a1`, now head; downgrade backfills `duration_days=7` before restoring NOT NULL). Postgres `GREATEST`/`LEAST`-style null-handling isn't used here — this is a plain XOR CHECK, not the virality baseline pattern.
+- `backend/src/services/estimator.py:estimate_run` is now keyword-only (`*, duration_days, item_limit`), branches `accounts_count × item_limit` vs. the existing duration calc.
+- `Platform.fetch_content` is keyword-only `since: datetime | None, limit: int | None = None`; `InstagramPlatform` omits `onlyPostsNewerThan` and sets `resultsLimit = limit` directly in count mode; `MockPlatform` mirrors the branching for tests.
+- `backend/src/api/runs.py:RunRequestIn` gained a `model_validator(mode="after")` enforcing exactly-one-of `duration_days`/`item_limit`, mirroring the DB constraint at the API layer.
+- Found and fixed a real pre-existing-pattern bug in passing: `RunSummaryOut` in `api/usage.py` had non-optional `duration_days: int` — would have 500'd on any item_limit-mode run's usage listing. Now `int | None` + new `item_limit: int | None`.
+- Frontend: `run-dialog.tsx` gained a day/count segmented toggle (`ITEM_LIMIT_OPTIONS = [5,10,15,20,30,50]`); `history/page.tsx`'s duration column now branches on which field is set ("N дней" vs "последние N публикаций").
+- New tests: `test_estimator.py`, `test_instagram_platform.py`, `test_worker.py` (`test_process_run_item_limit_mode_fetches_last_n_publications`, via the existing `MockPlatform` path), `test_runs.py` (reject-both/reject-neither/accept cases), `test_models.py` (constraint tests, split into separate test functions per Postgres's transaction-abort-after-IntegrityError semantics — a single test can't run two `pytest.raises(IntegrityError)` blocks against the same session fixture).
+- CI caught one real regression before this closed: after the constraint rename, a pre-existing test (`test_run_duration_check_rejected`) still matched the old constraint name — fixed in `7679080` with proper coverage added for the item_limit side.
+- Commits: `9468564`, `7679080`.
+**Smoke test:** DEFERRED — needs a real DEV run in count mode against public IG accounts (same deferral pattern as every other Apify-touching story).
+**Promoted to backlog:** none
+
 ## [E5-S5] Virality score (High/Medium/Low) per publication
 **Completed:** 2026-07-22
 **Handover:**

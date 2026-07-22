@@ -35,7 +35,7 @@ Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f
 
 ## Current sprint and active story
 
-- **Sprint:** 7 complete (E8-S6, E5-S4, E2-S3, E5-S3, E5-S5 — all done, DEV smoke tests deferred pending a real-device pass). Sprints 1–7 complete. Next: `/sprint-review` to plan Sprint 8 from `BACKLOG.md`'s post-MVP list.
+- **Sprint:** 8 locked, not yet started (E13 nav/Details restructure, E16 Analysis teaser, E15 run-detail Summary+Publications — see SPRINT.md). Sprints 1–7 complete (Sprint 7 also picked up two untracked-but-shipped stories, E12-S3 and E3-S7, backfilled in DONE.md/BACKLOG.md). Sprint 9 (E14 scheduled runs) and Sprint 10 (E8-S3 monetization, D30) are locked and queued behind it. DEV smoke tests for Sprint 7 stories are still deferred pending a real-device pass.
 
 ## Hard constraints
 
