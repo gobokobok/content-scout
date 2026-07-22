@@ -13,6 +13,13 @@ Read in this order, every session:
 
 content-scout is a SaaS where a user creates a project, adds up to 50 competitor Instagram accounts, and runs an analysis over a chosen window (≤7 days). The system scrapes published content via Apify, computes engagement metrics, generates 1–2 sentence Claude summaries (caption + cover image), and presents a sortable, XLSX-exportable table; users promote winners to a shortlist and can review run/shortlist history. Every run is metered in a usage ledger (Apify units + Claude tokens) so token-based billing can be added later; UI is Russian-only via next-intl.
 
+## Priority: Telegram Mini App (mobile) first — 2026-07-22
+
+The Telegram Mini App is the primary delivery target and needs to ship ASAP; the desktop/browser experience is secondary. Concretely:
+- Prefer work that moves the mobile miniapp forward. If a task is purely about the browser/desktop surface (desktop-only polish, desktop keyboard/mouse interactions, browser-specific verification) and it would cost meaningful time, **delay it** rather than doing it now — leave a note (in the story's Handover, or here) instead of spending the session on it.
+- Don't sink time fighting browser-only test-harness/dev-server quirks (e.g. scratch-preview click-through races) when the underlying change isn't miniapp-specific — note the gap as deferred and move on; this has already cost real time in this project (see DONE.md's "Results/Details landing-page swap" entry, 2026-07-22).
+- Mobile-first constraints below (375px usable, cards not tables) already point the UI at this target — this note is about where to spend *dev/test time*, not a new UI rule.
+
 ## Environments and deploy triggers
 
 | Env | URL | Trigger |
