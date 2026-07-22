@@ -212,6 +212,32 @@ async def run_analysis(ctx: dict, run_id: str) -> None:
         await process_run(session, run)
 
 
+async def apply_profile_update(session: AsyncSession, account: Account, user_id: uuid.UUID) -> None:
+    """Core enrichment logic, isolated from session/queue plumbing for testability (mirrors
+    `process_run`). Fetch failure leaves the row usable (handle only) and never raises —
+    the caller's `add_accounts` request must never block on this."""
+    settings = get_settings()
+    platform = get_platform(PlatformSlug.instagram)
+    try:
+        profile = await platform.fetch_profile(account)
+    except Exception:  # noqa: BLE001
+        return
+
+    account.followers_count = profile.followers_count
+    account.display_name = profile.display_name
+    account.avatar_url = profile.avatar_url
+    account.followers_updated_at = datetime.now(UTC)
+    session.add(
+        UsageEvent(
+            user_id=user_id,
+            kind=KIND_APIFY_RESULT,
+            quantity=1,
+            unit_cost_usd=Decimal(str(settings.apify_unit_cost_usd)),
+        )
+    )
+    await session.commit()
+
+
 async def fetch_account_profile(ctx: dict, account_id: str, user_id: str) -> None:
     """Background enrichment on account add (E2-S3) — separate from the analysis run
     lifecycle, so a competitor list fills in name/avatar/followers without waiting for a run."""
@@ -220,26 +246,7 @@ async def fetch_account_profile(ctx: dict, account_id: str, user_id: str) -> Non
         account = await session.get(Account, uuid.UUID(account_id))
         if account is None:
             return
-        settings = get_settings()
-        platform = get_platform(PlatformSlug.instagram)
-        try:
-            profile = await platform.fetch_profile(account)
-        except Exception:  # noqa: BLE001 — leaves the row usable (handle only), never blocks add
-            return
-
-        account.followers_count = profile.followers_count
-        account.display_name = profile.display_name
-        account.avatar_url = profile.avatar_url
-        account.followers_updated_at = datetime.now(UTC)
-        session.add(
-            UsageEvent(
-                user_id=uuid.UUID(user_id),
-                kind=KIND_APIFY_RESULT,
-                quantity=1,
-                unit_cost_usd=Decimal(str(settings.apify_unit_cost_usd)),
-            )
-        )
-        await session.commit()
+        await apply_profile_update(session, account, uuid.UUID(user_id))
 
 
 class WorkerSettings:

@@ -1,6 +1,7 @@
+import uuid
 from typing import Any, Literal
 
-from sqlalchemy import Float, case, cast, func
+from sqlalchemy import Float, Subquery, case, cast, func, select
 from sqlalchemy.sql.elements import ColumnElement
 
 from src.config import Settings
@@ -34,58 +35,66 @@ def likes_per_day_expr() -> ColumnElement[Any]:
 
 
 def _engagement_expr() -> ColumnElement[Any]:
-    """likes + comments, NULL-safe. Shared by the virality ratio and engagement_rate."""
+    """likes + comments, NULL-safe. Shared by the virality baseline and engagement_rate."""
     return cast(func.coalesce(ContentItem.likes, 0) + func.coalesce(ContentItem.comments, 0), Float)
-
-
-def virality_ratio_expr() -> ColumnElement[Any]:
-    """E5-S5: how hard this item outperformed *that account's own* median within the run —
-    never an absolute/cross-account threshold (a meme account and a niche B2B account have
-    wildly different normal engagement). `NULLIF`/`GREATEST` NULL-handling notes:
-    - `NULLIF(median, 0)` avoids a division-by-zero crash for an all-zero-engagement account;
-      the ratio comes back NULL in that edge case, which the bucketer treats as "no badge"
-      alongside the too-few-items case, rather than inventing a fake infinite ratio.
-    - Postgres `GREATEST` ignores NULL arguments (only NULL if *every* argument is NULL), so a
-      non-reel item (view_ratio always NULL) cleanly falls back to its engagement_ratio alone.
-    """
-    engagement = _engagement_expr()
-    median_engagement = (
-        func.percentile_cont(0.5).within_group(engagement).over(partition_by=ContentItem.account_id)
-    )
-    engagement_ratio = engagement / func.nullif(median_engagement, 0)
-
-    reel_views = case((ContentItem.views.isnot(None), cast(ContentItem.views, Float)), else_=None)
-    median_views = (
-        func.percentile_cont(0.5).within_group(reel_views).over(partition_by=ContentItem.account_id)
-    )
-    view_ratio = case(
-        (
-            ContentItem.views.isnot(None),
-            cast(ContentItem.views, Float) / func.nullif(median_views, 0),
-        ),
-        else_=None,
-    )
-
-    return func.greatest(engagement_ratio, view_ratio)
-
-
-def account_item_count_expr() -> ColumnElement[int]:
-    """Items for this item's account within the current run's result set (window over the
-    query's WHERE run_id == ... — see items.py/export.py). Backs the `virality_min_items` guard."""
-    return func.count().over(partition_by=ContentItem.account_id)
 
 
 def engagement_rate_expr() -> ColumnElement[Any]:
     """(likes + comments) / followers — cross-account comparison, separate from the
-    self-relative virality badge above. Requires the E5-S4 follower join (Account.followers_count).
+    self-relative virality badge below. Requires the E5-S4 follower join (Account.followers_count).
     """
     return _engagement_expr() / cast(func.nullif(Account.followers_count, 0), Float)
+
+
+def virality_baseline_subquery(run_id: uuid.UUID) -> Subquery:
+    """E5-S5: per-account median engagement/views + item count within a run, one row per
+    account_id — join this onto the item query (by account_id) rather than using a window
+    function. Postgres does not support `OVER` for ordered-set aggregates like
+    `percentile_cont` (only plain `GROUP BY` aggregation), so the per-account baseline has to
+    be computed as its own grouped subquery and joined back onto each item.
+    """
+    engagement = _engagement_expr()
+    reel_views = case((ContentItem.views.isnot(None), cast(ContentItem.views, Float)), else_=None)
+    return (
+        select(
+            ContentItem.account_id.label("account_id"),
+            func.percentile_cont(0.5).within_group(engagement).label("median_engagement"),
+            func.percentile_cont(0.5).within_group(reel_views).label("median_views"),
+            func.count().label("item_count"),
+        )
+        .where(ContentItem.run_id == run_id)
+        .group_by(ContentItem.account_id)
+        .subquery()
+    )
+
+
+def virality_ratio(
+    *,
+    likes: int | None,
+    comments: int | None,
+    views: int | None,
+    median_engagement: float | None,
+    median_views: float | None,
+) -> float | None:
+    """Pure function — how hard this item outperformed *that account's own* median within the
+    run. Self-relative by design: a meme account and a niche B2B account have wildly different
+    normal engagement, so an absolute/global threshold would be meaningless across a competitor
+    list. For reels, combines with the views-vs-median-views ratio (max of the two) so a reel
+    can register as viral via algorithmic reach or via raw engagement. Returns None when there's
+    no usable baseline (e.g. an all-zero-engagement account) — never a fabricated infinite ratio.
+    """
+    engagement = (likes or 0) + (comments or 0)
+    engagement_ratio = engagement / median_engagement if median_engagement else None
+    view_ratio = views / median_views if views is not None and median_views else None
+    candidates = [r for r in (engagement_ratio, view_ratio) if r is not None]
+    return max(candidates) if candidates else None
 
 
 def bucket_virality(
     ratio: float | None, item_count: int, settings: Settings
 ) -> Literal["high", "medium", "low"] | None:
-    """Pure function so thresholds are unit-testable without a database."""
+    """Pure function so thresholds and the insufficient-sample guard are unit-testable
+    without a database."""
     if item_count < settings.virality_min_items or ratio is None:
         return None
     if ratio >= settings.virality_high_ratio:

@@ -15,13 +15,13 @@ from src.config import get_settings
 from src.db import get_session
 from src.models import Account, ContentItem, Project, ShortlistItem
 from src.services.metrics import (
-    account_item_count_expr,
     bucket_virality,
     days_since_published_expr,
     engagement_rate_expr,
     likes_per_day_expr,
     views_per_day_expr,
-    virality_ratio_expr,
+    virality_baseline_subquery,
+    virality_ratio,
 )
 from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.xlsx_export import build_shortlist_xlsx, build_xlsx, safe_filename_part
@@ -54,8 +54,7 @@ async def export_run_xlsx(
     views_per_day = views_per_day_expr()
     likes_per_day = likes_per_day_expr()
     engagement_rate = engagement_rate_expr()
-    virality_ratio = virality_ratio_expr()
-    account_item_count = account_item_count_expr()
+    virality_subq = virality_baseline_subquery(run_id)
 
     sort_columns: dict[SortField, Any] = {
         "account": Account.handle,
@@ -84,10 +83,12 @@ async def export_run_xlsx(
             views_per_day.label("views_per_day"),
             likes_per_day.label("likes_per_day"),
             engagement_rate.label("engagement_rate"),
-            virality_ratio.label("virality_ratio"),
-            account_item_count.label("account_item_count"),
+            virality_subq.c.median_engagement,
+            virality_subq.c.median_views,
+            virality_subq.c.item_count,
         )
         .join(Account, ContentItem.account_id == Account.id)
+        .join(virality_subq, virality_subq.c.account_id == ContentItem.account_id)
         .where(ContentItem.run_id == run_id)
         .order_by(order_by)
     )
@@ -110,7 +111,17 @@ async def export_run_xlsx(
             views_per_day=vpd,
             likes_per_day=lpd,
             engagement_rate=eng_rate,
-            virality=bucket_virality(ratio, item_count, settings),
+            virality=bucket_virality(
+                virality_ratio(
+                    likes=item.likes,
+                    comments=item.comments,
+                    views=item.views,
+                    median_engagement=median_engagement,
+                    median_views=median_views,
+                ),
+                item_count,
+                settings,
+            ),
         )
         for (
             item,
@@ -120,7 +131,8 @@ async def export_run_xlsx(
             vpd,
             lpd,
             eng_rate,
-            ratio,
+            median_engagement,
+            median_views,
             item_count,
         ) in rows
     ]

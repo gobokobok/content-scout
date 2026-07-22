@@ -108,7 +108,7 @@ Full story definitions live in `BACKLOG.md`.
 | 3 | E5-S3 | Comments count column | done |
 | 4 | E5-S5 | Virality score per publication (depends on E5-S4) | done |
 
-**Sprint 7 complete.** All 5 stories from the 2026-07-21 single-blogger reprioritization shipped. Every story's DEV smoke test is deferred (consistent with this project's established pattern — Apify/Telegram-dependent verification always waits for a real device/account); next session should run a real-device + DEV pass over all of them, starting with E5-S5 (flagged in its BACKLOG.md entry as the highest-risk SQL of the sprint), before starting a new sprint.
+**Sprint 7 complete.** All 5 stories from the 2026-07-21 single-blogger reprioritization shipped and CI-green (a real CI failure surfaced two bugs — a Postgres `percentile_cont`/window-function incompatibility in E5-S5, and a test-session isolation bug in E2-S3's background worker job — both fixed same-day, see their BACKLOG.md Changelog entries). Every story's DEV smoke test is still deferred (consistent with this project's established pattern — Apify/Telegram-dependent verification always waits for a real device/account); next session should run a real-device + DEV pass over all of them before starting a new sprint.
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 

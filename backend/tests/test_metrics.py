@@ -1,9 +1,48 @@
 from src.config import Settings
-from src.services.metrics import bucket_virality
+from src.services.metrics import bucket_virality, virality_ratio
 
 
 def _settings(**overrides: object) -> Settings:
     return Settings(**overrides)  # type: ignore[arg-type]
+
+
+def test_virality_ratio_engagement_only_for_non_reel() -> None:
+    # post/carousel: views is always None, so only the engagement ratio can apply.
+    ratio = virality_ratio(
+        likes=300, comments=50, views=None, median_engagement=100.0, median_views=None
+    )
+    assert ratio == (300 + 50) / 100.0
+
+
+def test_virality_ratio_reel_takes_the_higher_of_engagement_and_views() -> None:
+    # engagement_ratio = 150/100 = 1.5; view_ratio = 9000/1000 = 9.0 — reel wins via reach.
+    ratio = virality_ratio(
+        likes=100, comments=50, views=9000, median_engagement=100.0, median_views=1000.0
+    )
+    assert ratio == 9.0
+
+
+def test_virality_ratio_reel_falls_back_to_engagement_when_views_baseline_missing() -> None:
+    # account has no recorded view data yet (median_views is None) — engagement ratio still works.
+    ratio = virality_ratio(
+        likes=400, comments=0, views=9000, median_engagement=100.0, median_views=None
+    )
+    assert ratio == 4.0
+
+
+def test_virality_ratio_none_when_no_engagement_baseline() -> None:
+    # all-zero-engagement account: median_engagement is 0/None, no views either — no signal at all.
+    assert (
+        virality_ratio(likes=0, comments=0, views=None, median_engagement=None, median_views=None)
+        is None
+    )
+
+
+def test_virality_ratio_treats_null_likes_and_comments_as_zero() -> None:
+    ratio = virality_ratio(
+        likes=None, comments=None, views=None, median_engagement=50.0, median_views=None
+    )
+    assert ratio == 0.0
 
 
 def test_bucket_virality_high_above_threshold() -> None:
