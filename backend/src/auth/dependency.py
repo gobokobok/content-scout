@@ -33,3 +33,21 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_optional_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> User | None:
+    """Like `get_current_user`, but returns None instead of raising when there's no/invalid
+    Authorization header — for endpoints that accept a second, non-header auth path (e.g. a
+    scoped download token in a query param)."""
+    if credentials is None:
+        return None
+    user_id = decode_access_token(credentials.credentials)
+    if user_id is None:
+        return None
+    return await session.get(User, user_id)
+
+
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]

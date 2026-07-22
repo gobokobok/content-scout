@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { ChevronUp, Check, AlertCircle } from "lucide-react";
 import {
   api,
+  downloadXlsx,
   ApiError,
   type ContentItemResponse,
   type ItemSortField,
@@ -136,11 +137,12 @@ export default function ResultsTabPage() {
     if (!selectedRunId) return;
     setExporting(true);
     try {
-      const { blob, filename } = await api.downloadRunXlsx(selectedRunId, sort, order);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = filename; a.click();
-      URL.revokeObjectURL(url);
+      await downloadXlsx(
+        `/runs/${selectedRunId}/export.xlsx?sort=${sort}&order=${order}`,
+        () => api.mintRunExportToken(selectedRunId),
+        () => api.downloadRunXlsx(selectedRunId, sort, order),
+        "content-scout-results.xlsx",
+      );
     } catch (err) { addToast(err instanceof ApiError ? err.messageRu : t("genericError")); }
     finally { setExporting(false); }
   }
@@ -148,11 +150,12 @@ export default function ResultsTabPage() {
   async function handleShortlistExport() {
     setShortlistExporting(true);
     try {
-      const { blob, filename } = await api.downloadShortlistXlsx(params.id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = filename; a.click();
-      URL.revokeObjectURL(url);
+      await downloadXlsx(
+        `/projects/${params.id}/shortlist/export.xlsx`,
+        () => api.mintShortlistExportToken(params.id),
+        () => api.downloadShortlistXlsx(params.id),
+        "content-scout-shortlist.xlsx",
+      );
     } catch (err) { addToast(err instanceof ApiError ? err.messageRu : t("genericError")); }
     finally { setShortlistExporting(false); }
   }

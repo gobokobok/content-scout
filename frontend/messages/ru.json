@@ -89,8 +89,7 @@
     "runButton": "Анализ",
     "selectedCount": "Выбрано: {count}",
     "followersShort": "подп.",
-    "noData": "нет данных",
-    "updatedLabel": "обновлено"
+    "noData": "нет данных"
   },
   "RunDialog": {
     "title": "Новый анализ",
@@ -263,6 +262,12 @@
     "openLink": "Открыть",
     "metricsDaysSince": "дн. назад",
     "metricsLikes": "лайков",
+    "metricsComments": "комментариев",
+    "metricsEngagementRate": "вовлеч.",
+    "viralityHigh": "Высокая",
+    "viralityMedium": "Средняя",
+    "viralityLow": "Низкая",
+    "viralityTooltip": "Относительно медианной вовлечённости этого аккаунта в текущем запуске, а не абсолютного порога",
     "addToShortlist": "Добавить в шорт-лист",
     "removeFromShortlist": "Убрать из шорт-листа",
     "removeBtn": "Убрать",

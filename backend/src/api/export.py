@@ -10,10 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.items import ContentItemOut, SortField, _get_run
 from src.api.shortlist import ShortlistItemOut
-from src.auth.dependency import CurrentUser
+from src.auth.dependency import UNAUTHORIZED, CurrentUser, OptionalUser
+from src.auth.tokens import create_download_token, decode_download_token
 from src.config import get_settings
 from src.db import get_session
-from src.models import Account, ContentItem, Project, ShortlistItem
+from src.models import Account, ContentItem, Project, ShortlistItem, User
 from src.services.metrics import (
     bucket_virality,
     days_since_published_expr,
@@ -36,15 +37,54 @@ _PROJECT_NOT_FOUND = HTTPException(
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
+def _run_export_resource(run_id: uuid.UUID) -> str:
+    return f"run_export:{run_id}"
+
+
+def _shortlist_export_resource(project_id: uuid.UUID) -> str:
+    return f"shortlist_export:{project_id}"
+
+
+async def _resolve_export_user(
+    session: AsyncSession, user: User | None, dl_token: str | None, resource: str
+) -> User:
+    """Authenticated via the normal Authorization header, or (when absent) a short-lived
+    download token scoped to this exact resource — see auth/tokens.py:create_download_token.
+    Telegram's native `downloadFile` fetches the URL itself with no custom headers, so the
+    header path alone can't cover it."""
+    if user is not None:
+        return user
+    if dl_token:
+        token_user_id = decode_download_token(dl_token, resource=resource)
+        if token_user_id is not None:
+            token_user = await session.get(User, token_user_id)
+            if token_user is not None:
+                return token_user
+    raise UNAUTHORIZED
+
+
+@router.post("/runs/{run_id}/export-token")
+async def create_run_export_token(
+    run_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> dict[str, str]:
+    await _get_run(session, user, run_id)  # ownership check
+    token = create_download_token(user.id, resource=_run_export_resource(run_id))
+    return {"token": token}
+
+
 @router.get("/runs/{run_id}/export.xlsx")
 async def export_run_xlsx(
     run_id: uuid.UUID,
-    user: CurrentUser,
+    user: OptionalUser,
     session: SessionDep,
+    dl_token: str | None = None,
     sort: SortField = "views_per_day",
     order: Literal["asc", "desc"] = "desc",
 ) -> StreamingResponse:
-    run = await _get_run(session, user, run_id)
+    resolved_user = await _resolve_export_user(
+        session, user, dl_token, _run_export_resource(run_id)
+    )
+    run = await _get_run(session, resolved_user, run_id)
     settings = get_settings()
 
     project = await session.get(Project, run.project_id)
@@ -149,14 +189,30 @@ async def export_run_xlsx(
     )
 
 
+@router.post("/projects/{project_id}/shortlist/export-token")
+async def create_shortlist_export_token(
+    project_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> dict[str, str]:
+    try:
+        await get_owned_project(session, user, project_id)  # ownership check
+    except ProjectNotFoundError:
+        raise _PROJECT_NOT_FOUND from None
+    token = create_download_token(user.id, resource=_shortlist_export_resource(project_id))
+    return {"token": token}
+
+
 @router.get("/projects/{project_id}/shortlist/export.xlsx")
 async def export_shortlist_xlsx(
     project_id: uuid.UUID,
-    user: CurrentUser,
+    user: OptionalUser,
     session: SessionDep,
+    dl_token: str | None = None,
 ) -> StreamingResponse:
+    resolved_user = await _resolve_export_user(
+        session, user, dl_token, _shortlist_export_resource(project_id)
+    )
     try:
-        project = await get_owned_project(session, user, project_id)
+        project = await get_owned_project(session, resolved_user, project_id)
     except ProjectNotFoundError:
         raise _PROJECT_NOT_FOUND from None
     project_slug = safe_filename_part(project.name)

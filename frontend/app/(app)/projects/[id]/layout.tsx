@@ -9,6 +9,7 @@ import { ProjectBottomNav } from "@/components/ui/bottom-nav";
 import { SkeletonLine } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ProjectContext } from "@/lib/project-context";
+import { CompetitorsInfoButton } from "@/components/competitors-info-button";
 
 const TABS = [
   { segment: "competitors", labelKey: "tabCompetitors" as const },
@@ -79,7 +80,10 @@ export default function ProjectShellLayout({ children }: { children: React.React
           {notFound && <p className="text-sm text-danger">{t("notFound")}</p>}
 
           {!notFound && (
-            <h1 className="text-2xl font-semibold text-ink">{sectionHeading()}</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-2xl font-semibold text-ink">{sectionHeading()}</h1>
+              {pathname?.includes("/competitors") && <CompetitorsInfoButton />}
+            </div>
           )}
 
           {/* Desktop tab bar — hidden on mobile */}

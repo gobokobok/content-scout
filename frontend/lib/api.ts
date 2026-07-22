@@ -1,3 +1,5 @@
+import { canDownloadViaTelegram, downloadFileViaTelegram } from "@/lib/telegram-webapp";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "content-scout-token";
 
@@ -375,4 +377,40 @@ export const api = {
     const filename = match?.[1] ?? `content-scout_${runId}.xlsx`;
     return { blob, filename };
   },
+  mintRunExportToken: (runId: string) =>
+    request<{ token: string }>(`/runs/${runId}/export-token`, { method: "POST" }),
+  mintShortlistExportToken: (projectId: string) =>
+    request<{ token: string }>(`/projects/${projectId}/shortlist/export-token`, {
+      method: "POST",
+    }),
 };
+
+/**
+ * Downloads an .xlsx export, routing through Telegram's native downloadFile popup when
+ * available. Telegram's iOS/Android WebView does not reliably honor `<a download>` on a blob
+ * URL — the request succeeds server-side, but the user never gets a save prompt. downloadFile
+ * fetches the URL itself with no custom headers, so it needs a short-lived scoped token
+ * (dl_token) rather than the normal Authorization header, and needs the filename up front
+ * (before the response — and its real Content-Disposition filename — even exists).
+ */
+export async function downloadXlsx(
+  endpointPath: string,
+  mintToken: () => Promise<{ token: string }>,
+  blobDownload: () => Promise<{ blob: Blob; filename: string }>,
+  telegramFileName: string,
+): Promise<void> {
+  if (canDownloadViaTelegram()) {
+    const { token } = await mintToken();
+    const sep = endpointPath.includes("?") ? "&" : "?";
+    const url = `${API_URL}${endpointPath}${sep}dl_token=${encodeURIComponent(token)}`;
+    downloadFileViaTelegram(url, telegramFileName);
+    return;
+  }
+  const { blob, filename } = await blobDownload();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

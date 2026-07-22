@@ -3,8 +3,9 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Users, MoreVertical, Plus, Info } from "lucide-react";
+import { Users, MoreVertical, Plus } from "lucide-react";
 import { api, ApiError, type AccountResponse } from "@/lib/api";
+import { formatFollowers } from "@/lib/format";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
@@ -13,18 +14,6 @@ import { useProject } from "@/lib/project-context";
 import { RunDialog } from "../run-dialog";
 
 const MAX_ACCOUNTS = 50;
-
-function formatFollowerCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".", ",")} млн`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(".", ",")} тыс.`;
-  return new Intl.NumberFormat("ru-RU").format(n);
-}
-
-function formatUpdatedAt(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
-}
 
 export default function CompetitorsTabPage() {
   const t = useTranslations("Competitors");
@@ -40,8 +29,6 @@ export default function CompetitorsTabPage() {
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [menuAccountId, setMenuAccountId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
-  const [infoOpen, setInfoOpen] = useState(false);
-  const [infoAnchorEl, setInfoAnchorEl] = useState<HTMLElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -119,41 +106,29 @@ export default function CompetitorsTabPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Top bar: info popover + action buttons */}
-      <div className="flex items-center justify-between gap-2">
-        <button
-          onClick={(e) => {
-            setInfoAnchorEl(e.currentTarget);
-            setInfoOpen(true);
-          }}
-          aria-label={t("infoLabel")}
-          className="rounded-control p-2 text-secondary hover:bg-bg transition-colors"
-        >
-          <Info className="h-5 w-5" />
-        </button>
-        {!isArchived && (
-          <div className="flex items-center gap-2">
-            {count < MAX_ACCOUNTS && (
-              <button
-                onClick={() => setAddSheetOpen(true)}
-                className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                {t("addCompetitorButton")}
-              </button>
-            )}
-            {count > 0 && (
-              <button
-                onClick={() => setRunDialogOpen(true)}
-                disabled={selected.size === 0}
-                className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-opacity"
-              >
-                {t("runButton")}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Action buttons */}
+      {!isArchived && (
+        <div className="flex items-center justify-end gap-2">
+          {count < MAX_ACCOUNTS && (
+            <button
+              onClick={() => setAddSheetOpen(true)}
+              className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              {t("addCompetitorButton")}
+            </button>
+          )}
+          {count > 0 && (
+            <button
+              onClick={() => setRunDialogOpen(true)}
+              disabled={selected.size === 0}
+              className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-opacity"
+            >
+              {t("runButton")}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Loading skeleton */}
       {accounts === null && <SkeletonList count={4} />}
@@ -237,9 +212,7 @@ export default function CompetitorsTabPage() {
                         <>
                           @{a.handle}
                           {a.followers_count != null &&
-                            ` · ${formatFollowerCount(a.followers_count)} ${t("followersShort")}`}
-                          {a.profile_updated_at &&
-                            ` · ${t("updatedLabel")} ${formatUpdatedAt(a.profile_updated_at)}`}
+                            ` · ${formatFollowers(a.followers_count)} ${t("followersShort")}`}
                         </>
                       ) : (
                         t("noData")
@@ -316,11 +289,6 @@ export default function CompetitorsTabPage() {
           </div>
         </form>
       </BottomSheet>
-
-      {/* Info popover: competitor limit + selection explanation */}
-      <ContextMenu open={infoOpen} onClose={() => setInfoOpen(false)} anchorEl={infoAnchorEl}>
-        <p className="max-w-xs px-4 py-3 text-sm text-secondary">{t("infoExplanation")}</p>
-      </ContextMenu>
 
       {/* Competitor 3-dot context menu */}
       <ContextMenu

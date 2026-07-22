@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { ChevronUp, ChevronDown, Film, ImageIcon, Images, Star, X, Maximize2 } from "lucide-react";
 import type { ContentItemResponse, ItemSortField } from "@/lib/api";
+import { formatNumber, formatFollowers, formatPercent, VIRALITY_STYLE } from "@/lib/format";
 
 const TYPE_ICON: Record<ContentItemResponse["type"], React.ReactNode> = {
   reel: <Film className="inline h-4 w-4" />,
@@ -17,30 +18,6 @@ const TYPE_ICON: Record<ContentItemResponse["type"], React.ReactNode> = {
   carousel: <Images className="inline h-4 w-4" />,
   video: <Film className="inline h-4 w-4" />,
   short: <Film className="inline h-4 w-4" />,
-};
-
-function formatNumber(n: number | null): string {
-  if (n === null) return "—";
-  return new Intl.NumberFormat("ru-RU").format(Math.round(n));
-}
-
-function formatFollowers(n: number | null): string | null {
-  if (n === null) return null;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".", ",")} млн`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(".", ",")} тыс.`;
-  return new Intl.NumberFormat("ru-RU").format(n);
-}
-
-function formatPercent(n: number | null): string {
-  if (n === null) return "—";
-  return `${(n * 100).toFixed(1).replace(".", ",")}%`;
-}
-
-// E5-S5: relative to that account's own median in the run, never an absolute/industry benchmark.
-const VIRALITY_STYLE: Record<"high" | "medium" | "low", string> = {
-  high: "bg-success/10 text-success",
-  medium: "border border-border bg-bg text-secondary",
-  low: "text-secondary opacity-70",
 };
 
 function formatDateTime(iso: string): string {

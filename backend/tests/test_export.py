@@ -148,3 +148,74 @@ async def test_export_404_for_wrong_user(session: AsyncSession) -> None:
     async with await client(session) as c:
         resp = await c.get(f"/runs/{run.id}/export.xlsx", headers=auth_headers(other.id))
     assert resp.status_code == 404
+
+
+async def test_export_401_without_header_or_token(session: AsyncSession) -> None:
+    owner, run = await _setup(session)
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}/export.xlsx")
+    assert resp.status_code == 401
+
+
+async def test_export_download_token_mint_and_use(session: AsyncSession) -> None:
+    """Telegram's native downloadFile fetches the URL itself with no Authorization header —
+    the dl_token query-param path exists specifically to cover that case."""
+    owner, run = await _setup(session)
+    async with await client(session) as c:
+        mint_resp = await c.post(f"/runs/{run.id}/export-token", headers=auth_headers(owner.id))
+        assert mint_resp.status_code == 200
+        token = mint_resp.json()["token"]
+
+        # No Authorization header at all — only the minted token.
+        resp = await c.get(f"/runs/{run.id}/export.xlsx?dl_token={token}")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+
+async def test_export_download_token_scoped_to_its_own_run(session: AsyncSession) -> None:
+    owner, run = await _setup(session)
+    other_project = await make_project(
+        session, workspace=await make_workspace(session, owner=owner)
+    )
+    other_run = await make_run(session, project=other_project, requested_by=owner)
+    await session.commit()
+
+    async with await client(session) as c:
+        mint_resp = await c.post(f"/runs/{run.id}/export-token", headers=auth_headers(owner.id))
+        token = mint_resp.json()["token"]
+
+        # Same token, different run_id in the URL — must not be accepted.
+        resp = await c.get(f"/runs/{other_run.id}/export.xlsx?dl_token={token}")
+        assert resp.status_code == 401
+
+
+async def test_export_download_token_cannot_mint_for_foreign_run(session: AsyncSession) -> None:
+    owner, run = await _setup(session)
+    other = await make_user(session)
+    await make_workspace(session, owner=other)
+    await session.commit()
+    async with await client(session) as c:
+        resp = await c.post(f"/runs/{run.id}/export-token", headers=auth_headers(other.id))
+    assert resp.status_code == 404
+
+
+async def test_shortlist_export_download_token_mint_and_use(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws, name="Shortlist Project")
+    await session.commit()
+
+    async with await client(session) as c:
+        mint_resp = await c.post(
+            f"/projects/{project.id}/shortlist/export-token", headers=auth_headers(owner.id)
+        )
+        assert mint_resp.status_code == 200
+        token = mint_resp.json()["token"]
+
+        resp = await c.get(f"/projects/{project.id}/shortlist/export.xlsx?dl_token={token}")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )

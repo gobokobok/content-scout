@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Film, ImageIcon, Images, Star } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ContentItemResponse, ItemSortField, ShortlistItemResponse } from "@/lib/api";
+import { formatNumber, formatFollowers, formatPercent, VIRALITY_STYLE } from "@/lib/format";
 
 type ShortlistSortField = "added_at" | "likes" | "published_at" | "account_handle";
 
@@ -29,18 +30,6 @@ const TYPE_ICON: Record<ContentItemResponse["type"], React.ReactNode> = {
   video: <Film className="h-3.5 w-3.5" />,
   short: <Film className="h-3.5 w-3.5" />,
 };
-
-function formatNumber(n: number | null): string {
-  if (n === null) return "—";
-  return new Intl.NumberFormat("ru-RU").format(Math.round(n));
-}
-
-function formatFollowers(n: number | null): string | null {
-  if (n === null) return null;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".", ",")} млн`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(".", ",")} тыс.`;
-  return new Intl.NumberFormat("ru-RU").format(n);
-}
 
 function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
@@ -195,6 +184,11 @@ function ContentCard({
   const [expanded, setExpanded] = useState(false);
   const hasSummary = !!item.summary;
   const followers = formatFollowers(item.followers_count);
+  const viralityLabel: Record<"high" | "medium" | "low", string> = {
+    high: t("viralityHigh"),
+    medium: t("viralityMedium"),
+    low: t("viralityLow"),
+  };
 
   return (
     <div className="rounded-card border border-border bg-card p-4">
@@ -237,12 +231,28 @@ function ContentCard({
 
       {/* Metrics + link */}
       <div className="flex flex-wrap items-center gap-1.5">
+        {item.virality && (
+          <span
+            title={t("viralityTooltip")}
+            className={`inline-flex items-center rounded-chip px-2 py-0.5 text-xs font-medium ${VIRALITY_STYLE[item.virality]}`}
+          >
+            {viralityLabel[item.virality]}
+          </span>
+        )}
         <span className="inline-flex items-center rounded-chip bg-bg border border-border px-2 py-0.5 text-xs text-secondary">
           {daysSince(item.published_at)}&nbsp;{t("metricsDaysSince")}
         </span>
         <span className="inline-flex items-center rounded-chip border border-border bg-bg px-2 py-0.5 text-xs text-secondary">
           {formatNumber(item.likes)}&nbsp;{t("metricsLikes")}
         </span>
+        <span className="inline-flex items-center rounded-chip border border-border bg-bg px-2 py-0.5 text-xs text-secondary">
+          {formatNumber(item.comments)}&nbsp;{t("metricsComments")}
+        </span>
+        {item.engagement_rate !== null && (
+          <span className="inline-flex items-center rounded-chip border border-border bg-bg px-2 py-0.5 text-xs text-secondary">
+            {formatPercent(item.engagement_rate)}&nbsp;{t("metricsEngagementRate")}
+          </span>
+        )}
         <a
           href={item.url}
           target="_blank"

@@ -26,3 +26,34 @@ def decode_access_token(token: str) -> uuid.UUID | None:
         return uuid.UUID(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         return None
+
+
+DOWNLOAD_TOKEN_TTL_SECS = 60
+
+
+def create_download_token(user_id: uuid.UUID, resource: str) -> str:
+    """Short-lived, narrowly-scoped token for a single file download — separate from the
+    normal session JWT so a URL that has to be passed to a native client (Telegram's
+    downloadFile, which fetches the URL itself with no custom headers) never carries a
+    long-lived, full-account-access credential."""
+    settings = get_settings()
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(user_id),
+        "scope": "download",
+        "resource": resource,
+        "iat": now,
+        "exp": now + timedelta(seconds=DOWNLOAD_TOKEN_TTL_SECS),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=ALGORITHM)
+
+
+def decode_download_token(token: str, resource: str) -> uuid.UUID | None:
+    """Return the user id, or None for any invalid/expired/mismatched-resource token."""
+    try:
+        payload = jwt.decode(token, get_settings().jwt_secret, algorithms=[ALGORITHM])
+        if payload.get("scope") != "download" or payload.get("resource") != resource:
+            return None
+        return uuid.UUID(payload["sub"])
+    except (jwt.PyJWTError, KeyError, ValueError):
+        return None
