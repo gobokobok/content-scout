@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Numeric,
     String,
+    Text,
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -23,6 +24,12 @@ class RunStatus(enum.StrEnum):
     pending = "pending"
     scraping = "scraping"
     summarizing = "summarizing"
+    done = "done"
+    failed = "failed"
+
+
+class RunSummaryStatus(enum.StrEnum):
+    pending = "pending"
     done = "done"
     failed = "failed"
 
@@ -64,3 +71,13 @@ class AnalysisRun(UuidPk, CreatedAt, Base):
     total_output_tokens: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Run-level AI summary (E15-S1) — synthesized once, after per-item summarization,
+    # non-fatal to the run on failure (see services/run_summary.py).
+    summary_status: Mapped[RunSummaryStatus] = mapped_column(
+        Enum(RunSummaryStatus, native_enum=False, length=20),
+        default=RunSummaryStatus.pending,
+        nullable=False,
+    )
+    summary_text: Mapped[str | None] = mapped_column(Text)
+    summary_topics: Mapped[list[str] | None] = mapped_column(ARRAY(String(100)))
+    summary_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

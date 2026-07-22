@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E15-S1] Run-level AI summary generation
+**Completed:** 2026-07-22
+**Handover:**
+- Chose a JSON-column-on-`AnalysisRun` design over a separate `run_summaries` table (the AC explicitly said to pick whichever avoids a join for the common read path — E15-S3's run detail page already loads the `AnalysisRun` row).
+- `RunSummaryStatus` enum (`pending`/`done`/`failed`) + `AnalysisRun.summary_status`/`summary_text`/`summary_topics`/`summary_generated_at` — migration `a9b8c7d6e5f4` (now head).
+- `backend/src/services/run_summary.py:generate_run_summary(session, run, *, user_id, client=None)` — one Claude call (reusing `settings.summary_model`) synthesizing a RU overview + top-5 topics from the run's item summaries/captions (capped at 150 items, newest first); `parse_summary_response()` is a pure, independently-tested function for the `РЕЗЮМЕ:`/`ТЕМЫ:` text protocol. Never raises: no items / API error / unparseable response all resolve to `summary_status=failed` (or `done` with the raw text as a fallback for the unparseable case) without failing the run — mirrors `notify_run_complete`.
+- Wired into `worker.py:process_run` right before the run is marked done, reusing the already-open Claude/HTTP clients from per-item summarization; records one input+output `usage_events` pair per run (same pattern as every other Claude call site in this codebase).
+- `docs/PROMPTS.md` gained the "Run summary (E15-S1)" prompt.
+- **For E15-S3:** these fields have no API exposure yet (out of this story's scope) — the run-detail page will need to add them to `RunOut` or a new run-detail endpoint.
+- 11 new tests in `test_run_summary.py` (3 pure-function + 5 DB-integration + parsing edge cases); `ruff format`/`ruff check`/`mypy src` clean; `alembic heads` confirms a single linear chain. No new dependencies, no ENV vars.
+**Smoke test:** DEFERRED — needs a real finished DEV run to confirm a plausible Russian summary + top-5 topics land within normal completion time and exactly one input+output usage_events pair is recorded.
+**Promoted to backlog:** none
+
 ## [E16-S1] Analysis teaser page
 **Completed:** 2026-07-22
 **Handover:**

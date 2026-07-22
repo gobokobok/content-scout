@@ -124,7 +124,7 @@ Full story definitions live in `BACKLOG.md`.
 | 1 | E13-S2 | Details dashboard: KPI card, nav links, run-history cards, create-run entry | done |
 | 2 | E13-S3 | Competitors page trim | done |
 | 3 | E16-S1 | Analysis teaser page | done |
-| 4 | E15-S1 | Run-level AI summary generation | backlog |
+| 4 | E15-S1 | Run-level AI summary generation | done |
 | 5 | E15-S2 | Top-5-posts-by-virality for a run | backlog |
 | 6 | E15-S3 | Run detail page: Summary + Publications tabs | backlog |
 

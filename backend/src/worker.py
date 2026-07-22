@@ -24,6 +24,7 @@ from src.models import (
     User,
 )
 from src.platforms import get_platform
+from src.services.run_summary import generate_run_summary
 from src.services.runs import resolve_target_accounts
 from src.services.summarizer import summarize_run_items
 from src.services.telegram_notify import notify_run_complete
@@ -168,6 +169,17 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
 
             if token_balance_exhausted:
                 break
+
+        try:
+            # Run-level AI overview (E15-S1) — one extra call after per-item summaries
+            # are ready, using the same client. Never fails the run: the service itself
+            # never raises, but this call site mirrors notify_run_complete's
+            # defensive try/except pattern for good measure.
+            await generate_run_summary(
+                session, run, user_id=run.requested_by, client=anthropic_client
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
         await anthropic_client.close()
         await http_client.aclose()

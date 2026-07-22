@@ -1,6 +1,6 @@
 from src.models.account import MAX_ACCOUNTS_PER_LIST, Account, AccountStatus
 from src.models.account_list import AccountList, PlatformSlug
-from src.models.analysis_run import AnalysisRun, RunStatus
+from src.models.analysis_run import AnalysisRun, RunStatus, RunSummaryStatus
 from src.models.base import Base
 from src.models.content_item import ContentItem, ContentType
 from src.models.project import Project
@@ -22,6 +22,7 @@ __all__ = [
     "PlatformSlug",
     "AnalysisRun",
     "RunStatus",
+    "RunSummaryStatus",
     "Base",
     "ContentItem",
     "ContentType",

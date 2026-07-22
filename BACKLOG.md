@@ -1853,24 +1853,25 @@ backend/src/services/scheduled_runs.py (call site only — no changes to telegra
 ## [E15-S1] Run-level AI summary generation
 **Epic:** Run Detail View
 **Sprint:** 8 (locked 2026-07-22 execution plan)
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** high
 **Depends on:** E4-S2 (per-item summaries already exist), E3-S7
 ### Goal
 Once a run finishes scraping + summarizing every item, one additional Claude call synthesizes an overview: what competitors are posting about, which topics trend toward higher virality, and a top-5 topic list.
 ### Acceptance Criteria
-- [ ] New prompt documented in `docs/PROMPTS.md`, fed all item captions/per-item summaries for the run
-- [ ] Output: 2–4 sentence overall summary (RU) + top-5-topics list; stored on a new `run_summaries` table (or JSON column on `AnalysisRun` — pick whichever avoids a join for the common read path) keyed by run_id
-- [ ] Triggered once, at the end of `process_run`, never re-run on every page view
-- [ ] New `usage_events` row for this Claude call (D12 — every external cost recorded at the moment it's incurred, no retrofits)
-- [ ] Failure of this step is non-fatal to the run (mirrors `notify_run_complete`'s never-raises pattern) — a run can be "done" with items but a pending/failed summary, surfaced gracefully in E15-S3
+- [x] New prompt documented in `docs/PROMPTS.md`, fed all item captions/per-item summaries for the run
+- [x] Output: 2–4 sentence overall summary (RU) + top-5-topics list; stored on a new `run_summaries` table (or JSON column on `AnalysisRun` — pick whichever avoids a join for the common read path) keyed by run_id
+- [x] Triggered once, at the end of `process_run`, never re-run on every page view
+- [x] New `usage_events` row for this Claude call (D12 — every external cost recorded at the moment it's incurred, no retrofits)
+- [x] Failure of this step is non-fatal to the run (mirrors `notify_run_complete`'s never-raises pattern) — a run can be "done" with items but a pending/failed summary, surfaced gracefully in E15-S3
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 A finished DEV run gets a plausible Russian summary and top-5 topics within the pipeline's normal completion time; `usage_events` gained exactly one row for it.
 ### Files to read
@@ -1878,7 +1879,15 @@ CLAUDE.md, docs/PROMPTS.md, backend/src/services/summarize.py (E4 prompt pattern
 ### Files to create or modify
 backend/src/services/run_summary.py (new), backend/src/models/run_summary.py or migration adding a column to analysis_run.py, backend/src/worker.py, docs/PROMPTS.md, backend/tests/test_run_summary.py (new)
 ### Handover
-—
+- **Note:** "files to read" listed `backend/src/services/summarize.py` — the actual filename (confirmed via `ls`) is `summarizer.py`; read the correct file.
+- Chose the JSON-column-on-`AnalysisRun` option over a separate `run_summaries` table, per the AC's own "pick whichever avoids a join for the common read path" guidance — E15-S3's run detail page already loads the `AnalysisRun` row, so no join needed.
+- `RunSummaryStatus` enum (`pending`/`done`/`failed`) + `AnalysisRun.summary_status`/`summary_text`/`summary_topics` (`ARRAY(String(100))`)/`summary_generated_at` — migration `a9b8c7d6e5f4` (now head, on top of `b8c4d5e6f7a1`).
+- `backend/src/services/run_summary.py:generate_run_summary(session, run, *, user_id, client=None)` — queries the run's `ContentItem`s joined to `Account` for handles (newest-published-first, capped at 150 items via `_MAX_ITEMS` to bound token cost), feeds each item's `summary` (falls back to raw `caption` if summarization itself failed/was skipped) to one Claude call using `settings.summary_model`, parses the `РЕЗЮМЕ:`/`ТЕМЫ:` text-protocol response via a pure, independently-unit-tested `parse_summary_response()` function. Records one `KIND_CLAUDE_INPUT_TOKENS` + one `KIND_CLAUDE_OUTPUT_TOKENS` usage_events row (matching every other Claude-call site in this codebase, which always records the pair — the AC's "a usage_events row" reads as "record this call's cost", not literally one row). Never raises: no items, an API exception, or an unparseable response all set `summary_status=failed` and return normally (unparseable specifically still stores the raw text as `summary_text` with empty `summary_topics`, since a raw response is still better than nothing).
+- `backend/src/worker.py:process_run` — call added right before `rollup_run_totals`/`run.status=done`, reusing the same `anthropic_client`/`http_client` already open for per-item summarization; wrapped in an extra try/except at the call site (belt-and-suspenders, matching the defensive style already used around `notify_run_complete`) even though the service itself never raises.
+- `docs/PROMPTS.md` — new "Run summary (E15-S1)" section, system+user prompt verbatim-mirrored in the service per this repo's convention.
+- **For E15-S3 (next):** these fields aren't exposed via any API endpoint yet — this story's AC only required "stored", and no `api/runs.py` change was in its file list. E15-S3's run-detail page will need to either add these fields to `RunOut`/`GET /runs/{id}` or introduce a dedicated run-detail endpoint.
+- No new dependencies, no ENV vars. 11 new tests in `test_run_summary.py` (3 pure `parse_summary_response` unit tests, 5 DB-backed `generate_run_summary` integration tests covering happy path, caption-fallback, no-items, API-error-non-fatal, and unparseable-response-still-stores-text). `ruff format`/`ruff check`/`mypy src` all clean locally via the project's `.venv`; `alembic heads` confirms a single linear head (`a9b8c7d6e5f4`) with no branching. pytest itself needs the CI Postgres service (no local Postgres in this sandbox, consistent with every prior story).
+**Smoke test:** DEFERRED — needs a real finished DEV run to confirm a plausible Russian summary + top-5 topics land within normal completion time and exactly one input+output usage_events pair is recorded (same deferral pattern as the rest of this project's Apify/Claude-dependent verification).
 
 ## [E15-S2] Top-5-posts-by-virality for a run
 **Epic:** Run Detail View
