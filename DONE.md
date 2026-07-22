@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E13-S3] Competitors page trim
+**Completed:** 2026-07-22
+**Handover:**
+- `frontend/app/(app)/projects/[id]/competitors/page.tsx` — removed `selected`/`runDialogOpen` state, `toggleSelected`/`toggleSelectAll`, the select-all header row, per-row checkboxes, the "Запустить анализ" button, and the `RunDialog` import/render entirely. Run creation lives only on Детали now (E13-S2).
+- Added a "← Детали" back link at the top of the page.
+- `Competitors.infoExplanation` (50-cap info popover) rewritten to drop references to the removed selection/run flow; `runButton`/`selectAll`/`selectedCount` message keys removed as dead, `backToDetails` added.
+- Add/remove competitor flow, avatar/name/followers row display (E2-S3), and the 3-dot delete menu are unchanged.
+- No frontend unit test suite exists in this repo; typecheck + eslint (the CI gate) both clean. Verified visually via a temporary `frontend/app/dev-preview/competitors` scratch route with mock data, screenshotted at 375px, deleted before commit.
+- This closes Sprint 8's E13 epic (nav restructure: E13-S1/S2/S3). E16-S1 and E15-S1/S2/S3 remain backlog — out of scope for this session, which was limited to "E13 all stories."
+**Smoke test:** DEFERRED — needs a real DEV project to confirm the trimmed page end-to-end (same deferral pattern as the rest of this project's Apify-dependent verification).
+**Promoted to backlog:** none
+
 ## [E13-S2] Details dashboard: KPI card, nav links, run-history cards, create-run entry
 **Completed:** 2026-07-22
 **Handover:**

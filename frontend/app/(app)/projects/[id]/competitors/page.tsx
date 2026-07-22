@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Users, MoreVertical, Plus } from "lucide-react";
+import { ArrowLeft, Users, MoreVertical, Plus } from "lucide-react";
 import { api, ApiError, type AccountResponse } from "@/lib/api";
 import { formatFollowers } from "@/lib/format";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -11,7 +12,6 @@ import { useToast } from "@/components/ui/toast";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { useProject } from "@/lib/project-context";
-import { RunDialog } from "../run-dialog";
 
 const MAX_ACCOUNTS = 50;
 
@@ -19,13 +19,11 @@ export default function CompetitorsTabPage() {
   const t = useTranslations("Competitors");
   const params = useParams<{ id: string }>();
   const { addToast } = useToast();
-  const { project, isArchived } = useProject();
+  const { isArchived } = useProject();
   const [accounts, setAccounts] = useState<AccountResponse[] | null>(null);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ input: string; message_ru: string }[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [menuAccountId, setMenuAccountId] = useState<string | null>(null);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -42,22 +40,6 @@ export default function CompetitorsTabPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  function toggleSelected(accountId: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(accountId)) next.delete(accountId);
-      else next.add(accountId);
-      return next;
-    });
-  }
-
-  function toggleSelectAll() {
-    if (!accounts) return;
-    setSelected((prev) =>
-      prev.size === accounts.length ? new Set() : new Set(accounts.map((a) => a.id)),
-    );
-  }
 
   async function onAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -89,11 +71,6 @@ export default function CompetitorsTabPage() {
     setMenuAccountId(null);
     try {
       await api.removeAccount(params.id, accountId);
-      setSelected((prev) => {
-        const next = new Set(prev);
-        next.delete(accountId);
-        return next;
-      });
       await load();
     } catch (err) {
       addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
@@ -101,32 +78,29 @@ export default function CompetitorsTabPage() {
   }
 
   const count = accounts?.length ?? 0;
-  const allSelected = accounts !== null && accounts.length > 0 && selected.size === accounts.length;
   const menuAccount = accounts?.find((a) => a.id === menuAccountId) ?? null;
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Back to Детали */}
+      <Link
+        href={`/projects/${params.id}/details`}
+        className="flex items-center gap-1 text-sm text-secondary hover:text-ink transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {t("backToDetails")}
+      </Link>
+
       {/* Action buttons */}
-      {!isArchived && (
+      {!isArchived && count < MAX_ACCOUNTS && (
         <div className="flex items-center justify-end gap-2">
-          {count < MAX_ACCOUNTS && (
-            <button
-              onClick={() => setAddSheetOpen(true)}
-              className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              {t("addCompetitorButton")}
-            </button>
-          )}
-          {count > 0 && (
-            <button
-              onClick={() => setRunDialogOpen(true)}
-              disabled={selected.size === 0}
-              className="rounded-control bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40 transition-opacity"
-            >
-              {t("runButton")}
-            </button>
-          )}
+          <button
+            onClick={() => setAddSheetOpen(true)}
+            className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            {t("addCompetitorButton")}
+          </button>
         </div>
       )}
 
@@ -143,52 +117,17 @@ export default function CompetitorsTabPage() {
 
       {accounts !== null && accounts.length > 0 && (
         <div className="flex flex-col gap-0 overflow-hidden rounded-card border border-border bg-card">
-          {/* Select-all header row — hidden in archived view */}
-          {!isArchived && (
-            <div
-              className="flex cursor-pointer items-center gap-3 border-b border-border px-4 py-3 hover:bg-bg transition-colors"
-              onClick={toggleSelectAll}
-            >
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={toggleSelectAll}
-                onClick={(e) => e.stopPropagation()}
-                className="h-4 w-4 accent-accent"
-              />
-              <span className="flex-1 text-sm font-medium text-secondary">{t("selectAll")}</span>
-              {selected.size > 0 && (
-                <span className="text-sm text-secondary">
-                  {t("selectedCount", { count: selected.size })}
-                </span>
-              )}
-            </div>
-          )}
-
           {/* Competitor rows */}
           <ul className="flex flex-col">
             {accounts.map((a, idx) => {
-              const isSelected = selected.has(a.id);
               const hasProfile = a.display_name != null || a.followers_count != null;
               return (
                 <li
                   key={a.id}
                   className={`flex items-center gap-3 px-4 py-3 transition-colors ${
                     idx < accounts.length - 1 ? "border-b border-border" : ""
-                  } ${!isArchived ? "cursor-pointer" : ""} ${
-                    isSelected ? "bg-accent-soft" : !isArchived ? "hover:bg-bg" : ""
                   }`}
-                  onClick={!isArchived ? () => toggleSelected(a.id) : undefined}
                 >
-                  {!isArchived && (
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelected(a.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-4 w-4 shrink-0 accent-accent"
-                    />
-                  )}
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-bg">
                     {a.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element -- external, unpredictable CDN host
@@ -306,18 +245,6 @@ export default function CompetitorsTabPage() {
           </button>
         </div>
       </ContextMenu>
-
-      {runDialogOpen && (
-        <RunDialog
-          projectId={params.id}
-          projectName={project?.name ?? ""}
-          accountsCount={selected.size}
-          accountIds={
-            accounts && selected.size === accounts.length ? undefined : Array.from(selected)
-          }
-          onClose={() => setRunDialogOpen(false)}
-        />
-      )}
     </div>
   );
 }
