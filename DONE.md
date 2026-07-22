@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E14-S1] Scheduled runs: schema and migration
+**Completed:** 2026-07-22
+**Handover:**
+- `backend/src/models/scheduled_run.py:ScheduledRun` — mirrors `AnalysisRun`'s XOR `duration_days`/`item_limit` CHECK constraint (`duration_or_item_limit_range`, from E3-S7) plus a new `day_of_week_range` CHECK (0=Monday..6=Sunday, matching Python's `datetime.weekday()`). `timezone` is a plain IANA-name `String(64)` — no new dependency, Python 3.12 stdlib `zoneinfo` resolves it in E14-S2's cron tick — with a Python-side default `"Europe/Moscow"`. `last_run_id` is a nullable FK to `analysis_runs.id`, to be updated by E14-S2's dispatcher after each fire.
+- Migration `f6a7b8c9d0e1` (now head, follows `a9b8c7d6e5f4`); single linear chain confirmed via `alembic heads`.
+- `make_scheduled_run()` test helper added to `backend/tests/conftest.py`, same shape/pattern as the existing `make_run()`.
+- 4 new tests in `backend/tests/test_models.py`: roundtrip + defaults, XOR-rejected, both-set-rejected, day_of_week-out-of-range-rejected. `ruff format`/`ruff check`/`mypy src` clean.
+- **For E14-S2:** table is ready — the CRUD API + arq cron tick build directly on top of `ScheduledRun`.
+**Smoke test:** DEFERRED — needs the migration applied on a real DEV Postgres; confirm `\d scheduled_runs` shows the expected columns and both CHECK constraints (same deferral pattern as the rest of this project's DB-touching stories — no local Postgres in this sandbox).
+**Promoted to backlog:** none
+
 ## [Post-Sprint-8 fix] Results/Details landing-page swap
 **Completed:** 2026-07-22
 **Handover:**

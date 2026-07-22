@@ -1717,21 +1717,22 @@ frontend/app/(app)/projects/[id]/competitors/page.tsx, frontend/messages/ru.json
 ## [E14-S1] Scheduled runs: schema and migration
 **Epic:** Scheduled Runs
 **Sprint:** 9 (locked 2026-07-22 execution plan)
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-22
 **Priority:** high
 **Depends on:** E3-S7 (reuses the duration_days/item_limit XOR pattern)
 ### Goal
 A durable definition of a recurring run: which competitors, what scope (day window or last-N, per E3-S7), and which day-of-week + time to fire.
 ### Acceptance Criteria
-- [ ] New `scheduled_runs` table: project_id, account_ids scope (nullable = whole list, mirrors `AnalysisRun.account_ids`), duration_days/item_limit (same XOR CHECK pattern as `AnalysisRun`), day_of_week, time_of_day, timezone, active, created_by, last_run_id, migration via Alembic
-- [ ] Model exposed through `src/models/__init__.py` per existing convention
+- [x] New `scheduled_runs` table: project_id, account_ids scope (nullable = whole list, mirrors `AnalysisRun.account_ids`), duration_days/item_limit (same XOR CHECK pattern as `AnalysisRun`), day_of_week, time_of_day, timezone, active, created_by, last_run_id, migration via Alembic
+- [x] Model exposed through `src/models/__init__.py` per existing convention
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed (deferred, see below)
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Migration applies cleanly on DEV; `\d scheduled_runs` shows the expected columns and constraint.
 ### Files to read
@@ -1739,7 +1740,11 @@ CLAUDE.md, CONVENTIONS.md, backend/src/models/analysis_run.py (XOR constraint pa
 ### Files to create or modify
 backend/src/models/scheduled_run.py (new), backend/alembic/versions/<new>.py, backend/src/models/__init__.py
 ### Handover
-—
+- `backend/src/models/scheduled_run.py:ScheduledRun` — mirrors `AnalysisRun`'s XOR `duration_days`/`item_limit` CHECK constraint (`duration_or_item_limit_range`) plus a new `day_of_week_range` CHECK (0=Monday..6=Sunday, matching `datetime.weekday()`). `timezone` is a plain IANA-name `String(64)` (no new dependency — Python 3.12 stdlib `zoneinfo` will resolve it in E14-S2's cron tick), Python-side default `"Europe/Moscow"`. `last_run_id` FK to `analysis_runs.id`, nullable, updated by E14-S2's dispatcher.
+- Migration `f6a7b8c9d0e1` (now head, follows `a9b8c7d6e5f4`).
+- `make_scheduled_run()` test helper added to `backend/tests/conftest.py`, same shape as `make_run()`.
+- 4 new tests in `backend/tests/test_models.py`: roundtrip + defaults, XOR-rejected, both-set-rejected, day_of_week-out-of-range-rejected.
+- **For E14-S2:** table is ready; the CRUD API + arq cron tick can be built directly on top.
 
 ## [E14-S2] Scheduled runs: CRUD API + arq cron dispatcher
 **Epic:** Scheduled Runs

@@ -2,7 +2,7 @@ import os
 import subprocess
 import uuid
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
@@ -16,6 +16,7 @@ from src.models import (
     ContentType,
     PlatformSlug,
     Project,
+    ScheduledRun,
     User,
     Workspace,
     WorkspaceMember,
@@ -189,6 +190,27 @@ async def make_run(
     session.add(run)
     await session.flush()
     return run
+
+
+async def make_scheduled_run(
+    session: AsyncSession,
+    project: Project | None = None,
+    created_by: User | None = None,
+    **kw,
+) -> ScheduledRun:
+    project = project or await make_project(session)
+    created_by = created_by or await make_user(session)
+    scheduled_run = ScheduledRun(
+        project_id=project.id,
+        created_by=created_by.id,
+        duration_days=kw.pop("duration_days", 7),
+        day_of_week=kw.pop("day_of_week", 0),
+        time_of_day=kw.pop("time_of_day", time(9, 0)),
+        **kw,
+    )
+    session.add(scheduled_run)
+    await session.flush()
+    return scheduled_run
 
 
 async def make_content_item(

@@ -20,6 +20,7 @@ from tests.conftest import (
     make_content_item,
     make_project,
     make_run,
+    make_scheduled_run,
     make_user,
     make_workspace,
 )
@@ -73,6 +74,31 @@ async def test_run_neither_duration_nor_item_limit_rejected(session: AsyncSessio
 async def test_run_both_duration_and_item_limit_rejected(session: AsyncSession) -> None:
     with pytest.raises(IntegrityError, match="duration_or_item_limit_range"):
         await make_run(session, duration_days=3, item_limit=10)
+
+
+async def test_scheduled_run_roundtrip(session: AsyncSession) -> None:
+    scheduled = await make_scheduled_run(session, day_of_week=2, active=True)
+    fetched = await session.get(type(scheduled), scheduled.id)
+    assert fetched is not None
+    assert fetched.duration_days == 7
+    assert fetched.item_limit is None
+    assert fetched.active is True
+    assert fetched.timezone == "Europe/Moscow"
+
+
+async def test_scheduled_run_duration_check_rejected(session: AsyncSession) -> None:
+    with pytest.raises(IntegrityError, match="duration_or_item_limit_range"):
+        await make_scheduled_run(session, duration_days=8)
+
+
+async def test_scheduled_run_both_duration_and_item_limit_rejected(session: AsyncSession) -> None:
+    with pytest.raises(IntegrityError, match="duration_or_item_limit_range"):
+        await make_scheduled_run(session, duration_days=3, item_limit=10)
+
+
+async def test_scheduled_run_day_of_week_out_of_range_rejected(session: AsyncSession) -> None:
+    with pytest.raises(IntegrityError, match="day_of_week_range"):
+        await make_scheduled_run(session, day_of_week=7)
 
 
 async def test_duplicate_normalized_url_in_list_rejected(session: AsyncSession) -> None:
