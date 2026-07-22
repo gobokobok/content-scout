@@ -22,7 +22,9 @@ export function ProjectBottomNav({ projectId }: { projectId: string }) {
     >
       {TABS.map(({ segment, labelKey, Icon }) => {
         const href = `/projects/${projectId}/${segment}`;
-        const active = pathname?.startsWith(href) ?? false;
+        const active =
+          (pathname?.startsWith(href) ?? false) ||
+          (segment === "results" && (pathname?.includes("/runs/") ?? false));
         return (
           <Link
             key={segment}

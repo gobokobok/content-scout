@@ -169,7 +169,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               key={tracked.run.id}
               onClick={() => {
                 setNotifOpen(false);
-                router.push(`/projects/${tracked.projectId}/results?run=${tracked.run.id}`);
+                router.push(`/projects/${tracked.projectId}/runs/${tracked.run.id}`);
               }}
               className="flex items-center gap-2.5 px-4 py-3 text-left hover:bg-bg transition-colors"
             >

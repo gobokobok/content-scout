@@ -2,6 +2,21 @@
 
 Completed stories land here, newest first. Format:
 
+## [Post-Sprint-8 fix] Results/Details landing-page swap
+**Completed:** 2026-07-22
+**Handover:**
+- Direct user feedback after E13-S2/E15-S3 shipped: the intended landing page for Результаты was always the run list (create-run button + run history), not an item table — and clicking a run should go straight to the E15-S3 run-detail page, not filter an item table by `run_id`.
+- `frontend/app/(app)/projects/[id]/results/page.tsx` — replaced entirely. Now shows the "Создать запуск" button + run-history cards (moved verbatim from `details/page.tsx`, E13-S2), with each done run card navigating to `/projects/[id]/runs/[runId]` instead of `/results?run=<id>`. The old item-table/run-selector logic that used to live here is fully superseded by the E15-S3 run-detail page's Publications tab (which already reused `listProjectItems` scoped to one run — nothing was lost).
+- `frontend/app/(app)/projects/[id]/details/page.tsx` — trimmed back down to just the KPI card + Конкуренты/Запланированные запуски nav links; the create-run button and run-history block moved out.
+- `frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx` — back link now reads "← Результаты" → `/projects/[id]/results` (was "← Детали" → `/projects/[id]/details`).
+- `frontend/app/(app)/layout.tsx` — the run-notifications dropdown now routes tracked runs straight to `/projects/[id]/runs/[runId]` (was `/results?run=<id>`, which no longer does anything useful now that Результаты doesn't read that query param).
+- `frontend/components/ui/bottom-nav.tsx` + `frontend/app/(app)/projects/[id]/layout.tsx` — the Результаты tab (mobile bottom nav + desktop tab bar) now stays highlighted while viewing a run-detail page (`pathname.includes("/runs/")`), and the page heading shows "История запусков" for both `/results` and `/runs/[runId]`.
+- `frontend/messages/ru.json` — moved `createRunButton`/`cardAccounts`/`cardItems` from `Details` to `ResultsTable`; dropped the unused/buggy `cardTokens` key (it displayed `progress_items` under a "Токены" label, duplicating `cardItems` — a pre-existing copy-paste bug in the original E13-S2 code, not a new one); `RunDetail.backToDetails` renamed to `backToResults`; `ProjectShell.sectionResults` changed from "Публикации конкурентов" to "История запусков".
+- The orphaned `frontend/app/(app)/projects/[id]/history/page.tsx` (unreachable since E13-S1 removed its nav link) still references the old `/results?run=...` pattern — left untouched since it's dead code outside this fix's scope; flagging again as a cleanup candidate (see BACKLOG.md's E13-S2 handover for the original flag).
+- `tsc --noEmit` and `next lint` both clean. Verified visually via a temporary `frontend/app/dev-preview` scratch route (mocked `window.fetch`), screenshotted the new Результаты landing page rendering the run list + create button correctly — deleted before commit. The click-through into an individual run detail page could not be reliably exercised end-to-end in this sandbox (an auth-state race between the mocked fetch and this app's Telegram-webview auto-login path repeatedly logged the scratch session out specifically on that nested dynamic route, in a way unrelated to this change's actual diff — the run-detail page's own rendering logic is unchanged from E15-S3's already-verified version, only its back-link target/label were touched here).
+**Smoke test:** DEFERRED — needs a real DEV project to confirm the Результаты run list renders, create-run works from there, and clicking a run lands on its detail page (same deferral pattern as the rest of this project's verification; count of deferred smoke tests across this file is now well past the 5+ flag threshold — see session summary).
+**Promoted to backlog:** delete the orphaned `/history` route (dead code since E13-S1; flagged repeatedly, never actioned)
+
 ## [E15-S3] Run detail page: Summary + Publications tabs
 **Completed:** 2026-07-22
 **Handover:**

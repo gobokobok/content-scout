@@ -50,7 +50,7 @@ export default function ProjectShellLayout({ children }: { children: React.React
   function sectionHeading(): string {
     if (pathname?.includes("/details")) return t("sectionDetails");
     if (pathname?.includes("/competitors")) return t("sectionCompetitors");
-    if (pathname?.includes("/results")) return t("sectionResults");
+    if (pathname?.includes("/results") || pathname?.includes("/runs/")) return t("sectionResults");
     if (pathname?.includes("/history")) return t("sectionHistory");
     if (pathname?.includes("/analysis")) return t("sectionAnalysis");
     return "";
@@ -91,7 +91,9 @@ export default function ProjectShellLayout({ children }: { children: React.React
           <nav className="-mx-4 hidden gap-1 overflow-x-auto border-b border-border px-4 md:flex">
             {TABS.map((tab) => {
               const href = `/projects/${params.id}/${tab.segment}`;
-              const active = pathname?.startsWith(href);
+              const active =
+                pathname?.startsWith(href) ||
+                (tab.segment === "results" && pathname?.includes("/runs/"));
               return (
                 <Link
                   key={tab.segment}

@@ -171,10 +171,10 @@ export default function RunDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <button
-        onClick={() => router.push(`/projects/${params.id}/details`)}
+        onClick={() => router.push(`/projects/${params.id}/results`)}
         className="w-fit text-sm text-secondary hover:text-ink"
       >
-        {t("backToDetails")}
+        {t("backToResults")}
       </button>
 
       {!run && <SkeletonRows count={5} />}
