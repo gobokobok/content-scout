@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E14-S2] Scheduled runs: CRUD API + arq cron dispatcher
+**Completed:** 2026-07-22
+**Handover:**
+- `backend/src/services/scheduled_runs.py:most_recent_occurrence_utc(schedule, before)` — pure function (no DB, stdlib `zoneinfo`, no new dependency) that finds the most recent UTC instant a schedule's `(day_of_week, time_of_day)` occurred in its own IANA timezone; `is_due(schedule, now_utc, window_minutes)` wraps it. Chose "look back for the most recent occurrence" over "does today's local weekday match" specifically to avoid a midnight-boundary gap — a schedule at 23:58 would never fire under the naive same-day check, since by the next tick the weekday has already rolled over.
+- `fire_due_schedules(session, now=None)` — the cron tick's core, testable without arq/Redis. `_fire_one` mirrors `POST /projects/{id}/runs`'s gates (no active accounts, `token_balance <= 0`, `max_runs_per_user_per_day` quota) but skips silently instead of raising an HTTPException, since a cron tick has no user to show an error to. One schedule's exception is caught + rolled back without blocking the rest.
+- `WorkerSettings.cron_jobs = [cron(check_scheduled_runs, minute=set(range(0, 60, 5)), second=0)]` (`backend/src/worker.py`) — arq ticks aligned to `:00/:05/:10.../:55`; `TICK_WINDOW_MINUTES = 5` matches that cadence exactly so consecutive windows tile the timeline with no gaps or double-fires.
+- `backend/src/api/scheduled_runs.py` — `POST/GET/PATCH/DELETE /projects/{project_id}/scheduled-runs`, mounted via `APIRouter(prefix=...)` like `accounts.py`, registered in `main.py`. `ScheduledRunIn` is a full-replace body shared by POST and PATCH (mirrors `ProjectUpdateIn`'s pattern, not partial-PATCH semantics); validates the XOR duration/item_limit scope (same as `RunRequestIn`) and the timezone string via `zoneinfo.ZoneInfo(...)`.
+- `test_models.py:test_schema_has_exactly_expected_tables` updated to include `scheduled_runs` — would have failed CI otherwise.
+- 22 new tests in `test_scheduled_runs.py` (6 pure scheduling-math, ran locally with no DB; 16 DB-integration covering CRUD + 6 `fire_due_schedules` scenarios). `ruff format`/`ruff check`/`mypy src` clean.
+- **For E14-S3:** `ScheduledRunOut` (incl. `last_run_id`) is ready to consume for the list page.
+**Smoke test:** DEFERRED — needs a schedule created on real DEV Postgres+Redis for a near-future day/time, then confirm it fires within its 5-minute window and a new run appears in Детали's run history unattended (same deferral pattern as the rest of this project's Apify/Postgres-dependent verification — no local Postgres/Redis in this sandbox).
+**Promoted to backlog:** none
+
 ## [E14-S1] Scheduled runs: schema and migration
 **Completed:** 2026-07-22
 **Handover:**

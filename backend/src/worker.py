@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import httpx
 from anthropic import AsyncAnthropic
+from arq import cron
 from arq.connections import RedisSettings
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -26,6 +27,7 @@ from src.models import (
 from src.platforms import get_platform
 from src.services.run_summary import generate_run_summary
 from src.services.runs import resolve_target_accounts
+from src.services.scheduled_runs import fire_due_schedules
 from src.services.summarizer import summarize_run_items
 from src.services.telegram_notify import notify_run_complete
 from src.services.usage import rollup_run_totals
@@ -266,7 +268,15 @@ async def fetch_account_profile(ctx: dict, account_id: str, user_id: str) -> Non
         await apply_profile_update(session, account, uuid.UUID(user_id))
 
 
+async def check_scheduled_runs(ctx: dict) -> None:
+    """arq cron tick (E14-S2) — fires any ScheduledRun due in the current 5-minute window."""
+    sessionmaker = get_sessionmaker()
+    async with sessionmaker() as session:
+        await fire_due_schedules(session)
+
+
 class WorkerSettings:
     functions = [run_analysis, fetch_account_profile]
+    cron_jobs = [cron(check_scheduled_runs, minute=set(range(0, 60, 5)), second=0)]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     job_timeout = get_settings().worker_job_timeout_secs
