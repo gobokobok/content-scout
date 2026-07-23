@@ -43,7 +43,7 @@ export function RunDialog({
   const [allAccounts, setAllAccounts] = useState(true);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [launchMode, setLaunchMode] = useState<LaunchMode>("now");
-  const [dayOfWeek, setDayOfWeek] = useState(0);
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [timeOfDay, setTimeOfDay] = useState("09:00");
   const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,24 +96,35 @@ export function RunDialog({
     );
   }
 
+  function toggleDay(d: number) {
+    setSelectedDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+  }
+
   async function onConfirm() {
     if (!allAccounts && selectedAccountIds.length === 0) {
       setError(t("selectCompetitorsError"));
+      return;
+    }
+    if (launchMode === "schedule" && selectedDays.length === 0) {
+      setError(t("selectDayError"));
       return;
     }
     setStarting(true);
     setError(null);
     try {
       if (launchMode === "schedule") {
-        await api.createScheduledRun(projectId, {
-          duration_days: scopeMode === "days" ? duration : undefined,
-          item_limit: scopeMode === "count" ? itemLimit : undefined,
-          account_ids: accountIds,
-          day_of_week: dayOfWeek,
-          time_of_day: `${timeOfDay}:00`,
-          timezone: DEFAULT_TIMEZONE,
-          active: true,
-        });
+        // One row per selected weekday — the API has no concept of a multi-day schedule.
+        for (const day of selectedDays) {
+          await api.createScheduledRun(projectId, {
+            duration_days: scopeMode === "days" ? duration : undefined,
+            item_limit: scopeMode === "count" ? itemLimit : undefined,
+            account_ids: accountIds,
+            day_of_week: day,
+            time_of_day: `${timeOfDay}:00`,
+            timezone: DEFAULT_TIMEZONE,
+            active: true,
+          });
+        }
         setScheduled(true);
       } else {
         const created = await api.createRun(projectId, {
@@ -275,6 +286,11 @@ export function RunDialog({
                     ))}
                   </div>
                 )}
+                <p className="text-xs text-secondary">
+                  {scopeMode === "days"
+                    ? t("scopeDaysExplanation", { count: duration })
+                    : t("scopeCountExplanation", { count: itemLimit })}
+                </p>
               </div>
 
               {/* Step 2 — competitors */}
@@ -320,7 +336,7 @@ export function RunDialog({
                   <div className="flex flex-col gap-3 rounded-[14px] bg-bg p-3">
                     <div className="grid grid-cols-7 gap-1.5">
                       {WEEKDAYS.map((d) => (
-                        <button key={d} onClick={() => setDayOfWeek(d)} className={chipClass(dayOfWeek === d)}>
+                        <button key={d} onClick={() => toggleDay(d)} className={chipClass(selectedDays.includes(d))}>
                           {t(`weekday${d}`)}
                         </button>
                       ))}

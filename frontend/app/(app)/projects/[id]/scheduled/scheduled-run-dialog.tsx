@@ -6,6 +6,7 @@ import { ArrowLeft, Check, Users } from "lucide-react";
 import { api, ApiError, type AccountResponse, type ScheduledRunResponse } from "@/lib/api";
 import { formatFollowers } from "@/lib/format";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Segmented } from "@/components/ui";
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
@@ -18,15 +19,9 @@ function toTimeInputValue(timeOfDay: string): string {
   return timeOfDay.slice(0, 5);
 }
 
-function segmentClass(active: boolean): string {
-  return `rounded-control px-3 py-1.5 text-sm font-medium transition-colors ${
-    active ? "bg-accent text-white" : "text-secondary hover:text-ink"
-  }`;
-}
-
 function chipClass(active: boolean): string {
-  return `h-10 min-w-10 rounded-control px-2 text-sm font-medium transition-colors ${
-    active ? "bg-accent text-white" : "border border-border text-ink hover:bg-bg"
+  return `h-10 min-w-10 rounded-[10px] px-2 font-mono text-[13px] font-medium transition-all active:scale-[0.98] ${
+    active ? "bg-ink text-lime font-semibold" : "border border-border text-ink hover:bg-bg"
   }`;
 }
 
@@ -155,7 +150,7 @@ export function ScheduledRunDialog({
                 >
                   <span
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                      selected ? "border-accent bg-accent text-white" : "border-border text-transparent"
+                      selected ? "border-ink bg-ink text-lime" : "border-border text-transparent"
                     }`}
                   >
                     <Check className="h-3.5 w-3.5" />
@@ -185,7 +180,7 @@ export function ScheduledRunDialog({
 
           <button
             onClick={() => setView("form")}
-            className="rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white"
+            className="rounded-chip bg-lime px-4 py-3 text-sm font-semibold text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] transition-all active:scale-[0.98]"
           >
             {t("selectedCompetitorsCount", { count: selectedAccountIds.length })} · {t("doneButton")}
           </button>
@@ -196,19 +191,22 @@ export function ScheduledRunDialog({
 
   return (
     <BottomSheet open onClose={onClose} title={existing ? t("editTitle") : t("createTitle")}>
-      <div className="flex flex-col gap-6 p-4">
-        {/* Step 1 — analysis period */}
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-semibold text-ink">{t("step1Title")}</span>
-          <div className="inline-flex self-start rounded-control border border-border p-0.5">
-            {(["days", "count"] as ScopeMode[]).map((mode) => (
-              <button key={mode} onClick={() => setScopeMode(mode)} className={segmentClass(scopeMode === mode)}>
-                {mode === "days" ? t("scopeModeDays") : t("scopeModeCount")}
-              </button>
-            ))}
-          </div>
+      <div className="flex flex-col gap-5 p-4">
+        {/* Period */}
+        <div className="flex flex-col gap-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+            {t("step1Title")}
+          </span>
+          <Segmented
+            value={scopeMode}
+            onChange={setScopeMode}
+            options={[
+              { value: "days", label: t("scopeModeDays") },
+              { value: "count", label: t("scopeModeCount") },
+            ]}
+          />
           {scopeMode === "days" ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-7 gap-1.5">
               {DAY_OPTIONS.map((d) => (
                 <button key={d} onClick={() => setDuration(d)} className={chipClass(duration === d)}>
                   {d}
@@ -216,7 +214,7 @@ export function ScheduledRunDialog({
               ))}
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {ITEM_LIMIT_OPTIONS.map((n) => (
                 <button key={n} onClick={() => setItemLimit(n)} className={chipClass(itemLimit === n)}>
                   {n}
@@ -224,50 +222,52 @@ export function ScheduledRunDialog({
               ))}
             </div>
           )}
+          <p className="text-xs text-secondary">
+            {scopeMode === "days"
+              ? t("scopeDaysExplanation", { count: duration })
+              : t("scopeCountExplanation", { count: itemLimit })}
+          </p>
         </div>
 
-        {/* Step 2 — competitors */}
-        <div className="flex flex-col gap-2 border-t border-border pt-6">
-          <span className="text-sm font-semibold text-ink">{t("step2Title")}</span>
-          <div className="inline-flex self-start rounded-control border border-border p-0.5">
-            <button onClick={() => setAllAccounts(true)} className={segmentClass(allAccounts)}>
-              {t("allAccounts")}
-            </button>
-            <button
-              onClick={() => {
-                setAllAccounts(false);
-                setView("pickCompetitors");
-              }}
-              className={segmentClass(!allAccounts)}
-            >
-              {t("selectCompetitorsButton")}
-            </button>
-          </div>
+        {/* Competitors */}
+        <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+            {t("step2Title")}
+          </span>
+          <Segmented
+            value={allAccounts ? "all" : "select"}
+            onChange={(v) => {
+              if (v === "all") setAllAccounts(true);
+              else { setAllAccounts(false); setView("pickCompetitors"); }
+            }}
+            options={[
+              { value: "all", label: t("allAccounts") },
+              { value: "select", label: t("selectCompetitorsButton") },
+            ]}
+          />
           {!allAccounts && (
             <button
               onClick={() => setView("pickCompetitors")}
-              className="w-fit text-sm text-accent hover:underline"
+              className="w-fit text-sm font-medium text-accent hover:underline"
             >
               {t("selectedCompetitorsCount", { count: selectedAccountIds.length })}
             </button>
           )}
         </div>
 
-        {/* Step 3 — schedule */}
-        <div className="flex flex-col gap-4 border-t border-border pt-6">
-          <span className="text-sm font-semibold text-ink">{t("step3Title")}</span>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-secondary">{t("dayOfWeekLabel")}</span>
-            <div className="flex flex-wrap gap-2">
+        {/* Schedule */}
+        <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+            {t("step3Title")}
+          </span>
+          <div className="flex flex-col gap-3 rounded-[14px] bg-bg p-3">
+            <div className="grid grid-cols-7 gap-1.5">
               {WEEKDAYS.map((d) => (
                 <button key={d} onClick={() => toggleDay(d)} className={chipClass(selectedDays.includes(d))}>
                   {t(`weekday${d}`)}
                 </button>
               ))}
             </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-secondary">{t("timeOfDayLabel")}</span>
             <input
               type="time"
               value={timeOfDay}
@@ -283,7 +283,7 @@ export function ScheduledRunDialog({
           <button
             onClick={() => void onSave(true)}
             disabled={saving}
-            className="w-full rounded-control bg-accent px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-chip bg-lime px-4 py-3 text-sm font-semibold text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] transition-all active:scale-[0.98] disabled:opacity-50"
           >
             {saving ? t("saving") : t("saveAndActivate")}
           </button>
@@ -291,14 +291,14 @@ export function ScheduledRunDialog({
             <button
               onClick={onClose}
               disabled={saving}
-              className="flex-1 rounded-control border border-border px-4 py-2 text-sm text-ink hover:bg-bg disabled:opacity-50"
+              className="flex-1 rounded-chip border border-border px-4 py-2 text-sm font-medium text-ink transition-all active:scale-[0.98] hover:bg-bg disabled:opacity-50"
             >
               {t("cancel")}
             </button>
             <button
               onClick={() => void onSave(false)}
               disabled={saving}
-              className="flex-1 rounded-control border border-border px-4 py-2 text-sm text-ink hover:bg-bg disabled:opacity-50"
+              className="flex-1 rounded-chip border border-border px-4 py-2 text-sm font-medium text-ink transition-all active:scale-[0.98] hover:bg-bg disabled:opacity-50"
             >
               {t("saveAsDraft")}
             </button>

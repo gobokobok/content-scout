@@ -1,3 +1,25 @@
+import type { RunResponse } from "@/lib/api";
+
+type RunStatus = RunResponse["status"];
+
+// Shared "dot + soft chip" treatment for run status, used on Details' last-run
+// card, the Результаты run list, and anywhere else a run status is shown.
+export const RUN_STATUS_PILL: Record<RunStatus, string> = {
+  done: "bg-success-soft text-success",
+  failed: "bg-danger-soft text-danger",
+  pending: "bg-accent-soft text-accent",
+  scraping: "bg-accent-soft text-accent",
+  summarizing: "bg-accent-soft text-accent",
+};
+
+export const RUN_STATUS_DOT: Record<RunStatus, string> = {
+  done: "bg-success",
+  failed: "bg-danger",
+  pending: "bg-accent",
+  scraping: "bg-accent",
+  summarizing: "bg-accent",
+};
+
 export function formatNumber(n: number | null): string {
   if (n === null) return "—";
   return new Intl.NumberFormat("ru-RU").format(Math.round(n));

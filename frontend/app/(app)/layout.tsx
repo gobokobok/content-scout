@@ -4,7 +4,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Menu, Bell, Coins, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import {
+  Menu,
+  Bell,
+  Coins,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  Settings,
+  FolderOpen,
+  ChevronRight,
+  ShieldCheck,
+  LogOut,
+} from "lucide-react";
 import { getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useRunTracker, type TrackedRun } from "@/lib/run-tracker";
@@ -102,38 +114,44 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {children}
 
       <SideDrawer open={menuOpen} onClose={() => setMenuOpen(false)} side="left">
-        <div className="border-b border-border px-4 py-4">
-          <p className="truncate text-base font-semibold text-ink">{user.display_name}</p>
-          {!isTelegram && <p className="mt-0.5 truncate text-xs text-secondary">{user.email}</p>}
-        </div>
+        <Link
+          href="/settings"
+          onClick={() => setMenuOpen(false)}
+          className="flex items-center gap-3 border-b border-border px-4 py-4 transition-colors hover:bg-bg"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-semibold text-ink">{user.display_name}</p>
+            {!isTelegram && <p className="mt-0.5 truncate text-xs text-secondary">{user.email}</p>}
+          </div>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-chip bg-accent-soft text-accent">
+            <Settings className="h-4 w-4" />
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-secondary" />
+        </Link>
         <nav className="flex flex-1 flex-col overflow-y-auto py-2">
           <Link
             href="/"
             onClick={() => setMenuOpen(false)}
-            className="px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
+            className="flex items-center gap-3 px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
           >
+            <FolderOpen className="h-4.5 w-4.5 text-secondary" />
             {t("projects")}
           </Link>
           <Link
             href="/usage"
             onClick={() => setMenuOpen(false)}
-            className="px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
+            className="flex items-center gap-3 px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
           >
+            <Coins className="h-4.5 w-4.5 text-secondary" />
             {t("usage")}
-          </Link>
-          <Link
-            href="/settings"
-            onClick={() => setMenuOpen(false)}
-            className="px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
-          >
-            {t("settings")}
           </Link>
           {user.is_admin && (
             <Link
               href="/admin"
               onClick={() => setMenuOpen(false)}
-              className="px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
+              className="flex items-center gap-3 px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
             >
+              <ShieldCheck className="h-4.5 w-4.5 text-secondary" />
               {t("admin")}
             </Link>
           )}
@@ -146,8 +164,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               else logout();
               router.push("/login");
             }}
-            className="w-full rounded-control px-4 py-3 text-left text-base text-danger hover:bg-bg transition-colors"
+            className="flex w-full items-center gap-3 rounded-control px-4 py-3 text-left text-base text-danger hover:bg-bg transition-colors"
           >
+            <LogOut className="h-4.5 w-4.5" />
             {t("logout")}
           </button>
         </div>

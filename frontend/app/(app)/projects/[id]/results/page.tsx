@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Info, Plus } from "lucide-react";
+import { Coins, FileText, Info, Plus, Users } from "lucide-react";
 import { api, ApiError, type AccountResponse, type RunResponse } from "@/lib/api";
-import { Badge } from "@/components/ui";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { useProject } from "@/lib/project-context";
+import { RUN_STATUS_DOT, RUN_STATUS_PILL } from "@/lib/format";
 import { RunDialog } from "../run-dialog";
 
 function formatDate(iso: string): string {
@@ -52,14 +52,6 @@ export default function ResultsTabPage() {
     summarizing: t("status_summarizing"),
     done: t("status_done"),
     failed: t("status_failed"),
-  };
-
-  const statusVariant: Record<RunResponse["status"], "success" | "danger" | "warning"> = {
-    pending: "warning",
-    scraping: "warning",
-    summarizing: "warning",
-    done: "success",
-    failed: "danger",
   };
 
   const [infoOpen, setInfoOpen] = useState(false);
@@ -116,20 +108,34 @@ export default function ResultsTabPage() {
                       ? () => router.push(`/projects/${params.id}/runs/${run.id}`)
                       : undefined
                   }
-                  className={`flex flex-col gap-2 rounded-card border border-border bg-card p-4 transition-colors ${
+                  className={`flex flex-col gap-2.5 rounded-card border border-border bg-card px-4 py-3.5 transition-all active:scale-[0.99] ${
                     openable ? "cursor-pointer hover:bg-bg" : ""
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-ink">
+                    <span className="font-mono text-sm font-medium text-ink">
                       {formatDate(run.created_at)}
                     </span>
-                    <Badge variant={statusVariant[run.status]}>{statusLabel[run.status]}</Badge>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11.5px] font-medium ${RUN_STATUS_PILL[run.status]}`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${RUN_STATUS_DOT[run.status]}`} />
+                      {statusLabel[run.status]}
+                    </span>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-secondary">
-                    <span>{t("cardAccounts", { count: run.progress_accounts })}</span>
-                    <span>{t("cardItems", { count: run.progress_items })}</span>
-                    <span>{t("cardTokens", { count: run.progress_items })}</span>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-secondary">
+                    <span className="inline-flex items-center gap-1.5 font-mono text-xs">
+                      <Users className="h-3.5 w-3.5" />
+                      {run.progress_accounts}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 font-mono text-xs">
+                      <FileText className="h-3.5 w-3.5" />
+                      {run.progress_items}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 font-mono text-xs">
+                      <Coins className="h-3.5 w-3.5" />
+                      {run.progress_items}
+                    </span>
                   </div>
                 </div>
               );

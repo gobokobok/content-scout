@@ -13,11 +13,12 @@ import {
   type RunResponse,
 } from "@/lib/api";
 import { ResultsTable } from "@/components/results-table";
-import { ResultsCards } from "@/components/results-cards";
+import { ResultsCards, ContentCard } from "@/components/results-cards";
 import { ResultsControlsBar } from "@/components/results-controls";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { TabChip } from "@/components/ui";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { VIRALITY_STYLE } from "@/lib/format";
 
 const DEFAULT_SORT: ItemSortField = "likes_per_day";
@@ -52,6 +53,7 @@ export default function RunDetailPage() {
   const [tab, setTab] = useState<Tab>("summary");
   const [run, setRun] = useState<RunResponse | null>(null);
   const [topVirality, setTopVirality] = useState<ContentItemResponse[] | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ContentItemResponse | null>(null);
 
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<ItemSortField>(DEFAULT_SORT);
@@ -124,6 +126,20 @@ export default function RunDetailPage() {
       if (add) await api.addToShortlist(params.id, [contentItemId]);
       else await api.removeFromShortlist(params.id, contentItemId);
       await refreshItems();
+    } catch (err) { addToast(err instanceof ApiError ? err.messageRu : t("genericError")); }
+  }
+
+  // Shortlist toggle from the Summary tab's top-5 list / its detail sheet —
+  // keeps that local state in sync too, and refreshes the paginated list only if already loaded.
+  async function handleTopViralityShortlistToggle(contentItemId: string, add: boolean) {
+    try {
+      if (add) await api.addToShortlist(params.id, [contentItemId]);
+      else await api.removeFromShortlist(params.id, contentItemId);
+      setTopVirality((prev) =>
+        prev?.map((i) => (i.id === contentItemId ? { ...i, in_shortlist: add } : i)) ?? prev,
+      );
+      setSelectedItem((prev) => (prev && prev.id === contentItemId ? { ...prev, in_shortlist: add } : prev));
+      if (itemsPage) await refreshItems();
     } catch (err) { addToast(err instanceof ApiError ? err.messageRu : t("genericError")); }
   }
 
@@ -263,22 +279,27 @@ export default function RunDetailPage() {
                     {topVirality.map((item) => (
                       <button
                         key={item.id}
-                        onClick={() => setTab("publications")}
-                        className="flex items-center gap-2 rounded-control border border-border p-2.5 text-left transition-colors hover:bg-bg"
+                        onClick={() => setSelectedItem(item)}
+                        className="flex flex-col gap-1.5 rounded-control border border-border p-2.5 text-left transition-colors active:scale-[0.99] hover:bg-bg"
                       >
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-chip bg-accent-soft px-2 py-0.5 text-[10px] font-medium text-accent">
-                          {TYPE_ICON[item.type]}
-                          {TYPE_LABEL[item.type]}
-                        </span>
-                        <span className="flex-1 truncate text-sm text-ink">
-                          @{item.account_handle}
-                        </span>
-                        {item.virality && (
-                          <span
-                            className={`inline-flex shrink-0 items-center rounded-chip px-2 py-0.5 text-xs font-medium ${VIRALITY_STYLE[item.virality]}`}
-                          >
-                            {VIRALITY_LABEL[item.virality]}
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-chip bg-accent-soft px-2 py-0.5 text-[10px] font-medium text-accent">
+                            {TYPE_ICON[item.type]}
+                            {TYPE_LABEL[item.type]}
                           </span>
+                          <span className="flex-1 truncate text-sm text-ink">
+                            @{item.account_handle}
+                          </span>
+                          {item.virality && (
+                            <span
+                              className={`inline-flex shrink-0 items-center rounded-chip px-2 py-0.5 text-xs font-medium ${VIRALITY_STYLE[item.virality]}`}
+                            >
+                              {VIRALITY_LABEL[item.virality]}
+                            </span>
+                          )}
+                        </div>
+                        {item.summary && (
+                          <p className="line-clamp-2 text-xs text-secondary">{item.summary}</p>
                         )}
                       </button>
                     ))}
@@ -328,6 +349,18 @@ export default function RunDetailPage() {
           )}
         </>
       )}
+
+      <BottomSheet open={selectedItem !== null} onClose={() => setSelectedItem(null)}>
+        {selectedItem && (
+          <div className="px-4 pb-4">
+            <ContentCard
+              item={selectedItem}
+              typeLabel={TYPE_LABEL[selectedItem.type]}
+              onShortlistToggle={handleTopViralityShortlistToggle}
+            />
+          </div>
+        )}
+      </BottomSheet>
     </div>
   );
 }

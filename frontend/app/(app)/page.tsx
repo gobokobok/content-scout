@@ -9,7 +9,6 @@ import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
-import { TabChip } from "@/components/ui";
 
 type Tab = "active" | "archived";
 
@@ -137,14 +136,14 @@ export default function WorkspaceHomePage() {
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 rounded-control bg-accent py-3 text-sm font-medium text-white disabled:opacity-50"
+              className="flex-1 rounded-chip bg-lime py-3 text-sm font-semibold text-ink shadow-[0_6px_16px_rgba(140,170,20,0.28)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
             >
               {t("createSubmit")}
             </button>
             <button
               type="button"
               onClick={() => { setCreating(false); setNewName(""); }}
-              className="flex-1 rounded-control border border-border py-3 text-sm text-ink hover:bg-bg"
+              className="flex-1 rounded-chip border border-border py-3 text-sm font-medium text-ink transition-all active:scale-[0.98] hover:bg-bg"
             >
               {t("createCancel")}
             </button>
@@ -189,13 +188,13 @@ export default function WorkspaceHomePage() {
                   />
                   <button
                     onClick={() => void onRename(p.id)}
-                    className="rounded-control bg-accent px-3 py-1.5 text-sm font-medium text-white"
+                    className="rounded-chip bg-lime px-3 py-1.5 text-sm font-semibold text-ink transition-all active:scale-[0.98]"
                   >
                     {t("renameSave")}
                   </button>
                   <button
                     onClick={() => setRenamingId(null)}
-                    className="rounded-control border border-border px-3 py-1.5 text-sm text-ink hover:bg-bg"
+                    className="rounded-chip border border-border px-3 py-1.5 text-sm font-medium text-ink transition-all active:scale-[0.98] hover:bg-bg"
                   >
                     {t("createCancel")}
                   </button>

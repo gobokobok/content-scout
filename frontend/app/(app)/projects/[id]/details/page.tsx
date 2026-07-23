@@ -13,25 +13,9 @@ import {
   type RunResponse,
   type ScheduledRunResponse,
 } from "@/lib/api";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, RUN_STATUS_DOT, RUN_STATUS_PILL } from "@/lib/format";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
-
-const STATUS_PILL: Record<RunResponse["status"], string> = {
-  done: "bg-success-soft text-success",
-  failed: "bg-danger-soft text-danger",
-  pending: "bg-accent-soft text-accent",
-  scraping: "bg-accent-soft text-accent",
-  summarizing: "bg-accent-soft text-accent",
-};
-
-const STATUS_DOT: Record<RunResponse["status"], string> = {
-  done: "bg-success",
-  failed: "bg-danger",
-  pending: "bg-accent",
-  scraping: "bg-accent",
-  summarizing: "bg-accent",
-};
 
 function NavLinkRow({
   href,
@@ -175,9 +159,9 @@ export default function DetailsPage() {
                 {formatRunDate(lastRun.started_at ?? lastRun.created_at)}
               </span>
               <span
-                className={`inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11.5px] font-medium ${STATUS_PILL[lastRun.status]}`}
+                className={`inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11.5px] font-medium ${RUN_STATUS_PILL[lastRun.status]}`}
               >
-                <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[lastRun.status]}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${RUN_STATUS_DOT[lastRun.status]}`} />
                 {t(`status_${lastRun.status}`)}
               </span>
             </div>

@@ -62,9 +62,9 @@ type BadgeVariant = "default" | "success" | "warning" | "danger";
 
 const BADGE_VARIANTS: Record<BadgeVariant, string> = {
   default: "bg-accent-soft text-accent",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/10 text-warning",
-  danger: "bg-danger/10 text-danger",
+  success: "bg-success-soft text-success",
+  warning: "bg-accent-soft text-accent",
+  danger: "bg-danger-soft text-danger",
 };
 
 export function tabChipClass(active: boolean, className = ""): string {

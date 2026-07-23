@@ -147,7 +147,7 @@ export default function ScheduledRunsPage() {
               setEditing(null);
               setDialogOpen(true);
             }}
-            className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
+            className="flex items-center gap-1.5 rounded-chip bg-lime px-3.5 py-2 text-sm font-semibold text-ink shadow-[0_6px_16px_rgba(140,170,20,0.28)] transition-all active:scale-[0.98]"
           >
             <Plus className="h-4 w-4" />
             {t("createButton")}

@@ -145,7 +145,10 @@
   "selectCompetitorsError": "Выберите хотя бы одного конкурента.",
   "costEstimateLabel": "Оценка стоимости",
   "costEstimateValue": "≈ {count} ток. / запуск",
-  "followersShort": "подп."
+  "followersShort": "подп.",
+  "scopeDaysExplanation": "Соберём все публикации выбранных аккаунтов за последние {count, plural, =1{# день} other{# дн.}}",
+  "scopeCountExplanation": "Соберём последние {count, plural, =1{# публикацию} other{# публикаций}} каждого выбранного аккаунта",
+  "selectDayError": "Выберите хотя бы один день недели."
  },
  "ResultsTable": {
   "title": "Результаты запусков",
@@ -255,6 +258,7 @@
  },
  "Usage": {
   "title": "Токены",
+  "back": "Назад",
   "loading": "Загрузка…",
   "genericError": "Произошла ошибка. Попробуйте ещё раз.",
   "balanceLabel": "Баланс",
@@ -328,9 +332,9 @@
   "activateAction": "Активировать",
   "deactivateAction": "Деактивировать",
   "inactiveLabel": "Неактивно",
-  "step1Title": "Шаг 1. Период анализа",
-  "step2Title": "Шаг 2. Конкуренты",
-  "step3Title": "Шаг 3. Расписание",
+  "step1Title": "Период анализа",
+  "step2Title": "Конкуренты",
+  "step3Title": "Расписание",
   "selectCompetitorsButton": "Выбрать конкурентов",
   "selectCompetitorsTitle": "Выбор конкурентов",
   "selectAllButton": "Выбрать все",
@@ -366,7 +370,9 @@
   "saving": "Сохранение…",
   "cancel": "Отмена",
   "deleteAction": "Удалить",
-  "genericError": "Произошла ошибка. Попробуйте ещё раз."
+  "genericError": "Произошла ошибка. Попробуйте ещё раз.",
+  "scopeDaysExplanation": "Соберём все публикации выбранных аккаунтов за последние {count, plural, =1{# день} other{# дн.}}",
+  "scopeCountExplanation": "Соберём последние {count, plural, =1{# публикацию} other{# публикаций}} каждого выбранного аккаунта"
  },
  "RunDetail": {
   "title": "Результат запуска",

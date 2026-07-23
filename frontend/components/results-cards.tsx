@@ -101,7 +101,7 @@ function ShortlistSortBottomSheet({
 // Content item card (results tab)
 // ---------------------------------------------------------------------------
 
-function ContentCard({
+export function ContentCard({
   item,
   typeLabel,
   onShortlistToggle,

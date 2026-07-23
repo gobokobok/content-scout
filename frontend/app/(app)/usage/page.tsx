@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CalendarRange, Copy, Check } from "lucide-react";
+import { ArrowLeft, CalendarRange, Copy, Check } from "lucide-react";
 import { api, ApiError, type RunSummaryResponse, type UserResponse } from "@/lib/api";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 
@@ -49,6 +50,12 @@ function monthRange(year: number, month: number): { from: Date; to: Date } {
 
 function toMonthInputValue(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthNames(): string[] {
+  return Array.from({ length: 12 }, (_, i) =>
+    new Date(2000, i, 1).toLocaleDateString("ru-RU", { month: "long" }).replace(/^./, (c) => c.toUpperCase()),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +165,7 @@ type PeriodSelection =
 
 export default function UsagePage() {
   const t = useTranslations("Usage");
+  const router = useRouter();
   const now = new Date();
 
   const [selection, setSelection] = useState<PeriodSelection>({ kind: "quick", monthsBack: 0 });
@@ -220,6 +228,14 @@ export default function UsagePage() {
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
+      <button
+        onClick={() => router.back()}
+        className="flex w-fit items-center gap-1 text-sm text-secondary transition-colors hover:text-ink"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {t("back")}
+      </button>
+
       <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("title")}</h1>
 
       {/* Balance — hero card */}
@@ -274,26 +290,37 @@ export default function UsagePage() {
 
       <BottomSheet open={customSheetOpen} onClose={() => setCustomSheetOpen(false)} title={t("customPeriodTitle")}>
         <div className="flex flex-col gap-3 px-4 pb-4">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-secondary">{t("fromLabel")}</span>
-            <input
-              type="month"
-              value={draftFrom}
-              max={toMonthInputValue(now)}
-              onChange={(e) => setDraftFrom(e.target.value)}
-              className="w-full rounded-control border border-border bg-card px-3 py-2.5 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-secondary">{t("toLabel")}</span>
-            <input
-              type="month"
-              value={draftTo}
-              max={toMonthInputValue(now)}
-              onChange={(e) => setDraftTo(e.target.value)}
-              className="w-full rounded-control border border-border bg-card px-3 py-2.5 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-          </div>
+          {[
+            { label: t("fromLabel"), value: draftFrom, onChange: setDraftFrom },
+            { label: t("toLabel"), value: draftTo, onChange: setDraftTo },
+          ].map(({ label, value, onChange }) => {
+            const [y, m] = value.split("-").map(Number);
+            return (
+              <div key={label} className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-secondary">{label}</span>
+                <div className="flex gap-2">
+                  <select
+                    value={m}
+                    onChange={(e) => onChange(`${y}-${String(Number(e.target.value)).padStart(2, "0")}`)}
+                    className="w-0 flex-[2] rounded-control border border-border bg-card px-3 py-2.5 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  >
+                    {monthNames().map((name, idx) => (
+                      <option key={name} value={idx + 1}>{name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={y}
+                    onChange={(e) => onChange(`${e.target.value}-${String(m).padStart(2, "0")}`)}
+                    className="w-0 flex-1 rounded-control border border-border bg-card px-3 py-2.5 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  >
+                    {Array.from({ length: 5 }, (_, i) => now.getFullYear() - i).map((yr) => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            );
+          })}
           <button
             onClick={() => {
               const orderedFrom = draftFrom <= draftTo ? draftFrom : draftTo;
