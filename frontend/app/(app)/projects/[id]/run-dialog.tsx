@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { X } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { ArrowLeft, Check, Coins, Users, X } from "lucide-react";
+import { api, ApiError, type AccountResponse, type EstimateResponse } from "@/lib/api";
 import { useRunTracker } from "@/lib/run-tracker";
+import { formatFollowers } from "@/lib/format";
+import { Segmented } from "@/components/ui";
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
@@ -13,28 +15,37 @@ const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 const DEFAULT_TIMEZONE = "Europe/Moscow";
 type ScopeMode = "days" | "count";
 type LaunchMode = "now" | "schedule";
+type View = "form" | "pickCompetitors";
+
+function chipClass(active: boolean): string {
+  return `h-10 min-w-10 rounded-[10px] px-2 font-mono text-[13px] font-medium transition-all active:scale-[0.98] ${
+    active ? "bg-ink text-lime font-semibold" : "border border-border text-ink hover:bg-bg"
+  }`;
+}
 
 export function RunDialog({
   projectId,
   projectName,
-  accountIds,
-  accountsCount,
+  accounts,
   onClose,
 }: {
   projectId: string;
   projectName: string;
-  accountIds: string[] | undefined;
-  accountsCount: number;
+  accounts: AccountResponse[];
   onClose: () => void;
 }) {
   const t = useTranslations("RunDialog");
   const { trackedRuns, track } = useRunTracker();
+  const [view, setView] = useState<View>("form");
   const [scopeMode, setScopeMode] = useState<ScopeMode>("days");
   const [duration, setDuration] = useState(3);
   const [itemLimit, setItemLimit] = useState(10);
+  const [allAccounts, setAllAccounts] = useState(true);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [launchMode, setLaunchMode] = useState<LaunchMode>("now");
   const [dayOfWeek, setDayOfWeek] = useState(0);
   const [timeOfDay, setTimeOfDay] = useState("09:00");
+  const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [scheduled, setScheduled] = useState(false);
@@ -42,6 +53,7 @@ export function RunDialog({
 
   const tracked = runId ? trackedRuns.find((tr) => tr.run.id === runId) : undefined;
   const run = tracked?.run ?? null;
+  const accountIds = allAccounts ? undefined : selectedAccountIds;
 
   /* Body scroll lock */
   useEffect(() => {
@@ -56,7 +68,39 @@ export function RunDialog({
     return () => document.removeEventListener("keydown", handle);
   }, [onClose]);
 
+  /* Live cost estimate — recomputed whenever scope or the competitor selection changes */
+  useEffect(() => {
+    if (run || scheduled) return;
+    if (!allAccounts && selectedAccountIds.length === 0) {
+      setEstimate(null);
+      return;
+    }
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      api
+        .estimateRun(projectId, {
+          duration_days: scopeMode === "days" ? duration : undefined,
+          item_limit: scopeMode === "count" ? itemLimit : undefined,
+          account_ids: accountIds,
+        })
+        .then((res) => { if (!cancelled) setEstimate(res); })
+        .catch(() => { if (!cancelled) setEstimate(null); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(handle); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, scopeMode, duration, itemLimit, allAccounts, selectedAccountIds, run, scheduled]);
+
+  function toggleAccount(id: string) {
+    setSelectedAccountIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
   async function onConfirm() {
+    if (!allAccounts && selectedAccountIds.length === 0) {
+      setError(t("selectCompetitorsError"));
+      return;
+    }
     setStarting(true);
     setError(null);
     try {
@@ -91,6 +135,84 @@ export function RunDialog({
     ? ({ pending: "statusPending", scraping: "statusScraping", summarizing: "statusSummarizing", done: "statusDone", failed: "statusFailed" } as const)[run.status]
     : null;
 
+  // ── Competitor picker sub-view ──────────────────────────────────────────
+  if (view === "pickCompetitors") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-0 md:p-4">
+        <div className="relative flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-[22px] bg-card shadow-2xl md:max-w-md md:rounded-[22px]">
+          <div className="flex shrink-0 justify-center px-4 pt-3 pb-2 md:hidden">
+            <div className="h-1 w-10 rounded-full bg-border" />
+          </div>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 pb-3">
+            <button
+              onClick={() => setView("form")}
+              className="flex items-center gap-1 text-sm text-secondary transition-colors hover:text-ink"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              {t("backToForm")}
+            </button>
+            <p className="text-sm font-semibold text-ink">{t("selectCompetitorsTitle")}</p>
+            <span className="w-[52px]" />
+          </div>
+          <div
+            className="flex flex-col gap-3 overflow-y-auto p-4"
+            style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+          >
+            <div className="flex flex-col overflow-hidden rounded-card border border-border">
+              {accounts.length === 0 && (
+                <p className="p-4 text-sm text-secondary">{t("noAccounts")}</p>
+              )}
+              {accounts.map((a, idx) => {
+                const selected = selectedAccountIds.includes(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => toggleAccount(a.id)}
+                    className={`flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-bg ${
+                      idx < accounts.length - 1 ? "border-b border-border" : ""
+                    }`}
+                  >
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                        selected ? "border-ink bg-ink text-lime" : "border-border text-transparent"
+                      }`}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-bg">
+                      {a.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- external, unpredictable CDN host
+                        <img src={a.avatar_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <Users className="h-4 w-4 text-secondary" />
+                      )}
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-sm font-medium text-ink">
+                        {a.display_name || `@${a.handle}`}
+                      </span>
+                      <span className="truncate text-xs text-secondary">
+                        @{a.handle}
+                        {a.followers_count != null &&
+                          ` · ${formatFollowers(a.followers_count)} ${t("followersShort")}`}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setView("form")}
+              className="rounded-chip bg-lime px-4 py-3 text-sm font-semibold text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] transition-all active:scale-[0.98]"
+            >
+              {t("selectedCompetitorsCount", { count: selectedAccountIds.length })} · {t("doneButton")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     /* Responsive: bottom of screen on mobile, centered on desktop */
     <div
@@ -98,7 +220,7 @@ export function RunDialog({
       onClick={onClose}
     >
       <div
-        className="relative flex max-h-[80vh] w-full flex-col overflow-hidden rounded-t-2xl bg-card shadow-2xl md:max-w-md md:rounded-2xl"
+        className="relative flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-[22px] bg-card shadow-2xl md:max-w-md md:rounded-[22px]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle — mobile only */}
@@ -122,109 +244,87 @@ export function RunDialog({
           style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
         >
           {!run && !scheduled && (
-            <div className="flex flex-col gap-4 p-4">
-              {/* Scope mode toggle: day window vs. last-N publications */}
-              <div className="inline-flex self-start rounded-control border border-border p-0.5">
-                {(["days", "count"] as ScopeMode[]).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setScopeMode(mode)}
-                    className={`rounded-control px-3 py-1.5 text-sm font-medium transition-colors ${
-                      scopeMode === mode
-                        ? "bg-accent text-white"
-                        : "text-secondary hover:text-ink"
-                    }`}
-                  >
-                    {mode === "days" ? t("scopeModeDays") : t("scopeModeCount")}
-                  </button>
-                ))}
-              </div>
-
-              {/* Duration / item-count picker */}
-              {scopeMode === "days" ? (
-                <div className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-secondary">{t("durationLabel")}</span>
-                  <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-5 p-4">
+              {/* Step 1 — analysis scope */}
+              <div className="flex flex-col gap-2.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+                  {t("scopeStepLabel")}
+                </span>
+                <Segmented
+                  value={scopeMode}
+                  onChange={setScopeMode}
+                  options={[
+                    { value: "days", label: t("scopeModeDays") },
+                    { value: "count", label: t("scopeModeCount") },
+                  ]}
+                />
+                {scopeMode === "days" ? (
+                  <div className="grid grid-cols-7 gap-1.5">
                     {DAY_OPTIONS.map((d) => (
-                      <button
-                        key={d}
-                        onClick={() => setDuration(d)}
-                        className={`h-10 w-10 rounded-control text-sm font-medium transition-colors ${
-                          duration === d
-                            ? "bg-accent text-white"
-                            : "border border-border text-ink hover:bg-bg"
-                        }`}
-                      >
+                      <button key={d} onClick={() => setDuration(d)} className={chipClass(duration === d)}>
                         {d}
                       </button>
                     ))}
                   </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-secondary">{t("itemLimitLabel")}</span>
-                  <div className="flex flex-wrap gap-2">
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
                     {ITEM_LIMIT_OPTIONS.map((n) => (
-                      <button
-                        key={n}
-                        onClick={() => setItemLimit(n)}
-                        className={`h-10 min-w-10 rounded-control px-2 text-sm font-medium transition-colors ${
-                          itemLimit === n
-                            ? "bg-accent text-white"
-                            : "border border-border text-ink hover:bg-bg"
-                        }`}
-                      >
+                      <button key={n} onClick={() => setItemLimit(n)} className={chipClass(itemLimit === n)}>
                         {n}
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-
-              <p className="text-sm text-secondary">{t("accountsLabel", { count: accountsCount })}</p>
-
-              {/* Run-now / Schedule choice (E14-S4) */}
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-secondary">{t("launchModeLabel")}</span>
-                <div className="inline-flex self-start rounded-control border border-border p-0.5">
-                  {(["now", "schedule"] as LaunchMode[]).map((mode) => (
-                    <button
-                      key={mode}
-                      onClick={() => setLaunchMode(mode)}
-                      className={`rounded-control px-3 py-1.5 text-sm font-medium transition-colors ${
-                        launchMode === mode
-                          ? "bg-accent text-white"
-                          : "text-secondary hover:text-ink"
-                      }`}
-                    >
-                      {mode === "now" ? t("launchModeNow") : t("launchModeSchedule")}
-                    </button>
-                  ))}
-                </div>
+                )}
               </div>
 
-              {launchMode === "schedule" && (
-                <>
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm font-medium text-secondary">{t("dayOfWeekLabel")}</span>
-                    <div className="flex flex-wrap gap-2">
+              {/* Step 2 — competitors */}
+              <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+                  {t("competitorsStepLabel")}
+                </span>
+                <Segmented
+                  value={allAccounts ? "all" : "select"}
+                  onChange={(v) => {
+                    if (v === "all") setAllAccounts(true);
+                    else { setAllAccounts(false); setView("pickCompetitors"); }
+                  }}
+                  options={[
+                    { value: "all", label: t("allAccounts") },
+                    { value: "select", label: t("selectCompetitorsButton") },
+                  ]}
+                />
+                {!allAccounts && (
+                  <button
+                    onClick={() => setView("pickCompetitors")}
+                    className="w-fit text-sm font-medium text-accent hover:underline"
+                  >
+                    {t("selectedCompetitorsCount", { count: selectedAccountIds.length })}
+                  </button>
+                )}
+              </div>
+
+              {/* Step 3 — when to run */}
+              <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+                  {t("launchModeLabel")}
+                </span>
+                <Segmented
+                  value={launchMode}
+                  onChange={setLaunchMode}
+                  options={[
+                    { value: "now", label: t("launchModeNow") },
+                    { value: "schedule", label: t("launchModeSchedule") },
+                  ]}
+                />
+                {launchMode === "schedule" && (
+                  <div className="flex flex-col gap-3 rounded-[14px] bg-bg p-3">
+                    <div className="grid grid-cols-7 gap-1.5">
                       {WEEKDAYS.map((d) => (
-                        <button
-                          key={d}
-                          onClick={() => setDayOfWeek(d)}
-                          className={`h-10 min-w-10 rounded-control px-2 text-sm font-medium transition-colors ${
-                            dayOfWeek === d
-                              ? "bg-accent text-white"
-                              : "border border-border text-ink hover:bg-bg"
-                          }`}
-                        >
+                        <button key={d} onClick={() => setDayOfWeek(d)} className={chipClass(dayOfWeek === d)}>
                           {t(`weekday${d}`)}
                         </button>
                       ))}
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm font-medium text-secondary">{t("timeOfDayLabel")}</span>
                     <input
                       type="time"
                       value={timeOfDay}
@@ -232,37 +332,33 @@ export function RunDialog({
                       className="w-full rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
                     />
                   </div>
-                </>
-              )}
+                )}
+              </div>
 
-              {/* Token info note — only relevant for an immediate run */}
-              {launchMode === "now" && (
-                <p className="rounded-card border border-border bg-bg px-3 py-2.5 text-sm text-secondary">
-                  {t("tokenInfo")}
-                </p>
-              )}
+              {/* Cost estimate — computed from the real estimate endpoint (1 token ≈ 1 item) */}
+              <div className="flex items-center justify-between gap-2 rounded-[14px] bg-accent-soft px-3.5 py-3">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-accent">
+                  <Coins className="h-3.5 w-3.5" />
+                  {t("costEstimateLabel")}
+                </span>
+                <span className="font-mono text-sm font-semibold text-accent">
+                  {estimate ? t("costEstimateValue", { count: estimate.apify_units }) : "…"}
+                </span>
+              </div>
 
               {error && <p className="text-sm text-danger">{error}</p>}
 
-              <div className="flex gap-2">
-                <button
-                  onClick={onClose}
-                  className="flex-1 rounded-control border border-border px-4 py-2.5 text-sm text-ink hover:bg-bg"
-                >
-                  {t("cancel")}
-                </button>
-                <button
-                  onClick={() => void onConfirm()}
-                  disabled={starting}
-                  className="flex-1 rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  {starting
-                    ? t("starting")
-                    : launchMode === "now"
-                      ? t("confirmButton")
-                      : t("scheduleButton")}
-                </button>
-              </div>
+              <button
+                onClick={() => void onConfirm()}
+                disabled={starting}
+                className="rounded-chip bg-lime px-4 py-3.5 text-sm font-semibold text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                {starting
+                  ? t("starting")
+                  : launchMode === "now"
+                    ? t("confirmButton")
+                    : t("scheduleButton")}
+              </button>
             </div>
           )}
 
@@ -273,13 +369,13 @@ export function RunDialog({
               <div className="flex gap-2">
                 <Link
                   href={`/projects/${projectId}/scheduled`}
-                  className="flex-1 rounded-control border border-border px-4 py-2.5 text-center text-sm text-ink hover:bg-bg"
+                  className="flex-1 rounded-chip border border-border px-4 py-2.5 text-center text-sm text-ink hover:bg-bg"
                 >
                   {t("goToScheduled")}
                 </Link>
                 <button
                   onClick={onClose}
-                  className="flex-1 rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white"
+                  className="flex-1 rounded-chip bg-lime px-4 py-2.5 text-sm font-semibold text-ink"
                 >
                   {t("close")}
                 </button>
@@ -308,7 +404,7 @@ export function RunDialog({
               <div className="flex gap-2">
                 <button
                   onClick={onClose}
-                  className="flex-1 rounded-control bg-accent px-4 py-2.5 text-sm font-medium text-white"
+                  className="flex-1 rounded-chip bg-lime px-4 py-2.5 text-sm font-semibold text-ink"
                 >
                   {run.status === "done" || run.status === "failed" ? t("close") : t("minimize")}
                 </button>

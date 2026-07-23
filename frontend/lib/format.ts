@@ -18,8 +18,10 @@ export function formatPercent(n: number | null): string {
 export type Virality = "high" | "medium" | "low";
 
 // E5-S5: relative to that account's own median in the run, never an absolute/industry benchmark.
+// Heat scale (D31): high = inverse chip (ink bg, lime text) — the scan-anchor in a feed;
+// medium = soft accent; low = neutral gray, never red (low performance isn't an error).
 export const VIRALITY_STYLE: Record<Virality, string> = {
-  high: "bg-success/10 text-success",
-  medium: "bg-warning/10 text-warning",
-  low: "bg-danger/10 text-danger",
+  high: "bg-ink text-lime",
+  medium: "bg-accent-soft text-accent",
+  low: "bg-bg text-secondary border border-border",
 };

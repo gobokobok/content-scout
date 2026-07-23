@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>content-scout — редизайн v2 «Acid Instrument»</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root{
+  --bg:#F4F5F2;
+  --card:#FFFFFF;
+  --ink:#16181D;
+  --secondary:#5C6470;
+  --border:#E4E6E1;
+  --lime:#D6F344;
+  --lime-soft:#EFF6D8;
+  --olive:#3F6212;
+  --success:#166534;
+  --success-soft:#E4F3E9;
+  --danger:#B91C1C;
+  --danger-soft:#FBEAEA;
+  --heat-med-bg:#EFF6D8; --heat-med-tx:#3F6212;
+  --heat-low-bg:#EDEEEA; --heat-low-tx:#5C6470;
+  --r-card:18px;
+  --r-ctl:12px;
+  --sans:"Golos Text",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--sans);
+  background:#101216;
+  color:var(--ink);
+  padding:40px 32px 64px;
+}
+.intro{max-width:1100px;margin:0 auto 36px}
+.intro h1{color:#F4F5F2;font-size:26px;font-weight:700;letter-spacing:-.01em}
+.intro h1 em{font-style:normal;background:var(--lime);color:var(--ink);border-radius:8px;padding:2px 10px}
+.intro p{color:#9BA1AB;font-size:14px;margin-top:10px;max-width:680px;line-height:1.5}
+.swatches{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.sw{display:flex;align-items:center;gap:7px;background:#1A1D23;border:1px solid #2A2E36;border-radius:999px;padding:5px 12px 5px 6px}
+.sw i{width:18px;height:18px;border-radius:50%;display:block;border:1px solid rgba(255,255,255,.15)}
+.sw span{color:#C3C8D0;font:500 11px/1 var(--mono)}
+
+.row{display:flex;gap:36px;overflow-x:auto;padding:8px 4px 24px;align-items:flex-start}
+.slot{flex:0 0 auto}
+.slot>h2{color:#F4F5F2;font-size:15px;font-weight:600;margin-bottom:4px}
+.slot>p{color:#868D98;font-size:12px;margin-bottom:14px;max-width:375px;line-height:1.45}
+
+.phone{
+  width:375px;height:740px;background:var(--bg);
+  border-radius:34px;border:1px solid #30343C;
+  box-shadow:0 24px 60px rgba(0,0,0,.55);
+  overflow:hidden;position:relative;display:flex;flex-direction:column;
+}
+.screen{flex:1;overflow:hidden;display:flex;flex-direction:column}
+
+/* ---------- App bar (liquid-glass) ---------- */
+.appbar{
+  display:flex;align-items:center;gap:8px;
+  padding:14px 16px 12px;
+  background:rgba(244,245,242,.82);
+  backdrop-filter:blur(14px);
+  flex-shrink:0;position:relative;z-index:5;
+}
+.appbar .icon-btn{width:40px;height:40px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:var(--ink);background:var(--card);border:1px solid var(--border);flex-shrink:0}
+.appbar .title{flex:1;text-align:center;font-size:17px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tok{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--lime-soft);border:1px solid #DCE9B8;
+  border-radius:999px;padding:6px 11px;flex-shrink:0;
+}
+.tok b{font:600 12px/1 var(--mono);color:var(--olive)}
+.tok svg{color:var(--olive)}
+
+.content{flex:1;overflow-y:auto;padding:4px 16px 16px;display:flex;flex-direction:column;gap:12px}
+
+/* ---------- Shared primitives ---------- */
+.microlabel{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--secondary)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-card)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+.seg{display:flex;background:#E9EBE6;border-radius:999px;padding:3px;gap:2px}
+.seg button{flex:1;border:none;background:transparent;border-radius:999px;padding:9px 4px;font:500 13px var(--sans);color:var(--secondary);display:flex;align-items:center;justify-content:center;gap:6px}
+.seg button.on{background:var(--ink);color:#fff;font-weight:600}
+.seg .count{font:600 11px/1 var(--mono);color:var(--secondary);background:#DDDFD9;border-radius:999px;padding:3px 6px}
+.seg button.on .count{background:var(--lime);color:var(--ink)}
+
+.btn-primary{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;height:52px;border:none;border-radius:999px;
+  background:var(--lime);color:var(--ink);font:600 15px var(--sans);
+  box-shadow:0 8px 20px rgba(140,170,20,.30);
+}
+.btn-dark{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;height:48px;border:none;border-radius:999px;
+  background:var(--ink);color:var(--lime);font:600 14px var(--sans);
+}
+.btn-ghost{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;height:48px;border:1px solid var(--border);border-radius:999px;
+  background:var(--card);color:var(--ink);font:500 14px var(--sans);
+}
+.heat{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:4px 10px;font:600 11px var(--sans)}
+.heat.h{background:var(--ink);color:var(--lime)}
+.heat.m{background:var(--heat-med-bg);color:var(--heat-med-tx)}
+.heat.l{background:var(--heat-low-bg);color:var(--heat-low-tx)}
+
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.pill-status{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;border-radius:999px;padding:4px 10px}
+.pill-status.ok{background:var(--success-soft);color:var(--success)}
+.pill-status.run{background:var(--lime-soft);color:var(--olive)}
+
+.footer-cta{padding:12px 16px 22px;background:linear-gradient(to top,var(--bg) 70%,transparent);flex-shrink:0}
+
+/* ---------- Screen 1: Projects ---------- */
+.proj-card{padding:15px 16px;display:flex;flex-direction:column;gap:9px}
+.proj-card .top{display:flex;align-items:center;gap:10px}
+.proj-card .name{flex:1;font-size:16px;font-weight:600;letter-spacing:-.01em}
+.proj-meta{display:flex;align-items:center;gap:14px;color:var(--secondary);font-size:12.5px}
+.proj-meta .mi{display:inline-flex;align-items:center;gap:5px}
+.proj-meta .mi b{font:500 12px var(--mono);color:var(--ink);font-weight:500}
+
+/* ---------- Screen 2: Details (bento) ---------- */
+.bento{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r-card);padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.kpi.hero{grid-column:1/-1;background:var(--ink);border-color:var(--ink);color:#fff;flex-direction:row;align-items:center;justify-content:space-between}
+.kpi.hero .microlabel{color:#9BA1AB}
+.kpi.hero .v{font:600 38px/1 var(--mono);letter-spacing:-.03em;color:var(--lime)}
+.kpi .v{font:600 24px/1.05 var(--mono);letter-spacing:-.02em;color:var(--ink)}
+.kpi .v small{font-size:14px;color:var(--secondary);font-weight:500}
+.lastrun{padding:16px;display:flex;flex-direction:column;gap:12px}
+.lastrun .line{display:flex;align-items:center;justify-content:space-between}
+.navrow{display:flex;align-items:center;gap:12px;padding:14px 16px}
+.navrow .ic{width:38px;height:38px;border-radius:999px;background:var(--lime-soft);color:var(--olive);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.navrow .tx{flex:1;min-width:0}
+.navrow .tx b{display:block;font-size:14.5px;font-weight:600}
+.navrow .tx span{display:block;font-size:12.5px;color:var(--secondary);margin-top:2px}
+.navrow .chev{color:var(--secondary);flex-shrink:0}
+
+/* ---------- Screen 3: Run sheet ---------- */
+.dim{position:absolute;inset:0;background:rgba(16,18,22,.5)}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;background:var(--card);
+  border-radius:24px 24px 0 0;box-shadow:0 -12px 40px rgba(16,18,22,.3);
+  display:flex;flex-direction:column;max-height:92%;
+}
+.sheet .grab{width:36px;height:4px;border-radius:99px;background:var(--border);margin:10px auto 2px}
+.sheet .head{display:flex;align-items:center;justify-content:space-between;padding:8px 18px 12px;border-bottom:1px solid var(--border)}
+.sheet .head b{font-size:16px;font-weight:600}
+.sheet .body{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:20px}
+.fsec{display:flex;flex-direction:column;gap:10px}
+.chips7{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.chips7 button{height:42px;border-radius:10px;border:1px solid var(--border);background:var(--card);font:500 13px var(--mono);color:var(--ink)}
+.chips7 button.on{background:var(--ink);border-color:var(--ink);color:var(--lime);font-weight:600}
+.inset{background:var(--bg);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.cost{display:flex;align-items:center;justify-content:space-between;background:var(--lime-soft);border-radius:14px;padding:12px 14px}
+.cost .l{font-size:13px;color:var(--olive);font-weight:500;display:flex;align-items:center;gap:7px}
+.cost b{font:600 13px var(--mono);color:var(--olive);white-space:nowrap}
+.sheet .foot{padding:12px 18px 24px;border-top:1px solid var(--border)}
+
+/* ---------- Screen 4: Publications ---------- */
+.ctrls{display:flex;gap:8px;align-items:center}
+.ctrl{height:40px;min-width:40px;padding:0 12px;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--secondary);display:inline-flex;align-items:center;justify-content:center;gap:6px;font:500 12.5px var(--sans)}
+.ctrl.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.pub{padding:13px 14px;display:flex;gap:12px}
+.thumb{width:58px;height:58px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;position:relative;overflow:hidden}
+.thumb.a{background:linear-gradient(135deg,#3E4450,#16181D)}
+.thumb.b{background:linear-gradient(135deg,#7A8291,#3E4450)}
+.thumb.c{background:linear-gradient(135deg,#5A6470,#242830)}
+.pub .main{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.pub .hd{display:flex;align-items:center;gap:8px}
+.pub .handle{font:500 13px var(--mono);color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pub .handle span{color:var(--secondary)}
+.pub .sum{font-size:13.5px;line-height:1.45;color:var(--secondary);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.metrics{display:flex;align-items:center;flex-wrap:wrap;gap:5px 12px;color:var(--secondary)}
+.metrics .m{display:inline-flex;align-items:center;gap:5px;font:500 11.5px var(--mono);white-space:nowrap}
+.starbtn{width:40px;height:40px;margin:-8px -8px 0 0;border:none;background:none;display:flex;align-items:center;justify-content:center;color:var(--secondary);flex-shrink:0}
+.starbtn.on{color:var(--olive)}
+
+/* ---------- Screen 5: Usage ---------- */
+.balance{padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--ink);border-color:var(--ink);color:#fff}
+.balance .microlabel{color:#9BA1AB}
+.balance .big{font:600 40px/1 var(--mono);letter-spacing:-.03em;color:var(--lime)}
+.balance .sub{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #2A2E36;padding-top:12px}
+.balance .sub span{font-size:13px;color:#9BA1AB}
+.balance .sub b{font:600 14px var(--mono);color:#fff}
+.months{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.months button{flex-shrink:0;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--border);background:var(--card);font:500 13px var(--sans);color:var(--secondary)}
+.months button.on{background:var(--ink);border-color:var(--ink);color:var(--lime);font-weight:600}
+.ulist{display:flex;flex-direction:column}
+.ulist .day{padding:10px 16px 6px}
+.urow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--border)}
+.urow .t{font:500 12px var(--mono);color:var(--secondary);width:42px;flex-shrink:0}
+.urow .p{flex:1;min-width:0;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.urow .v{font:600 13px var(--mono);color:var(--ink)}
+.urow .chev{color:var(--border)}
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1>content-scout · редизайн v2 <em>Acid Instrument</em></h1>
+  <p>Графит + кислотный лайм на холодном фарфоре — язык актуального финтеха и data-инструментов (Monzo, Wise-класс, топ-дашборды 2026): нейтральная база, один высоковольтный акцент только заливкой с тёмным текстом, bento-сетки, крупные моно-цифры (JetBrains Mono), pill-контролы, стеклянный app-bar. «Высокая виральность» — инверсия: лайм на графите.</p>
+  <div class="swatches">
+    <div class="sw"><i style="background:#F4F5F2"></i><span>bg #F4F5F2</span></div>
+    <div class="sw"><i style="background:#16181D"></i><span>ink #16181D</span></div>
+    <div class="sw"><i style="background:#D6F344"></i><span>lime #D6F344</span></div>
+    <div class="sw"><i style="background:#3F6212"></i><span>olive #3F6212</span></div>
+    <div class="sw"><i style="background:#166534"></i><span>success #166534</span></div>
+    <div class="sw"><i style="background:#B91C1C"></i><span>danger #B91C1C</span></div>
+  </div>
+</div>
+
+<div class="row">
+
+<!-- ============ 1. PROJECTS ============ -->
+<div class="slot">
+  <h2>1 · Проекты</h2>
+  <p>Карточки с данными, статус — тихой пилюлей, CTA — лаймовая pill-кнопка в зоне пальца. Сегмент-контрол со счётчиками: активный таб — графит с лаймовым бейджем.</p>
+  <div class="phone"><div class="screen">
+    <div class="appbar">
+      <button class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="title">Проекты</div>
+      <span class="tok"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9 10.5h6"/></svg><b>12 400</b></span>
+    </div>
+    <div class="content">
+      <div class="seg">
+        <button class="on">Активные <span class="count">4</span></button>
+        <button>Архив <span class="count">2</span></button>
+      </div>
+
+      <div class="card proj-card">
+        <div class="top">
+          <span class="name">Бьюти-ниша</span>
+          <span class="pill-status ok"><span class="status-dot" style="background:var(--success)"></span>Готово</span>
+        </div>
+        <div class="proj-meta">
+          <span class="mi"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><b>12</b> конкурентов</span>
+          <span class="mi"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>анализ <b>вчера</b></span>
+        </div>
+      </div>
+
+      <div class="card proj-card">
+        <div class="top">
+          <span class="name">Фитнес-блогеры</span>
+          <span class="pill-status run"><span class="status-dot" style="background:var(--olive)"></span>Идёт анализ</span>
+        </div>
+        <div class="proj-meta">
+          <span class="mi"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><b>28</b> конкурентов</span>
+          <span class="mi"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>анализ <b>3 дн. назад</b></span>
+        </div>
+      </div>
+
+      <div class="card proj-card">
+        <div class="top">
+          <span class="name">Кулинария / рецепты</span>
+        </div>
+        <div class="proj-meta">
+          <span class="mi"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><b>5</b> конкурентов</span>
+          <span class="mi" style="color:var(--olive)">запусков ещё не было</span>
+        </div>
+      </div>
+    </div>
+    <div class="footer-cta">
+      <button class="btn-primary"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Новый проект</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============ 2. DETAILS ============ -->
+<div class="slot">
+  <h2>2 · Детали проекта</h2>
+  <p>Bento-сетка: hero-ячейка (графит + лайм-цифра) для главной метрики, малые ячейки — вторичные. CTA «Запустить анализ» — лайм. Навигация с полезной подписью.</p>
+  <div class="phone"><div class="screen">
+    <div class="appbar">
+      <button class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="title">Бьюти-ниша</div>
+      <span class="tok"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9 10.5h6"/></svg><b>12 400</b></span>
+    </div>
+    <div class="content">
+      <div class="bento">
+        <div class="kpi hero">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span class="microlabel">Публикаций проанализировано</span>
+            <span class="v">1 340</span>
+          </div>
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3E4450" stroke-width="1.6" stroke-linecap="round"><path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/></svg>
+        </div>
+        <div class="kpi"><span class="microlabel">Конкуренты</span><span class="v">12</span></div>
+        <div class="kpi"><span class="microlabel">Аудитория</span><span class="v">4,8<small> млн</small></span></div>
+      </div>
+
+      <div class="card lastrun">
+        <div class="line">
+          <span class="microlabel">Последний анализ</span>
+          <span class="pill-status ok"><span class="status-dot" style="background:var(--success)"></span>Готово</span>
+        </div>
+        <div class="line">
+          <span style="font-size:14px;color:var(--secondary)">22 июля, 09:14</span>
+          <span class="num" style="font-size:13px;font-weight:600">86 публикаций</span>
+        </div>
+        <button class="btn-primary" style="height:48px;box-shadow:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>Запустить анализ</button>
+      </div>
+
+      <div class="card navrow">
+        <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span class="tx"><b>Конкуренты</b><span>12 аккаунтов · @glossy.daily добавлен вчера</span></span>
+        <span class="chev"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+      </div>
+      <div class="card navrow">
+        <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+        <span class="tx"><b>Расписание</b><span>Каждый вторник в 09:00 · включено</span></span>
+        <span class="chev"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============ 3. RUN SHEET ============ -->
+<div class="slot">
+  <h2>3 · Новый анализ</h2>
+  <p>Те же три шага; активные чипы — графит с лаймовыми цифрами, submit — лаймовая pill с точным текстом действия.</p>
+  <div class="phone"><div class="screen" style="position:relative">
+    <div class="appbar" style="opacity:.45">
+      <button class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="title">Бьюти-ниша</div>
+      <span class="tok"><b>12 400</b></span>
+    </div>
+    <div class="dim"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="head">
+        <b>Новый анализ</b>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </div>
+      <div class="body">
+        <div class="fsec">
+          <span class="microlabel">Объём анализа</span>
+          <div class="seg">
+            <button class="on">За период</button>
+            <button>Последние N</button>
+          </div>
+          <div class="chips7">
+            <button>1</button><button>2</button><button class="on">3</button><button>4</button><button>5</button><button>6</button><button>7</button>
+          </div>
+          <span style="font-size:12.5px;color:var(--secondary)">Публикации за последние 3 дня · 12 аккаунтов</span>
+        </div>
+
+        <div class="fsec">
+          <span class="microlabel">Запуск</span>
+          <div class="seg">
+            <button>Сейчас</button>
+            <button class="on">По расписанию</button>
+          </div>
+          <div class="inset">
+            <div class="chips7">
+              <button>Пн</button><button class="on">Вт</button><button>Ср</button><button>Чт</button><button>Пт</button><button>Сб</button><button>Вс</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;height:44px;padding:0 12px">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              <span class="num" style="font-size:14px;font-weight:500">09:00</span>
+              <span style="margin-left:auto;font-size:12px;color:var(--secondary)">Москва</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="cost">
+          <span class="l"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9 10.5h6"/></svg>Оценка стоимости</span>
+          <b>≈ 90 ток./запуск</b>
+        </div>
+      </div>
+      <div class="foot">
+        <button class="btn-primary">Запланировать: вт, 09:00</button>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============ 4. PUBLICATIONS ============ -->
+<div class="slot">
+  <h2>4 · Публикации анализа</h2>
+  <p>«Высокая» виральность — инверсный чип (лайм на графите) — мгновенно сканируется в ленте. Метрики — тихий моно-текст, звезда 40 px, «Показать ещё».</p>
+  <div class="phone"><div class="screen">
+    <div class="appbar">
+      <button class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="title">Анализ · 22 июля</div>
+      <span class="tok"><b>12 400</b></span>
+    </div>
+    <div class="content">
+      <div class="ctrls">
+        <button class="ctrl on"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5h10M11 9h7M11 13h4M3 17l3 3 3-3M6 4v16"/></svg>Виральность</button>
+        <button class="ctrl"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
+        <button class="ctrl"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+        <button class="ctrl" style="margin-left:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+      </div>
+
+      <div class="card pub">
+        <div class="thumb a">
+          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z" fill="currentColor"/></svg>
+        </div>
+        <div class="main">
+          <div class="hd">
+            <span class="handle">@glossy.daily <span>· 890K</span></span>
+            <span class="heat h"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-4 6-4 10a4 4 0 0 0 8 0c0-1.5-.5-2.5-1-3.5 2 .5 4 2.5 4 5.5a7 7 0 1 1-14 0C5 8 10 6 12 2z"/></svg>Высокая</span>
+          </div>
+          <p class="sum">Разбор «до/после» с быстрым переходом по свайпу — хук в первые 2 секунды удерживает досмотры.</p>
+          <div class="metrics">
+            <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>124K</span>
+            <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.5-8.5 8.38 8.38 0 0 1 8.5 8.5z"/></svg>2&nbsp;140</span>
+            <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>1,2M</span>
+            <span class="m">ER&nbsp;6,4%</span>
+          </div>
+        </div>
+        <button class="starbtn on"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+      </div>
+
+      <div class="card pub">
+        <div class="thumb c">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 3v18M16 3v18"/></svg>
+        </div>
+        <div class="main">
+          <div class="hd">
+            <span class="handle">@skin.lab <span>· 320K</span></span>
+            <span class="heat m"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-4 6-4 10a4 4 0 0 0 8 0c0-1.5-.5-2.5-1-3.5 2 .5 4 2.5 4 5.5a7 7 0 1 1-14 0C5 8 10 6 12 2z"/></svg>Средняя</span>
+          </div>
+          <p class="sum">Карусель «5 ошибок ухода» — каждая карточка закрывает одно возражение, CTA на последнем слайде.</p>
+          <div class="metrics">
+            <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>18,2K</span>
+            <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.5-8.5 8.38 8.38 0 0 1 8.5 8.5z"/></svg>460</span>
+            <span class="m">—</span>
+            <span class="m">ER&nbsp;5,8%</span>
+          </div>
+        </div>
+        <button class="starbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+      </div>
+
+      <div class="card pub">
+        <div class="thumb b">
+          <svg width="20" height="20" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z" fill="currentColor"/></svg>
+        </div>
+        <div class="main">
+          <div class="hd">
+            <span class="handle">@makeup.pro <span>· 1,1M</span></span>
+            <span class="heat l">Низкая</span>
+          </div>
+          <p class="sum">Влог без хука и субтитров — досматриваемость проседает, формат не сработал.</p>
+          <div class="metrics">
+            <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>4,1K</span>
+            <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.5-8.5 8.38 8.38 0 0 1 8.5 8.5z"/></svg>96</span>
+            <span class="m"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>88K</span>
+            <span class="m">ER&nbsp;0,9%</span>
+          </div>
+        </div>
+        <button class="starbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+      </div>
+
+      <button class="btn-ghost">Показать ещё · 47</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- ============ 5. USAGE ============ -->
+<div class="slot">
+  <h2>5 · Токены</h2>
+  <p>Баланс — графитовая hero-карта с лаймовой цифрой (та же «валюта акцента», что и по всему приложению). Месяцы — чипы, список сгруппирован по дням.</p>
+  <div class="phone"><div class="screen">
+    <div class="appbar">
+      <button class="icon-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="title">Токены</div>
+      <span style="width:40px"></span>
+    </div>
+    <div class="content">
+      <div class="card balance">
+        <div>
+          <div class="microlabel" style="margin-bottom:8px">Баланс</div>
+          <div class="big">12 400</div>
+        </div>
+        <div class="sub">
+          <span>Потрачено в июле</span>
+          <b>2 840</b>
+        </div>
+      </div>
+
+      <div class="months">
+        <button class="on">Июль</button>
+        <button>Июнь</button>
+        <button>Май</button>
+        <button>Апрель</button>
+        <button>Март</button>
+      </div>
+
+      <div class="card ulist" style="padding:2px 0 4px">
+        <div class="day"><span class="microlabel">22 июля</span></div>
+        <div class="urow">
+          <span class="t">09:14</span>
+          <span class="p">Бьюти-ниша</span>
+          <span class="v">−860</span>
+          <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </div>
+        <div class="urow">
+          <span class="t">09:02</span>
+          <span class="p">Фитнес-блогеры</span>
+          <span class="v">−1 240</span>
+          <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </div>
+        <div class="day" style="border-top:1px solid var(--border);margin-top:2px"><span class="microlabel">15 июля</span></div>
+        <div class="urow">
+          <span class="t">10:41</span>
+          <span class="p">Бьюти-ниша</span>
+          <span class="v">−740</span>
+          <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </div>
+        <div class="day" style="border-top:1px solid var(--border);margin-top:2px"><span class="microlabel">8 июля</span></div>
+        <div class="urow">
+          <span class="t">09:00</span>
+          <span class="p">Кулинария / рецепты</span>
+          <span class="v">0</span>
+          <span class="chev"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+</div>
+</body>
+</html>

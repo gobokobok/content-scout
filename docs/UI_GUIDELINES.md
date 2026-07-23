@@ -43,7 +43,11 @@
 - No hover-only affordances anywhere — everything must work by tap.
 - Definition of done for any UI story includes a check at 375px viewport (browser preview `resize_window` mobile preset).
 
-## Design system v1 (D28) — light only
+## Design system
+
+> **⚠️ Superseded 2026-07-23:** palette, typography, and component styling below are **v1 (D28)** and are replaced by **Design system v2 «Acid Instrument» (D31)** — see `docs/DESIGN_SYSTEM.md` + visual mockup `docs/design/redesign-mockup-v2.html`. Use v2 for all new/rebuilt screens. The v1 table is kept only to read existing code.
+
+## Design system v1 (D28, superseded by D31) — light only
 
 Dark mode is **removed** (no `dark:` classes). Tokens live in `globals.css` (`@theme`); components never hardcode hex.
 

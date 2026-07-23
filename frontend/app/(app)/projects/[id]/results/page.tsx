@@ -84,7 +84,7 @@ export default function ResultsTabPage() {
           <button
             onClick={() => setRunDialogOpen(true)}
             disabled={accounts === null || accounts.length === 0}
-            className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg disabled:opacity-40 transition-colors"
+            className="flex items-center gap-1.5 rounded-chip bg-lime px-3.5 py-2 text-sm font-semibold text-ink shadow-[0_6px_16px_rgba(140,170,20,0.28)] transition-all active:scale-[0.98] disabled:opacity-40 disabled:shadow-none"
           >
             <Plus className="h-4 w-4" />
             {t("createRunButton")}
@@ -142,8 +142,7 @@ export default function ResultsTabPage() {
         <RunDialog
           projectId={params.id}
           projectName={project?.name ?? ""}
-          accountsCount={accounts?.length ?? 0}
-          accountIds={undefined}
+          accounts={accounts ?? []}
           onClose={() => {
             setRunDialogOpen(false);
             void load();

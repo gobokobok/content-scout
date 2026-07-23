@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Golos_Text, Unbounded } from "next/font/google";
+import { Golos_Text, JetBrains_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { AuthProvider } from "@/lib/auth-context";
@@ -15,11 +15,11 @@ const golos = Golos_Text({
   display: "swap",
 });
 
-const unbounded = Unbounded({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin", "cyrillic"],
-  variable: "--font-unbounded",
+  variable: "--font-jetbrains-mono",
   display: "swap",
-  weight: ["400", "600", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -42,7 +42,7 @@ export default async function RootLayout({
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
       </head>
       <body
-        className={`${golos.variable} ${unbounded.variable} antialiased bg-bg text-ink font-sans`}
+        className={`${golos.variable} ${jetbrainsMono.variable} antialiased bg-bg text-ink font-sans`}
       >
         <NextIntlClientProvider messages={messages}>
           <AuthProvider>

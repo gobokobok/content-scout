@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Menu, Bell, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Menu, Bell, Coins, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useRunTracker, type TrackedRun } from "@/lib/run-tracker";
@@ -54,18 +54,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <header className="flex items-center gap-2 border-b border-border bg-card px-4 py-3">
+      <header
+        className="sticky top-0 z-30 flex items-center gap-2 border-b border-border/60 bg-bg/80 px-4 py-3 backdrop-blur-lg"
+        style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+      >
         <button
           onClick={() => setMenuOpen(true)}
-          className="shrink-0 rounded-control p-2 text-secondary hover:bg-bg transition-colors"
+          className="shrink-0 rounded-chip border border-border bg-card p-2.5 text-ink transition-colors active:scale-[0.98] hover:bg-bg"
           aria-label={t("menuLabel")}
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-4.5 w-4.5" />
         </button>
 
         <div className="min-w-0 flex-1 px-2 text-center">
           {centerTitle && (
-            <p className="truncate font-display text-base font-semibold text-ink">
+            <p className="truncate text-[17px] font-semibold tracking-tight text-ink">
               {centerTitle}
             </p>
           )}
@@ -77,20 +80,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               setNotifOpen(true);
               markAllSeen();
             }}
-            className="relative rounded-control p-2 text-secondary hover:bg-bg transition-colors"
+            className="relative shrink-0 rounded-chip border border-border bg-card p-2.5 text-ink transition-colors active:scale-[0.98] hover:bg-bg"
             aria-label={t("notificationsLabel")}
           >
-            <Bell className="h-5 w-5" />
+            <Bell className="h-4.5 w-4.5" />
             {unseenCount > 0 && (
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" />
             )}
           </button>
-          <span
-            className="inline-flex items-center rounded-chip bg-accent-soft px-2.5 py-1 text-xs font-semibold tabular-nums text-accent"
+          <button
+            onClick={() => router.push("/usage")}
+            className="inline-flex items-center gap-1.5 rounded-chip border border-[#DCE9B8] bg-accent-soft px-3 py-2 font-mono text-xs font-semibold tabular-nums text-accent transition-colors active:scale-[0.98] hover:opacity-90"
             aria-label={t("tokensLabel")}
           >
+            <Coins className="h-3.5 w-3.5" />
             {new Intl.NumberFormat("ru-RU").format(user.token_balance)}
-          </span>
+          </button>
         </div>
       </header>
 

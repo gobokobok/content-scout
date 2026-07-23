@@ -6,21 +6,28 @@
 }
 
 @theme {
-  --color-bg: #F6F7F9;
+  /* Design system v2 "Acid Instrument" (D31) — see docs/DESIGN_SYSTEM.md */
+  --color-bg: #F4F5F2;
   --color-card: #FFFFFF;
-  --color-ink: #1A1523;
-  --color-secondary: #6F6E77;
-  --color-accent: #6E56CF;
-  --color-accent-soft: #EDE9FE;
-  --color-success: #30A46C;
-  --color-warning: #FFB224;
-  --color-danger: #E5484D;
-  --color-border: #E4E2E9;
+  --color-ink: #16181D;
+  --color-secondary: #5C6470;
+  --color-border: #E4E6E1;
+
+  /* accent is text-safe (olive) — the raw lime fill lives in --color-lime */
+  --color-accent: #3F6212;
+  --color-accent-soft: #EFF6D8;
+  --color-lime: #D6F344;
+
+  --color-success: #166534;
+  --color-success-soft: #E4F3E9;
+  --color-warning: #3F6212;
+  --color-danger: #B91C1C;
+  --color-danger-soft: #FBEAEA;
 
   --font-sans: var(--font-golos), system-ui, sans-serif;
-  --font-display: var(--font-unbounded), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  --radius-card: 0.875rem;
+  --radius-card: 1.125rem;
   --radius-control: 0.75rem;
   --radius-chip: 9999px;
 }

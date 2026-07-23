@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FolderOpen, MoreVertical } from "lucide-react";
+import { ChevronRight, FolderOpen, MoreVertical, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiError, type ProjectResponse } from "@/lib/api";
@@ -93,23 +93,30 @@ export default function WorkspaceHomePage() {
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("title")}</h1>
         {!creating && tab === "active" && (
           <button
             onClick={() => setCreating(true)}
-            className="rounded-control bg-accent px-3 py-2 text-sm font-medium text-white"
+            className="inline-flex items-center gap-1.5 rounded-chip bg-lime px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_6px_16px_rgba(140,170,20,0.28)] transition-all active:scale-[0.98] hover:opacity-90"
           >
+            <Plus className="h-4 w-4" />
             {t("createButton")}
           </button>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="inline-flex w-fit gap-0.5 rounded-chip bg-[#E9EBE6] p-[3px]">
         {(["active", "archived"] as const).map((t2) => (
-          <TabChip key={t2} active={tab === t2} onClick={() => setTab(t2)}>
+          <button
+            key={t2}
+            onClick={() => setTab(t2)}
+            className={`rounded-chip px-4 py-2 text-sm transition-all active:scale-[0.98] ${
+              tab === t2 ? "bg-ink font-semibold text-white" : "font-medium text-secondary hover:text-ink"
+            }`}
+          >
             {t2 === "active" ? t("activeTab") : t("archivedTab")}
-          </TabChip>
+          </button>
         ))}
       </div>
 
@@ -197,9 +204,10 @@ export default function WorkspaceHomePage() {
                 <>
                   <Link
                     href={`/projects/${p.id}`}
-                    className="flex-1 px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
+                    className="flex flex-1 items-center gap-2 px-4 py-3.5 text-base font-medium text-ink transition-colors hover:bg-bg"
                   >
-                    {p.name}
+                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-secondary" />
                   </Link>
                   <button
                     onClick={(e) => {
@@ -241,7 +249,7 @@ export default function WorkspaceHomePage() {
               </button>
               <button
                 onClick={() => menuProject && void onArchive(menuProject.id)}
-                className="px-4 py-3.5 text-left text-base text-danger hover:bg-bg transition-colors"
+                className="px-4 py-3.5 text-left text-base text-ink hover:bg-bg transition-colors"
               >
                 {t("archive")}
               </button>

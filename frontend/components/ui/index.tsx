@@ -1,12 +1,13 @@
 import { type ButtonHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes, forwardRef } from "react";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonVariant = "primary" | "dark" | "secondary" | "ghost" | "danger";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-white hover:opacity-90",
-  secondary: "border border-border text-ink hover:bg-bg",
-  ghost: "text-secondary hover:text-ink",
-  danger: "text-danger hover:underline",
+  primary: "rounded-chip bg-lime text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] hover:opacity-90",
+  dark: "rounded-chip bg-ink text-lime hover:opacity-90",
+  secondary: "rounded-chip border border-border bg-card text-ink hover:bg-bg",
+  ghost: "rounded-control text-secondary hover:text-ink",
+  danger: "rounded-control text-danger hover:underline",
 };
 
 export function Button({
@@ -16,7 +17,7 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-control px-4 py-2 text-sm font-medium transition-opacity disabled:opacity-50 ${BUTTON_VARIANTS[variant]} ${className}`}
+      className={`inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${BUTTON_VARIANTS[variant]} ${className}`}
       {...props}
     />
   );
@@ -67,8 +68,8 @@ const BADGE_VARIANTS: Record<BadgeVariant, string> = {
 };
 
 export function tabChipClass(active: boolean, className = ""): string {
-  return `inline-block whitespace-nowrap rounded-chip px-3.5 py-1.5 text-sm font-medium transition-colors ${
-    active ? "bg-accent text-white" : "border border-border text-secondary hover:text-ink"
+  return `inline-block whitespace-nowrap rounded-chip px-3.5 py-1.5 text-sm font-medium transition-all active:scale-[0.98] ${
+    active ? "bg-ink text-white font-semibold" : "border border-border text-secondary hover:text-ink"
   } ${className}`;
 }
 
@@ -82,6 +83,33 @@ export function TabChip({
     <button className={tabChipClass(active, className)} {...props}>
       {children}
     </button>
+  );
+}
+
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <div className="inline-flex w-full gap-0.5 rounded-chip bg-[#E9EBE6] p-[3px]">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`flex-1 rounded-chip px-3 py-2 text-sm transition-all active:scale-[0.98] ${
+            value === opt.value ? "bg-ink font-semibold text-white" : "font-medium text-secondary hover:text-ink"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
