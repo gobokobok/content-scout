@@ -27,6 +27,7 @@ from src.models import (
     User,
 )
 from src.platforms import get_platform
+from src.services.deep_analysis import fail_deep_analysis
 from src.services.deep_analysis_extraction import extract_deep_analysis_items
 from src.services.deep_analysis_synthesis import synthesize_report
 from src.services.run_summary import generate_run_summary
@@ -302,9 +303,7 @@ async def process_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -
         await synthesize_report(session, analysis, user_id=analysis.requested_by)
         await session.commit()
     except Exception as exc:  # noqa: BLE001 — worker boundary: never let a deep analysis hang
-        analysis.status = DeepAnalysisStatus.failed
-        analysis.error_message = str(exc)[:1000]
-        analysis.completed_at = datetime.now(UTC)
+        await fail_deep_analysis(session, analysis, str(exc), user_id=analysis.requested_by)
         await session.commit()
 
 

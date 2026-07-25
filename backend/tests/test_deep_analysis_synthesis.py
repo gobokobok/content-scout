@@ -126,9 +126,9 @@ async def test_synthesize_report_stores_stats_and_recommendations_and_usage(
 async def test_synthesize_report_no_done_items_fails_without_api_call(
     session: AsyncSession,
 ) -> None:
-    user = await make_user(session)
+    user = await make_user(session, token_balance=100)
     run = await make_run(session, requested_by=user)
-    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=10)
     await session.commit()
 
     fake_client = _FakeClient(_tool_use_response(_VALID_REPORT))
@@ -138,12 +138,15 @@ async def test_synthesize_report_no_done_items_fails_without_api_call(
     assert analysis.status == DeepAnalysisStatus.failed
     assert analysis.error_message
     assert fake_client.messages.calls == []
+    # A hard failure delivers zero report — full refund, not just a status flip.
+    assert analysis.tokens_charged == 0
+    assert user.token_balance == 110
 
 
 async def test_synthesize_report_api_error_marks_failed(session: AsyncSession) -> None:
-    user = await make_user(session)
+    user = await make_user(session, token_balance=100)
     run = await make_run(session, requested_by=user)
-    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=10)
     await _make_done_extraction_item(session, run, deep_analysis_id=analysis.id)
     await session.commit()
 
@@ -154,6 +157,8 @@ async def test_synthesize_report_api_error_marks_failed(session: AsyncSession) -
     assert analysis.status == DeepAnalysisStatus.failed
     assert analysis.error_message
     assert analysis.report_stats is None
+    assert analysis.tokens_charged == 0
+    assert user.token_balance == 110
 
     usage = (await session.scalars(select(UsageEvent).where(UsageEvent.run_id == run.id))).all()
     assert usage == []

@@ -56,9 +56,18 @@ async def start_deep_analysis(
     return analysis
 
 
-async def fail_deep_analysis(session: AsyncSession, analysis: DeepAnalysis, message: str) -> None:
+async def fail_deep_analysis(
+    session: AsyncSession, analysis: DeepAnalysis, message: str, *, user_id: uuid.UUID
+) -> None:
     """Never leaves a row stuck mid-pipeline (E17-S4 AC) — used by both the extraction and
-    synthesis passes on an unrecoverable error."""
+    synthesis passes on an unrecoverable error. A hard failure delivers zero report, unlike
+    E17-S9's thin-coverage path which still delivers a degraded one — so the full up-front
+    charge is refunded here, not just reduced."""
     analysis.status = DeepAnalysisStatus.failed
     analysis.error_message = message[:1000]
     analysis.completed_at = datetime.now(UTC)
+    if analysis.tokens_charged > 0:
+        user = await session.get(User, user_id)
+        if user is not None:
+            user.token_balance += analysis.tokens_charged
+        analysis.tokens_charged = 0

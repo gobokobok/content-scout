@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E17 hotfix 3] Hard-failed deep analyses now refund in full
+**Completed:** 2026-07-25
+**Handover:**
+- Both real DEV test runs so far failed and neither refunded its 60-token charge — user flagged this directly ("tokens consumed both times... no results available"). E17-S9 already refunds *partially* on thin comment coverage (still delivers a degraded report), but a hard failure delivering *zero* report never refunded anything at all — an oversight from E17-S1/S4, not something any story's AC ever addressed.
+- Consolidated three separate, duplicated fail-and-stop code paths into one: `services/deep_analysis.py:fail_deep_analysis` (previously defined but never actually called anywhere) is now the single place a deep analysis transitions to `failed` — it refunds `tokens_charged` in full onto `user.token_balance` and zeroes `analysis.tokens_charged` so `/me/runs` reflects the true amount kept. `deep_analysis_synthesis.py`'s local `_fail()` helper (4 call sites) and `worker.py`'s outer `except Exception` catch-all both now call it instead of hand-rolling the same three field assignments.
+- 3 tests updated/added to assert the refund (`test_synthesize_report_no_done_items_fails_without_api_call`, `test_synthesize_report_api_error_marks_failed`, `test_process_deep_analysis_exception_marks_failed`).
+- **Not applied retroactively**: the two already-failed DEV test rows from earlier today still show `tokens_charged=60` unrefunded, since this logic wasn't live when they failed. Asked the user whether to hand-correct that via direct SQL on DEV — declined (test data, not worth the manual DB write). Any *new* failure from this point on refunds automatically.
+- Full suite 282 passed, ruff/mypy/tsc/next-lint clean (no frontend changes this round).
+**Smoke test:** user-driven, pending a clean end-to-end pass.
+**Promoted to backlog:** none new.
+
 ## [E17 hotfix 2] Second DEV smoke-test pass — synthesis call rejected by real API
 **Completed:** 2026-07-25
 **Handover:**

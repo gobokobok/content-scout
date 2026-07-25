@@ -24,6 +24,7 @@ from tests.conftest import (
     make_deep_analysis,
     make_project,
     make_run,
+    make_user,
 )
 
 
@@ -375,7 +376,8 @@ async def test_process_deep_analysis_transitions_extracting_synthesizing_done(
 async def test_process_deep_analysis_exception_marks_failed(session: AsyncSession) -> None:
     project = await make_project(session)
     run = await make_run(session, project=project, duration_days=1)
-    analysis = await make_deep_analysis(session, run=run)
+    user = await make_user(session, token_balance=100)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=60)
     await session.commit()
 
     async def _boom(*args, **kwargs):
@@ -387,3 +389,6 @@ async def test_process_deep_analysis_exception_marks_failed(session: AsyncSessio
     assert analysis.status == DeepAnalysisStatus.failed
     assert analysis.error_message == "extraction exploded"
     assert analysis.completed_at is not None
+    # A hard failure delivers zero report — the up-front charge is refunded in full.
+    assert analysis.tokens_charged == 0
+    assert user.token_balance == 160

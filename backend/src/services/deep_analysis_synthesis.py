@@ -24,6 +24,7 @@ from src.models import (
     UsageEvent,
     User,
 )
+from src.services.deep_analysis import fail_deep_analysis
 from src.services.metrics import bucket_virality, virality_baseline_subquery, virality_ratio
 
 logger = logging.getLogger(__name__)
@@ -159,12 +160,6 @@ REPORT_TOOL = {
 }
 
 
-async def _fail(analysis: DeepAnalysis, message: str) -> None:
-    analysis.status = DeepAnalysisStatus.failed
-    analysis.error_message = message[:1000]
-    analysis.completed_at = datetime.now(UTC)
-
-
 def _comment_coverage_ratio(rows: Sequence[Any]) -> float:
     """E17-S9: share of synthesized items that had any fetched comments at all — the signal
     a thin/degraded comment-data run is detected from."""
@@ -280,7 +275,7 @@ async def synthesize_report(
         ).all()
 
         if not rows:
-            await _fail(analysis, _NO_DATA_MESSAGE_RU)
+            await fail_deep_analysis(session, analysis, _NO_DATA_MESSAGE_RU, user_id=user_id)
             return
 
         prompt_lines = _build_prompt_lines(rows)
@@ -302,14 +297,14 @@ async def synthesize_report(
 
         tool_use = next((b for b in response.content if b.type == "tool_use"), None)
         if tool_use is None or not isinstance(tool_use.input, dict):
-            await _fail(analysis, _UNPARSEABLE_MESSAGE_RU)
+            await fail_deep_analysis(session, analysis, _UNPARSEABLE_MESSAGE_RU, user_id=user_id)
             return
 
         data = tool_use.input
         stats = data.get("stats")
         recommendations = data.get("recommendations")
         if not isinstance(stats, dict) or not isinstance(recommendations, dict):
-            await _fail(analysis, _UNPARSEABLE_MESSAGE_RU)
+            await fail_deep_analysis(session, analysis, _UNPARSEABLE_MESSAGE_RU, user_id=user_id)
             return
 
         if _comment_coverage_ratio(rows) < settings.deep_analysis_comment_coverage_threshold:
@@ -341,4 +336,4 @@ async def synthesize_report(
         )
     except Exception:  # noqa: BLE001 — never fails the caller (mirrors generate_run_summary)
         logger.exception("deep analysis synthesis failed for analysis_id=%s", analysis.id)
-        await _fail(analysis, _UNPARSEABLE_MESSAGE_RU)
+        await fail_deep_analysis(session, analysis, _UNPARSEABLE_MESSAGE_RU, user_id=user_id)
