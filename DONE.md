@@ -2,6 +2,21 @@
 
 Completed stories land here, newest first. Format:
 
+## [E14-S6] Scheduled-run redesign: multi-day schedules, Once/Recurring, per-schedule notify toggle
+**Completed:** 2026-07-25
+**Handover:**
+- Direct user request (out of the locked Sprint 10 order): fix real breakage in the scheduled-runs feature (E14-S1..S5, 2026-07-22) found on first live look — no schedule ever seemed to fire/notify — and redesign the data model from one row per weekday to one row per schedule.
+- **Root cause of "no notifications sent":** by inspection, `notify_run_complete`'s 3 call sites in `worker.py` were already correct, gated only on `settings.telegram_bot_token` + `user.telegram_id`. Every E14 smoke test was deferred, so nothing had ever exercised this against a real Telegram token/worker deploy — likely environment (`TELEGRAM_BOT_TOKEN` possibly missing on the `worker` service specifically) rather than a code bug. Separately fixed regardless: scheduled runs previously notified unconditionally like manual runs; they now only notify when the schedule's new `notify_enabled` toggle (default off) is on.
+- Schema: `ScheduledRun.day_of_week: int` → `days_of_week: int[]` (one row = one schedule spanning any number of days); new `mode` (`once`/`recurring` — `once` fires exactly one selected day's next occurrence then self-deactivates; `recurring` fires every selected day indefinitely) and `notify_enabled: bool`. New `AnalysisRun.notify_on_complete: bool` (default `true` — manual runs unaffected), set from `schedule.notify_enabled` when a schedule fires. Migration `a1b2c3d4e5f6` backfills old rows losslessly (`days_of_week=[day_of_week]`, `mode=recurring`); verified with a real upgrade/downgrade/upgrade round-trip.
+- A first-draft CHECK constraint (`array_length(days_of_week,1) >= 1` to reject empty arrays) was silently broken — Postgres's `array_length` returns `NULL`, not `0`, for a zero-length array, and CHECK treats `NULL` as passing. A test (`test_scheduled_run_empty_days_of_week_rejected`) caught it immediately; fixed with `cardinality(days_of_week) >= 1`.
+- Frontend: `run-dialog.tsx`'s Schedule branch and `scheduled-run-dialog.tsx` both reworked to lead with an Once/Recurring segmented control, then weekday chips (single-select under Once, multi under Recurring), time, a permanent "no end date" hint under Recurring, and a Telegram-notify switch (default off) — one API call per save instead of the old per-weekday POST loop. `scheduled/page.tsx` and `details/page.tsx` updated to render the new `days_of_week` arrays.
+- Also fixed, per direct user report: the mobile bottom nav's active tab was only distinguished by a subtle icon/text color change — now gets a filled `bg-ink`/`text-lime` pill, matching the pill treatment already used for day-of-week chips elsewhere in the design system. Desktop tab bar already had a strong active state and needed no change.
+- **Notable environment finding:** this sandbox has a working local Postgres (previously assumed absent throughout this project — see every prior E14 story's smoke-test deferral). `content_scout_test` didn't exist and was created this session; with it, the full backend suite ran for real for the first time: 238 tests pass, migration round-trip clean, ruff/mypy clean. Future sessions should check whether this persists before defaulting to "DEFERRED."
+- Frontend verified visually via a temporary `frontend/app/dev-preview/scheduling` scratch route (mocked `fetch`), confirming the Once/Recurring toggle, multi→single day collapse, notify switch, and bottom-nav pill highlight in the Browser pane; deleted before commit. `tsc --noEmit`/`next lint` clean.
+- Full BACKLOG.md entry: see `[E14-S6]` for complete details.
+**Smoke test:** DEFERRED — needs a real DEV schedule (Recurring, notify on) to fire within its 5-minute window and confirm the Telegram DM arrives; separately confirm `notify_enabled=false` sends nothing and an Once-mode schedule deactivates itself after firing. Also worth confirming `TELEGRAM_BOT_TOKEN` is actually set on the **worker** Railway service, not just `api`.
+**Promoted to backlog:** none
+
 ## [E14-S5] Telegram notification for scheduled-run completion
 **Completed:** 2026-07-22
 **Handover:**

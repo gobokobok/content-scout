@@ -29,12 +29,18 @@ export function ProjectBottomNav({ projectId }: { projectId: string }) {
           <Link
             key={segment}
             href={href}
-            className={`flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors ${
-              active ? "text-accent" : "text-secondary"
-            }`}
+            className="flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors"
           >
-            <Icon className="h-6 w-6" />
-            <span>{t(labelKey)}</span>
+            <span
+              className={`flex items-center justify-center rounded-full px-4 py-1 transition-colors ${
+                active ? "bg-ink text-lime" : "text-secondary"
+              }`}
+            >
+              <Icon className="h-5 w-5" />
+            </span>
+            <span className={active ? "font-semibold text-ink" : "text-secondary"}>
+              {t(labelKey)}
+            </span>
           </Link>
         );
       })}

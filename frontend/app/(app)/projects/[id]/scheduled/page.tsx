@@ -104,10 +104,12 @@ export default function ScheduledRunsPage() {
         duration_days: schedule.duration_days ?? undefined,
         item_limit: schedule.item_limit ?? undefined,
         account_ids: schedule.account_ids ?? undefined,
-        day_of_week: schedule.day_of_week,
+        mode: schedule.mode,
+        days_of_week: schedule.days_of_week,
         time_of_day: schedule.time_of_day,
         timezone: schedule.timezone,
         active: !schedule.active,
+        notify_enabled: schedule.notify_enabled,
       });
       await load();
     } catch (err) {
@@ -176,6 +178,10 @@ export default function ScheduledRunsPage() {
               s.account_ids == null
                 ? t("allAccounts")
                 : t("accountsCount", { count: s.account_ids.length });
+            const daysText = [...s.days_of_week]
+              .sort((a, b) => a - b)
+              .map((d) => t(`weekday${d}`))
+              .join(", ");
 
             return (
               <li
@@ -194,12 +200,19 @@ export default function ScheduledRunsPage() {
                       {scopeText} · {accountsText}
                     </span>
                     <span className="text-xs text-secondary">
+                      {daysText}, {s.time_of_day.slice(0, 5)}
+                      {s.mode === "once" ? ` · ${t("repeatModeOnce")}` : ""}
+                    </span>
+                    <span className="text-xs text-secondary">
                       {t("lastRunLabel")}:{" "}
                       {lastRun ? formatDate(lastRun.finished_at ?? lastRun.created_at) : t("never")}
                     </span>
-                    <Badge variant={s.active ? "success" : "default"} className="mt-1">
-                      {s.active ? t("activeLabel") : t("inactiveLabel")}
-                    </Badge>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <Badge variant={s.active ? "success" : "default"}>
+                        {s.active ? t("activeLabel") : t("inactiveLabel")}
+                      </Badge>
+                      {s.notify_enabled && <Badge variant="default">{t("notifyBadge")}</Badge>}
+                    </div>
                   </button>
                   {!isArchived && (
                     <button
@@ -236,7 +249,14 @@ export default function ScheduledRunsPage() {
       <ContextMenu
         open={menuId !== null}
         onClose={() => setMenuId(null)}
-        title={menuSchedule ? `${t(`weekday${menuSchedule.day_of_week}`)}, ${menuSchedule.time_of_day.slice(0, 5)}` : undefined}
+        title={
+          menuSchedule
+            ? `${[...menuSchedule.days_of_week]
+                .sort((a, b) => a - b)
+                .map((d) => t(`weekday${d}`))
+                .join(", ")}, ${menuSchedule.time_of_day.slice(0, 5)}`
+            : undefined
+        }
         anchorEl={menuAnchorEl}
       >
         <div className="flex flex-col py-1">

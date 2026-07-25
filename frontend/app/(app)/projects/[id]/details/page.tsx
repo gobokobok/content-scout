@@ -95,7 +95,10 @@ export default function DetailsPage() {
   const activeSchedule = schedules?.find((s) => s.active) ?? null;
   const scheduleSubtitle = activeSchedule
     ? t("scheduleActive", {
-        day: tw(`weekday${activeSchedule.day_of_week}`),
+        day: [...activeSchedule.days_of_week]
+          .sort((a, b) => a - b)
+          .map((d) => tw(`weekday${d}`))
+          .join(", "),
         time: activeSchedule.time_of_day.slice(0, 5),
       })
     : t("scheduleNone");

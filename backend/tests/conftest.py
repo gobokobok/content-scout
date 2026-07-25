@@ -200,11 +200,14 @@ async def make_scheduled_run(
 ) -> ScheduledRun:
     project = project or await make_project(session)
     created_by = created_by or await make_user(session)
+    days_of_week = kw.pop("days_of_week", None)
+    if days_of_week is None:
+        days_of_week = [kw.pop("day_of_week")] if "day_of_week" in kw else [0]
     scheduled_run = ScheduledRun(
         project_id=project.id,
         created_by=created_by.id,
         duration_days=kw.pop("duration_days", 7),
-        day_of_week=kw.pop("day_of_week", 0),
+        days_of_week=days_of_week,
         time_of_day=kw.pop("time_of_day", time(9, 0)),
         **kw,
     )

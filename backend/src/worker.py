@@ -193,7 +193,7 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             run.error_message = _TOKEN_BALANCE_EXHAUSTED_MSG
         await session.commit()
         requesting_user = requesting_user or await session.get(User, run.requested_by)
-        if requesting_user:
+        if requesting_user and run.notify_on_complete:
             await notify_run_complete(run, requesting_user)
 
     except asyncio.CancelledError:
@@ -203,7 +203,7 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         await asyncio.shield(session.commit())
         try:
             requesting_user = await session.get(User, run.requested_by)
-            if requesting_user:
+            if requesting_user and run.notify_on_complete:
                 await notify_run_complete(run, requesting_user)
         except Exception:  # noqa: BLE001
             pass
@@ -216,7 +216,7 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         await session.commit()
         try:
             requesting_user = await session.get(User, run.requested_by)
-            if requesting_user:
+            if requesting_user and run.notify_on_complete:
                 await notify_run_complete(run, requesting_user)
         except Exception:  # noqa: BLE001
             pass

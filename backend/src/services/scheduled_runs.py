@@ -6,26 +6,27 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import Settings, get_settings
-from src.models import AnalysisRun, ScheduledRun, User
+from src.models import AnalysisRun, ScheduledRun, ScheduleMode, User
 from src.services.estimator import estimate_run
 from src.services.queue import enqueue_run
 from src.services.runs import resolve_target_accounts
 
 # arq's cron tick runs every TICK_WINDOW_MINUTES; a schedule fires the first tick whose
-# window covers its most recent (day_of_week, time_of_day) occurrence in its own timezone.
+# window covers its most recent (days_of_week, time_of_day) occurrence in its own timezone.
 # Ticks are aligned to :00/:05/:10.../:55, so consecutive windows exactly tile the timeline
 # with no gaps or overlaps.
 TICK_WINDOW_MINUTES = 5
 
 
 def most_recent_occurrence_utc(schedule: ScheduledRun, before: datetime) -> datetime:
-    """The most recent UTC instant at or before `before` when schedule's day_of_week +
+    """The most recent UTC instant at or before `before` when any of schedule's days_of_week +
     time_of_day occurred in the schedule's own timezone. Pure — no DB, safe to unit test."""
     tz = ZoneInfo(schedule.timezone)
     local_before = before.astimezone(tz)
+    days = set(schedule.days_of_week)
     for days_back in range(7):
         candidate_date = local_before.date() - timedelta(days=days_back)
-        if candidate_date.weekday() != schedule.day_of_week:
+        if candidate_date.weekday() not in days:
             continue
         candidate_local = datetime.combine(candidate_date, schedule.time_of_day, tzinfo=tz)
         if candidate_local <= local_before:
@@ -81,10 +82,15 @@ async def _fire_one(session: AsyncSession, schedule: ScheduledRun) -> AnalysisRu
         item_limit=schedule.item_limit,
         account_ids=schedule.account_ids,
         estimated_cost_usd=est.estimated_cost_usd,
+        notify_on_complete=schedule.notify_enabled,
     )
     session.add(run)
     await session.flush()
     schedule.last_run_id = run.id
+    # Once-mode schedules fire exactly one run (their single selected weekday's next
+    # occurrence) then turn themselves off — recurring schedules keep firing every week.
+    if schedule.mode == ScheduleMode.once:
+        schedule.active = False
     await session.commit()
 
     await enqueue_run(run.id)

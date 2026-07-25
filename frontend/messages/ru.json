@@ -148,7 +148,12 @@
   "followersShort": "подп.",
   "scopeDaysExplanation": "Соберём все публикации выбранных аккаунтов за последние {count, plural, =1{# день} other{# дн.}}",
   "scopeCountExplanation": "Соберём последние {count, plural, =1{# публикацию} other{# публикаций}} каждого выбранного аккаунта",
-  "selectDayError": "Выберите хотя бы один день недели."
+  "selectDayError": "Выберите хотя бы один день недели.",
+  "repeatModeOnce": "Разово",
+  "repeatModeRecurring": "Повторяющееся",
+  "repeatModeOnceHint": "Запуск произойдёт один раз в ближайшие 7 дней в выбранный день.",
+  "repeatModeRecurringHint": "Без даты окончания — запуски будут выполняться в выбранные дни, пока расписание не отключат или не закончатся токены.",
+  "notifyLabel": "Уведомлять в Telegram о завершении"
  },
  "ResultsTable": {
   "title": "Результаты запусков",
@@ -372,7 +377,13 @@
   "deleteAction": "Удалить",
   "genericError": "Произошла ошибка. Попробуйте ещё раз.",
   "scopeDaysExplanation": "Соберём все публикации выбранных аккаунтов за последние {count, plural, =1{# день} other{# дн.}}",
-  "scopeCountExplanation": "Соберём последние {count, plural, =1{# публикацию} other{# публикаций}} каждого выбранного аккаунта"
+  "scopeCountExplanation": "Соберём последние {count, plural, =1{# публикацию} other{# публикаций}} каждого выбранного аккаунта",
+  "repeatModeOnce": "Разово",
+  "repeatModeRecurring": "Повторяющееся",
+  "repeatModeOnceHint": "Запуск произойдёт один раз в ближайшие 7 дней в выбранный день.",
+  "repeatModeRecurringHint": "Без даты окончания — запуски будут выполняться в выбранные дни, пока расписание не отключат или не закончатся токены.",
+  "notifyLabel": "Уведомлять в Telegram о завершении",
+  "notifyBadge": "Уведомления"
  },
  "RunDetail": {
   "title": "Результат запуска",

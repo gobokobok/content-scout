@@ -13,6 +13,7 @@ const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 const DEFAULT_TIMEZONE = "Europe/Moscow";
 type ScopeMode = "days" | "count";
+type RepeatMode = "once" | "recurring";
 type View = "form" | "pickCompetitors";
 
 function toTimeInputValue(timeOfDay: string): string {
@@ -39,7 +40,6 @@ export function ScheduledRunDialog({
   onSaved: () => void;
 }) {
   const t = useTranslations("ScheduledRuns");
-  const isEdit = existing != null;
 
   const [view, setView] = useState<View>("form");
   const [scopeMode, setScopeMode] = useState<ScopeMode>(
@@ -51,14 +51,12 @@ export function ScheduledRunDialog({
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
     existing?.account_ids ?? [],
   );
-  // Create mode: multi-day selection (one ScheduledRun row is created per day).
-  // Edit mode: a single existing row only ever has one day.
-  const [selectedDays, setSelectedDays] = useState<number[]>(
-    existing ? [existing.day_of_week] : [],
-  );
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>(existing?.mode ?? "recurring");
+  const [selectedDays, setSelectedDays] = useState<number[]>(existing?.days_of_week ?? []);
   const [timeOfDay, setTimeOfDay] = useState(
     existing ? toTimeInputValue(existing.time_of_day) : "09:00",
   );
+  const [notifyEnabled, setNotifyEnabled] = useState(existing?.notify_enabled ?? false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -76,11 +74,18 @@ export function ScheduledRunDialog({
   }
 
   function toggleDay(d: number) {
-    if (isEdit) {
+    if (repeatMode === "once") {
       setSelectedDays([d]);
       return;
     }
     setSelectedDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
+  }
+
+  function onRepeatModeChange(mode: RepeatMode) {
+    setRepeatMode(mode);
+    if (mode === "once" && selectedDays.length > 1) {
+      setSelectedDays((prev) => prev.slice(0, 1));
+    }
   }
 
   async function onSave(active: boolean) {
@@ -98,21 +103,18 @@ export function ScheduledRunDialog({
       duration_days: scopeMode === "days" ? duration : undefined,
       item_limit: scopeMode === "count" ? itemLimit : undefined,
       account_ids: allAccounts ? undefined : selectedAccountIds,
+      mode: repeatMode,
+      days_of_week: selectedDays,
       time_of_day: `${timeOfDay}:00`,
       timezone: existing?.timezone ?? DEFAULT_TIMEZONE,
       active,
+      notify_enabled: notifyEnabled,
     };
     try {
       if (existing) {
-        await api.updateScheduledRun(projectId, existing.id, {
-          ...base,
-          day_of_week: selectedDays[0],
-        });
+        await api.updateScheduledRun(projectId, existing.id, base);
       } else {
-        // One row per selected weekday — the API has no concept of a multi-day schedule.
-        for (const day of selectedDays) {
-          await api.createScheduledRun(projectId, { ...base, day_of_week: day });
-        }
+        await api.createScheduledRun(projectId, base);
       }
       onSaved();
     } catch (err) {
@@ -261,6 +263,14 @@ export function ScheduledRunDialog({
             {t("step3Title")}
           </span>
           <div className="flex flex-col gap-3 rounded-[14px] bg-bg p-3">
+            <Segmented
+              value={repeatMode}
+              onChange={onRepeatModeChange}
+              options={[
+                { value: "once", label: t("repeatModeOnce") },
+                { value: "recurring", label: t("repeatModeRecurring") },
+              ]}
+            />
             <div className="grid grid-cols-7 gap-1.5">
               {WEEKDAYS.map((d) => (
                 <button key={d} onClick={() => toggleDay(d)} className={chipClass(selectedDays.includes(d))}>
@@ -274,6 +284,27 @@ export function ScheduledRunDialog({
               onChange={(e) => setTimeOfDay(e.target.value)}
               className="w-full rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
+            <p className="text-xs text-secondary">
+              {repeatMode === "once" ? t("repeatModeOnceHint") : t("repeatModeRecurringHint")}
+            </p>
+            <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+              <span className="text-sm font-medium text-ink">{t("notifyLabel")}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={notifyEnabled}
+                onClick={() => setNotifyEnabled((v) => !v)}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  notifyEnabled ? "bg-lime" : "bg-border"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    notifyEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
 

@@ -11,6 +11,7 @@ from src.models import (
     Account,
     ContentType,
     PlatformSlug,
+    ScheduleMode,
     ShortlistItem,
     UsageEvent,
 )
@@ -84,6 +85,19 @@ async def test_scheduled_run_roundtrip(session: AsyncSession) -> None:
     assert fetched.item_limit is None
     assert fetched.active is True
     assert fetched.timezone == "Europe/Moscow"
+    assert fetched.days_of_week == [2]
+    assert fetched.mode == ScheduleMode.recurring
+    assert fetched.notify_enabled is False
+
+
+async def test_scheduled_run_multi_day_roundtrip(session: AsyncSession) -> None:
+    scheduled = await make_scheduled_run(
+        session, days_of_week=[0, 2, 4], mode=ScheduleMode.recurring, notify_enabled=True
+    )
+    fetched = await session.get(type(scheduled), scheduled.id)
+    assert fetched is not None
+    assert fetched.days_of_week == [0, 2, 4]
+    assert fetched.notify_enabled is True
 
 
 async def test_scheduled_run_duration_check_rejected(session: AsyncSession) -> None:
@@ -97,8 +111,13 @@ async def test_scheduled_run_both_duration_and_item_limit_rejected(session: Asyn
 
 
 async def test_scheduled_run_day_of_week_out_of_range_rejected(session: AsyncSession) -> None:
-    with pytest.raises(IntegrityError, match="day_of_week_range"):
+    with pytest.raises(IntegrityError, match="days_of_week_range"):
         await make_scheduled_run(session, day_of_week=7)
+
+
+async def test_scheduled_run_empty_days_of_week_rejected(session: AsyncSession) -> None:
+    with pytest.raises(IntegrityError, match="days_of_week_range"):
+        await make_scheduled_run(session, days_of_week=[])
 
 
 async def test_duplicate_normalized_url_in_list_rejected(session: AsyncSession) -> None:

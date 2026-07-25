@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import (
     ARRAY,
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     Enum,
@@ -61,6 +62,10 @@ class AnalysisRun(UuidPk, CreatedAt, Base):
         default=RunStatus.pending,
         nullable=False,
     )
+    # Gates the Telegram completion DM (services/telegram_notify.py). True for every manual
+    # run (unchanged E8-S2 behavior); scheduled runs copy their ScheduledRun.notify_enabled
+    # (E14-S6 — schedules default this off, unlike manual runs).
+    notify_on_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     progress_accounts: Mapped[int] = mapped_column(default=0, nullable=False)
     progress_items: Mapped[int] = mapped_column(default=0, nullable=False)
     progress_summarized: Mapped[int] = mapped_column(default=0, nullable=False)

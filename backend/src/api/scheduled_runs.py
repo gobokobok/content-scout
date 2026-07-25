@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, time
-from typing import Annotated
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.db import get_session
-from src.models import ScheduledRun
+from src.models import ScheduledRun, ScheduleMode
 from src.services.projects import ProjectNotFoundError, get_owned_project
 
 router = APIRouter(prefix="/projects/{project_id}/scheduled-runs", tags=["scheduled-runs"])
@@ -33,10 +33,14 @@ class ScheduledRunIn(BaseModel):
     duration_days: int | None = Field(default=None, ge=1, le=7)
     item_limit: int | None = Field(default=None, ge=1, le=50)
     account_ids: list[uuid.UUID] | None = None
-    day_of_week: int = Field(ge=0, le=6)
+    # once: exactly one day (its next occurrence fires, then the schedule deactivates).
+    # recurring: 1-7 days, fires every selected day indefinitely (E14-S6).
+    mode: Literal["once", "recurring"] = "recurring"
+    days_of_week: list[int] = Field(min_length=1, max_length=7)
     time_of_day: time
     timezone: str = "Europe/Moscow"
     active: bool = True
+    notify_enabled: bool = False
 
     @model_validator(mode="after")
     def _exactly_one_scope(self) -> "ScheduledRunIn":
@@ -52,6 +56,16 @@ class ScheduledRunIn(BaseModel):
             raise ValueError("Некорректный часовой пояс.") from None
         return self
 
+    @model_validator(mode="after")
+    def _valid_days_of_week(self) -> "ScheduledRunIn":
+        if any(d < 0 or d > 6 for d in self.days_of_week):
+            raise ValueError("Дни недели должны быть в диапазоне 0-6.")
+        if len(set(self.days_of_week)) != len(self.days_of_week):
+            raise ValueError("Дни недели не должны повторяться.")
+        if self.mode == "once" and len(self.days_of_week) != 1:
+            raise ValueError("Разовый запуск требует ровно один день.")
+        return self
+
 
 class ScheduledRunOut(BaseModel):
     id: uuid.UUID
@@ -59,10 +73,12 @@ class ScheduledRunOut(BaseModel):
     account_ids: list[uuid.UUID] | None
     duration_days: int | None
     item_limit: int | None
-    day_of_week: int
+    mode: str
+    days_of_week: list[int]
     time_of_day: time
     timezone: str
     active: bool
+    notify_enabled: bool
     last_run_id: uuid.UUID | None
     created_at: datetime
 
@@ -74,10 +90,12 @@ class ScheduledRunOut(BaseModel):
             account_ids=scheduled_run.account_ids,
             duration_days=scheduled_run.duration_days,
             item_limit=scheduled_run.item_limit,
-            day_of_week=scheduled_run.day_of_week,
+            mode=scheduled_run.mode.value,
+            days_of_week=sorted(scheduled_run.days_of_week),
             time_of_day=scheduled_run.time_of_day,
             timezone=scheduled_run.timezone,
             active=scheduled_run.active,
+            notify_enabled=scheduled_run.notify_enabled,
             last_run_id=scheduled_run.last_run_id,
             created_at=scheduled_run.created_at,
         )
@@ -114,10 +132,12 @@ async def create_scheduled_run(
         account_ids=body.account_ids,
         duration_days=body.duration_days,
         item_limit=body.item_limit,
-        day_of_week=body.day_of_week,
+        mode=ScheduleMode(body.mode),
+        days_of_week=body.days_of_week,
         time_of_day=body.time_of_day,
         timezone=body.timezone,
         active=body.active,
+        notify_enabled=body.notify_enabled,
     )
     session.add(scheduled_run)
     await session.commit()
@@ -150,10 +170,12 @@ async def update_scheduled_run(
     scheduled_run.account_ids = body.account_ids
     scheduled_run.duration_days = body.duration_days
     scheduled_run.item_limit = body.item_limit
-    scheduled_run.day_of_week = body.day_of_week
+    scheduled_run.mode = ScheduleMode(body.mode)
+    scheduled_run.days_of_week = body.days_of_week
     scheduled_run.time_of_day = body.time_of_day
     scheduled_run.timezone = body.timezone
     scheduled_run.active = body.active
+    scheduled_run.notify_enabled = body.notify_enabled
     await session.commit()
     return ScheduledRunOut.from_model(scheduled_run)
 

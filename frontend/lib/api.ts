@@ -147,16 +147,20 @@ export interface ContentItemResponse {
   in_shortlist: boolean;
 }
 
+export type ScheduleMode = "once" | "recurring";
+
 export interface ScheduledRunResponse {
   id: string;
   project_id: string;
   account_ids: string[] | null;
   duration_days: number | null;
   item_limit: number | null;
-  day_of_week: number;
+  mode: ScheduleMode;
+  days_of_week: number[];
   time_of_day: string;
   timezone: string;
   active: boolean;
+  notify_enabled: boolean;
   last_run_id: string | null;
   created_at: string;
 }
@@ -165,10 +169,12 @@ export interface ScheduledRunRequest {
   duration_days?: number;
   item_limit?: number;
   account_ids?: string[];
-  day_of_week: number;
+  mode: ScheduleMode;
+  days_of_week: number[];
   time_of_day: string;
   timezone: string;
   active: boolean;
+  notify_enabled: boolean;
 }
 
 export interface ShortlistItemResponse {
