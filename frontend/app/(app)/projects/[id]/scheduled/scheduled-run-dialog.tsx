@@ -5,13 +5,13 @@ import { useTranslations } from "next-intl";
 import { ArrowLeft, Check, Users } from "lucide-react";
 import { api, ApiError, type AccountResponse, type ScheduledRunResponse } from "@/lib/api";
 import { formatFollowers } from "@/lib/format";
+import { detectLocalTimezone } from "@/lib/telegram-webapp";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Segmented } from "@/components/ui";
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
-const DEFAULT_TIMEZONE = "Europe/Moscow";
 type ScopeMode = "days" | "count";
 type RepeatMode = "once" | "recurring";
 type View = "form" | "pickCompetitors";
@@ -57,6 +57,10 @@ export function ScheduledRunDialog({
     existing ? toTimeInputValue(existing.time_of_day) : "09:00",
   );
   const [notifyEnabled, setNotifyEnabled] = useState(existing?.notify_enabled ?? false);
+  // Existing schedules keep whatever timezone they were created with; new ones use the
+  // device's own IANA zone (Telegram exposes no account-level timezone — see
+  // lib/telegram-webapp.ts:detectLocalTimezone).
+  const [timezone] = useState(() => existing?.timezone ?? detectLocalTimezone());
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -106,7 +110,7 @@ export function ScheduledRunDialog({
       mode: repeatMode,
       days_of_week: selectedDays,
       time_of_day: `${timeOfDay}:00`,
-      timezone: existing?.timezone ?? DEFAULT_TIMEZONE,
+      timezone,
       active,
       notify_enabled: notifyEnabled,
     };
@@ -284,6 +288,7 @@ export function ScheduledRunDialog({
               onChange={(e) => setTimeOfDay(e.target.value)}
               className="w-full rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
+            <p className="text-xs text-secondary">{t("timezoneHint", { timezone })}</p>
             <p className="text-xs text-secondary">
               {repeatMode === "once" ? t("repeatModeOnceHint") : t("repeatModeRecurringHint")}
             </p>

@@ -41,3 +41,16 @@ export function canDownloadViaTelegram(): boolean {
 export function downloadFileViaTelegram(url: string, fileName: string): void {
   window.Telegram!.WebApp!.downloadFile!({ url, file_name: fileName });
 }
+
+// Telegram's Bot API / WebApp initData exposes no timezone field for the account — this
+// reads the device's own IANA zone via Intl instead, since the Mini App runs inside the
+// user's own client. Used as the scheduled-run timezone (E14-S6 follow-up) instead of the
+// hardcoded "Europe/Moscow" default. Falls back to Moscow only if Intl itself is unavailable
+// (practically never, but keeps schedule creation from throwing in that edge case).
+export function detectLocalTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Moscow";
+  } catch {
+    return "Europe/Moscow";
+  }
+}

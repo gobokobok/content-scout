@@ -7,12 +7,12 @@ import { ArrowLeft, Check, Coins, Users, X } from "lucide-react";
 import { api, ApiError, type AccountResponse, type EstimateResponse } from "@/lib/api";
 import { useRunTracker } from "@/lib/run-tracker";
 import { formatFollowers } from "@/lib/format";
+import { detectLocalTimezone } from "@/lib/telegram-webapp";
 import { Segmented } from "@/components/ui";
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
-const DEFAULT_TIMEZONE = "Europe/Moscow";
 type ScopeMode = "days" | "count";
 type LaunchMode = "now" | "schedule";
 type View = "form" | "pickCompetitors";
@@ -48,6 +48,10 @@ export function RunDialog({
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [timeOfDay, setTimeOfDay] = useState("09:00");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
+  // Telegram exposes no account timezone — this reads the device's own IANA zone (the Mini
+  // App runs inside the user's own client), computed once on mount so it's stable for the
+  // life of the dialog.
+  const [timezone] = useState(() => detectLocalTimezone());
   const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
@@ -134,7 +138,7 @@ export function RunDialog({
           mode: repeatMode,
           days_of_week: selectedDays,
           time_of_day: `${timeOfDay}:00`,
-          timezone: DEFAULT_TIMEZONE,
+          timezone,
           active: true,
           notify_enabled: notifyEnabled,
         });
@@ -368,6 +372,7 @@ export function RunDialog({
                       onChange={(e) => setTimeOfDay(e.target.value)}
                       className="w-full rounded-control border border-border bg-card px-3 py-2 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
                     />
+                    <p className="text-xs text-secondary">{t("timezoneHint", { timezone })}</p>
                     <p className="text-xs text-secondary">
                       {repeatMode === "once" ? t("repeatModeOnceHint") : t("repeatModeRecurringHint")}
                     </p>
