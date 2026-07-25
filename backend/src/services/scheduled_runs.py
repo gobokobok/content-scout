@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import Settings, get_settings
-from src.models import AnalysisRun, ScheduledRun, ScheduleMode, User
+from src.models import AnalysisRun, ScheduledRun, ScheduledRunSkipReason, ScheduleMode, User
 from src.services.estimator import estimate_run
 from src.services.queue import enqueue_run
 from src.services.runs import resolve_target_accounts
@@ -53,20 +53,42 @@ async def _over_daily_quota(session: AsyncSession, user_id: uuid.UUID, settings:
     return (count or 0) >= settings.max_runs_per_user_per_day
 
 
+async def _skip(
+    session: AsyncSession, schedule: ScheduledRun, reason: ScheduledRunSkipReason
+) -> None:
+    """Records why a due schedule didn't fire (so the UI can tell the user), instead of just
+    vanishing. Once-mode schedules deactivate here too — a "once" schedule was always meant
+    to make exactly one attempt at its target occurrence, skipped or not; leaving it active
+    would silently retry a week later, contradicting "once"."""
+    schedule.last_skip_reason = reason
+    schedule.last_skip_at = datetime.now(UTC)
+    if schedule.mode == ScheduleMode.once:
+        schedule.active = False
+    await session.commit()
+
+
 async def _fire_one(session: AsyncSession, schedule: ScheduledRun) -> AnalysisRun | None:
     """Creates+enqueues an AnalysisRun the same way POST /projects/{id}/runs does, minus the
     HTTP-facing error responses: a cron tick has no user to show an error to, so every gate
-    that would 400/402/429 a manual run instead just skips this fire silently."""
+    that would 400/402/429 a manual run instead just skips this fire (recording why, see
+    _skip)."""
     accounts = await resolve_target_accounts(session, schedule.project_id, schedule.account_ids)
     if not accounts:
+        await _skip(session, schedule, ScheduledRunSkipReason.no_accounts)
         return None
 
     user = await session.get(User, schedule.created_by)
-    if user is None or user.token_balance <= 0:
+    if user is None:
+        # No one to notify or attribute the run to — FK-enforced, should never happen outside
+        # a hard-deleted user, which this app has no feature for. Leave silently as before.
+        return None
+    if user.token_balance <= 0:
+        await _skip(session, schedule, ScheduledRunSkipReason.no_tokens)
         return None
 
     settings = get_settings()
     if await _over_daily_quota(session, schedule.created_by, settings):
+        await _skip(session, schedule, ScheduledRunSkipReason.quota_exceeded)
         return None
 
     est = estimate_run(
@@ -87,6 +109,8 @@ async def _fire_one(session: AsyncSession, schedule: ScheduledRun) -> AnalysisRu
     session.add(run)
     await session.flush()
     schedule.last_run_id = run.id
+    schedule.last_skip_reason = None
+    schedule.last_skip_at = None
     # Once-mode schedules fire exactly one run (their single selected weekday's next
     # occurrence) then turn themselves off — recurring schedules keep firing every week.
     if schedule.mode == ScheduleMode.once:

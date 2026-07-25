@@ -11,6 +11,7 @@ import {
   type AccountResponse,
   type RunResponse,
   type ScheduledRunResponse,
+  type ScheduledRunSkipReason,
 } from "@/lib/api";
 import { Badge } from "@/components/ui";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -18,6 +19,12 @@ import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { useProject } from "@/lib/project-context";
 import { ScheduledRunDialog } from "./scheduled-run-dialog";
+
+const SKIP_REASON_KEYS: Record<ScheduledRunSkipReason, string> = {
+  no_accounts: "skipReasonNoAccounts",
+  no_tokens: "skipReasonNoTokens",
+  quota_exceeded: "skipReasonQuotaExceeded",
+};
 
 function ScheduledRunsInfoButton() {
   const t = useTranslations("ScheduledRuns");
@@ -207,6 +214,11 @@ export default function ScheduledRunsPage() {
                       {t("lastRunLabel")}:{" "}
                       {lastRun ? formatDate(lastRun.finished_at ?? lastRun.created_at) : t("never")}
                     </span>
+                    {s.last_skip_reason && (
+                      <span className="text-xs font-medium text-danger">
+                        {t(SKIP_REASON_KEYS[s.last_skip_reason])}
+                      </span>
+                    )}
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       <Badge variant={s.active ? "success" : "default"}>
                         {s.active ? t("activeLabel") : t("inactiveLabel")}

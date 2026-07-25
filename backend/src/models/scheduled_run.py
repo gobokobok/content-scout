@@ -1,11 +1,12 @@
 import enum
 import uuid
-from datetime import time
+from datetime import datetime, time
 
 from sqlalchemy import (
     ARRAY,
     Boolean,
     CheckConstraint,
+    DateTime,
     Enum,
     ForeignKey,
     Integer,
@@ -24,6 +25,14 @@ class ScheduleMode(enum.StrEnum):
     # selected weekday indefinitely, until deactivated or the user's tokens run out.
     once = "once"
     recurring = "recurring"
+
+
+class ScheduledRunSkipReason(enum.StrEnum):
+    # Same three silent-skip gates _fire_one has always had (E14-S2) — now recorded instead
+    # of just vanishing, so the UI can tell the user why a due schedule didn't fire.
+    no_accounts = "no_accounts"
+    no_tokens = "no_tokens"
+    quota_exceeded = "quota_exceeded"
 
 
 class ScheduledRun(UuidPk, CreatedAt, Base):
@@ -75,3 +84,9 @@ class ScheduledRun(UuidPk, CreatedAt, Base):
     last_run_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("analysis_runs.id"), nullable=True
     )
+    # Set by _fire_one when a due schedule is skipped (never on a genuine error — those are
+    # still swallowed by fire_due_schedules' try/except); cleared on the next successful fire.
+    last_skip_reason: Mapped[ScheduledRunSkipReason | None] = mapped_column(
+        Enum(ScheduledRunSkipReason, native_enum=False, length=20), nullable=True
+    )
+    last_skip_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

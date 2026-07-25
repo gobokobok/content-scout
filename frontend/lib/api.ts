@@ -148,6 +148,7 @@ export interface ContentItemResponse {
 }
 
 export type ScheduleMode = "once" | "recurring";
+export type ScheduledRunSkipReason = "no_accounts" | "no_tokens" | "quota_exceeded";
 
 export interface ScheduledRunResponse {
   id: string;
@@ -162,7 +163,17 @@ export interface ScheduledRunResponse {
   active: boolean;
   notify_enabled: boolean;
   last_run_id: string | null;
+  last_skip_reason: ScheduledRunSkipReason | null;
+  last_skip_at: string | null;
   created_at: string;
+}
+
+export interface SkippedScheduleResponse {
+  id: string;
+  project_id: string;
+  project_name: string;
+  reason: ScheduledRunSkipReason;
+  skipped_at: string;
 }
 
 export interface ScheduledRunRequest {
@@ -360,6 +371,7 @@ export const api = {
     request<void>(`/projects/${projectId}/scheduled-runs/${scheduledRunId}`, {
       method: "DELETE",
     }),
+  listSkippedSchedules: () => request<SkippedScheduleResponse[]>("/scheduled-runs/skipped"),
   getTopVirality: (runId: string, limit = 5) =>
     request<TopViralityResponse>(`/runs/${runId}/top-virality?limit=${limit}`),
   listRunItems: (

@@ -6,15 +6,17 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.tokens import create_access_token
+from src.config import get_settings
 from src.db import get_session
 from src.main import app
-from src.models import AnalysisRun, ScheduleMode
+from src.models import AnalysisRun, ScheduledRunSkipReason, ScheduleMode
 from src.services.scheduled_runs import fire_due_schedules, is_due, most_recent_occurrence_utc
 from src.worker import process_run
 from tests.conftest import (
     make_account,
     make_account_list,
     make_project,
+    make_run,
     make_scheduled_run,
     make_user,
     make_workspace,
@@ -270,6 +272,89 @@ async def test_delete_scheduled_run(session: AsyncSession) -> None:
         assert resp.json() == []
 
 
+async def test_scheduled_run_out_includes_skip_fields(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_scheduled_run(
+        session,
+        project=project,
+        created_by=owner,
+        last_skip_reason=ScheduledRunSkipReason.no_tokens,
+        last_skip_at=datetime(2026, 7, 22, 9, 0, tzinfo=UTC),
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/scheduled-runs", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        body = resp.json()[0]
+        assert body["last_skip_reason"] == "no_tokens"
+        assert body["last_skip_at"] is not None
+
+
+async def test_update_scheduled_run_clears_skip_reason(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    scheduled = await make_scheduled_run(
+        session,
+        project=project,
+        created_by=owner,
+        last_skip_reason=ScheduledRunSkipReason.no_accounts,
+        last_skip_at=datetime(2026, 7, 22, 9, 0, tzinfo=UTC),
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.patch(
+            f"/projects/{project.id}/scheduled-runs/{scheduled.id}",
+            json={"duration_days": 5, "days_of_week": [4], "time_of_day": "18:30:00"},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["last_skip_reason"] is None
+        assert body["last_skip_at"] is None
+
+
+async def test_list_skipped_schedules_scoped_to_workspace(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    other_owner, other_project = await _setup_project_with_accounts(session, n=1)
+    await make_scheduled_run(
+        session,
+        project=project,
+        created_by=owner,
+        last_skip_reason=ScheduledRunSkipReason.no_tokens,
+        last_skip_at=datetime(2026, 7, 22, 9, 0, tzinfo=UTC),
+    )
+    await make_scheduled_run(session, project=project, created_by=owner)  # never skipped
+    await make_scheduled_run(
+        session,
+        project=other_project,
+        created_by=other_owner,
+        last_skip_reason=ScheduledRunSkipReason.no_accounts,
+        last_skip_at=datetime(2026, 7, 22, 9, 0, tzinfo=UTC),
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get("/scheduled-runs/skipped", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body) == 1
+        assert body[0]["project_id"] == str(project.id)
+        assert body[0]["reason"] == "no_tokens"
+        assert body[0]["project_name"] == project.name
+
+
+async def test_list_skipped_schedules_empty_when_none(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_scheduled_run(session, project=project, created_by=owner)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get("/scheduled-runs/skipped", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+
 # --- cron dispatcher tests -------------------------------------------------------------
 
 
@@ -434,7 +519,7 @@ async def test_fire_due_schedules_skips_exhausted_token_balance(
 ) -> None:
     owner, project = await _setup_project_with_accounts(session, n=2)
     owner.token_balance = 0
-    await make_scheduled_run(
+    scheduled = await make_scheduled_run(
         session,
         project=project,
         created_by=owner,
@@ -448,6 +533,9 @@ async def test_fire_due_schedules_skips_exhausted_token_balance(
 
     assert fired == []
     mock_enqueue.assert_not_awaited()
+    await session.refresh(scheduled)
+    assert scheduled.last_skip_reason == ScheduledRunSkipReason.no_tokens
+    assert scheduled.last_skip_at is not None
 
 
 @patch("src.services.scheduled_runs.enqueue_run", new_callable=AsyncMock)
@@ -455,7 +543,7 @@ async def test_fire_due_schedules_skips_no_accounts(
     mock_enqueue: AsyncMock, session: AsyncSession
 ) -> None:
     owner, project = await _setup_project_with_accounts(session, n=0)
-    await make_scheduled_run(
+    scheduled = await make_scheduled_run(
         session,
         project=project,
         created_by=owner,
@@ -469,6 +557,82 @@ async def test_fire_due_schedules_skips_no_accounts(
 
     assert fired == []
     mock_enqueue.assert_not_awaited()
+    await session.refresh(scheduled)
+    assert scheduled.last_skip_reason == ScheduledRunSkipReason.no_accounts
+
+
+@patch("src.services.scheduled_runs.enqueue_run", new_callable=AsyncMock)
+async def test_fire_due_schedules_skips_daily_quota_exceeded(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=2)
+    for _ in range(get_settings().max_runs_per_user_per_day):
+        await make_run(session, project=project, requested_by=owner)
+    scheduled = await make_scheduled_run(
+        session,
+        project=project,
+        created_by=owner,
+        day_of_week=2,
+        time_of_day=time(9, 0),
+        timezone="UTC",
+    )
+    await session.commit()
+
+    fired = await fire_due_schedules(session, now=datetime(2026, 7, 22, 9, 2, tzinfo=UTC))
+
+    assert fired == []
+    mock_enqueue.assert_not_awaited()
+    await session.refresh(scheduled)
+    assert scheduled.last_skip_reason == ScheduledRunSkipReason.quota_exceeded
+
+
+@patch("src.services.scheduled_runs.enqueue_run", new_callable=AsyncMock)
+async def test_fire_due_schedules_once_mode_deactivates_on_skip(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=0)
+    scheduled = await make_scheduled_run(
+        session,
+        project=project,
+        created_by=owner,
+        mode=ScheduleMode.once,
+        day_of_week=2,
+        time_of_day=time(9, 0),
+        timezone="UTC",
+    )
+    await session.commit()
+
+    fired = await fire_due_schedules(session, now=datetime(2026, 7, 22, 9, 2, tzinfo=UTC))
+
+    assert fired == []
+    await session.refresh(scheduled)
+    assert scheduled.active is False
+    assert scheduled.last_skip_reason == ScheduledRunSkipReason.no_accounts
+
+
+@patch("src.services.scheduled_runs.enqueue_run", new_callable=AsyncMock)
+async def test_fire_due_schedules_clears_stale_skip_reason_on_success(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=2)
+    scheduled = await make_scheduled_run(
+        session,
+        project=project,
+        created_by=owner,
+        day_of_week=2,
+        time_of_day=time(9, 0),
+        timezone="UTC",
+        last_skip_reason=ScheduledRunSkipReason.no_tokens,
+        last_skip_at=datetime(2026, 7, 15, 9, 0, tzinfo=UTC),
+    )
+    await session.commit()
+
+    fired = await fire_due_schedules(session, now=datetime(2026, 7, 22, 9, 2, tzinfo=UTC))
+
+    assert len(fired) == 1
+    await session.refresh(scheduled)
+    assert scheduled.last_skip_reason is None
+    assert scheduled.last_skip_at is None
 
 
 @patch("src.services.scheduled_runs.enqueue_run", new_callable=AsyncMock)

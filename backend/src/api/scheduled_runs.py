@@ -10,10 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.db import get_session
-from src.models import ScheduledRun, ScheduleMode
+from src.models import Project, ScheduledRun, ScheduleMode
 from src.services.projects import ProjectNotFoundError, get_owned_project
+from src.services.workspace import get_user_workspace
 
 router = APIRouter(prefix="/projects/{project_id}/scheduled-runs", tags=["scheduled-runs"])
+# Cross-project — backs the header notification panel, which has no single project in scope.
+alerts_router = APIRouter(prefix="/scheduled-runs", tags=["scheduled-runs"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -80,6 +83,8 @@ class ScheduledRunOut(BaseModel):
     active: bool
     notify_enabled: bool
     last_run_id: uuid.UUID | None
+    last_skip_reason: str | None
+    last_skip_at: datetime | None
     created_at: datetime
 
     @classmethod
@@ -97,8 +102,20 @@ class ScheduledRunOut(BaseModel):
             active=scheduled_run.active,
             notify_enabled=scheduled_run.notify_enabled,
             last_run_id=scheduled_run.last_run_id,
+            last_skip_reason=scheduled_run.last_skip_reason.value
+            if scheduled_run.last_skip_reason
+            else None,
+            last_skip_at=scheduled_run.last_skip_at,
             created_at=scheduled_run.created_at,
         )
+
+
+class SkippedScheduleOut(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    project_name: str
+    reason: str
+    skipped_at: datetime
 
 
 async def _get_project(session: AsyncSession, user: CurrentUser, project_id: uuid.UUID):
@@ -176,6 +193,9 @@ async def update_scheduled_run(
     scheduled_run.timezone = body.timezone
     scheduled_run.active = body.active
     scheduled_run.notify_enabled = body.notify_enabled
+    # An edit is a fresh intent — don't keep showing a stale skip reason from before the change.
+    scheduled_run.last_skip_reason = None
+    scheduled_run.last_skip_at = None
     await session.commit()
     return ScheduledRunOut.from_model(scheduled_run)
 
@@ -188,3 +208,32 @@ async def delete_scheduled_run(
     scheduled_run = await _get_scheduled_run(session, project_id, scheduled_run_id)
     await session.delete(scheduled_run)
     await session.commit()
+
+
+@alerts_router.get("/skipped", response_model=list[SkippedScheduleOut])
+async def list_skipped_schedules(
+    user: CurrentUser, session: SessionDep
+) -> list[SkippedScheduleOut]:
+    """Every schedule across the user's projects whose most recent due tick was skipped (no
+    active accounts / no tokens / daily quota) — backs the header notification panel, since a
+    skip happens server-side on a cron tick with no browser session to push it to directly."""
+    workspace = await get_user_workspace(session, user)
+    rows = await session.execute(
+        select(ScheduledRun, Project.name)
+        .join(Project, Project.id == ScheduledRun.project_id)
+        .where(
+            Project.workspace_id == workspace.id,
+            ScheduledRun.last_skip_reason.is_not(None),
+        )
+        .order_by(ScheduledRun.last_skip_at.desc())
+    )
+    return [
+        SkippedScheduleOut(
+            id=scheduled_run.id,
+            project_id=scheduled_run.project_id,
+            project_name=project_name,
+            reason=scheduled_run.last_skip_reason.value,  # type: ignore[union-attr]
+            skipped_at=scheduled_run.last_skip_at,  # type: ignore[arg-type]
+        )
+        for scheduled_run, project_name in rows.all()
+    ]

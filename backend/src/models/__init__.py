@@ -4,7 +4,7 @@ from src.models.analysis_run import AnalysisRun, RunStatus, RunSummaryStatus
 from src.models.base import Base
 from src.models.content_item import ContentItem, ContentType
 from src.models.project import Project
-from src.models.scheduled_run import ScheduledRun, ScheduleMode
+from src.models.scheduled_run import ScheduledRun, ScheduledRunSkipReason, ScheduleMode
 from src.models.shortlist_item import ShortlistItem
 from src.models.usage_event import (
     KIND_APIFY_RESULT,
@@ -29,6 +29,7 @@ __all__ = [
     "ContentType",
     "Project",
     "ScheduledRun",
+    "ScheduledRunSkipReason",
     "ScheduleMode",
     "ShortlistItem",
     "KIND_APIFY_RESULT",

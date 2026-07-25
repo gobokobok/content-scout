@@ -10,6 +10,7 @@ import {
   Coins,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   Settings,
   FolderOpen,
@@ -17,9 +18,10 @@ import {
   ShieldCheck,
   LogOut,
 } from "lucide-react";
-import { getToken } from "@/lib/api";
+import { getToken, type ScheduledRunSkipReason } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useRunTracker, type TrackedRun } from "@/lib/run-tracker";
+import { useScheduleAlerts } from "@/lib/schedule-alerts";
 import { useHeader } from "@/lib/header-context";
 import { SideDrawer } from "@/components/ui/side-drawer";
 
@@ -30,6 +32,12 @@ const STATUS_KEYS = {
   done: "statusDone",
   failed: "statusFailed",
 } as const;
+
+const SKIP_REASON_KEYS: Record<ScheduledRunSkipReason, string> = {
+  no_accounts: "skipReasonNoAccounts",
+  no_tokens: "skipReasonNoTokens",
+  quota_exceeded: "skipReasonQuotaExceeded",
+};
 
 function RunStatusIcon({ status }: { status: TrackedRun["run"]["status"] }) {
   if (status === "done") return <CheckCircle className="h-4 w-4 shrink-0 text-success" />;
@@ -43,6 +51,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading, logout, telegramLogout, isTelegram } = useAuth();
   const { trackedRuns, unseenCount, markAllSeen } = useRunTracker();
+  const {
+    alerts: scheduleAlerts,
+    unseenCount: unseenAlertCount,
+    markAllSeen: markAllAlertsSeen,
+  } = useScheduleAlerts();
   const { centerTitle } = useHeader();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -91,12 +104,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             onClick={() => {
               setNotifOpen(true);
               markAllSeen();
+              markAllAlertsSeen();
             }}
             className="relative shrink-0 rounded-chip border border-border bg-card p-2.5 text-ink transition-colors active:scale-[0.98] hover:bg-bg"
             aria-label={t("notificationsLabel")}
           >
             <Bell className="h-4.5 w-4.5" />
-            {unseenCount > 0 && (
+            {unseenCount + unseenAlertCount > 0 && (
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" />
             )}
           </button>
@@ -177,9 +191,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <p className="text-base font-semibold text-ink">{t("notificationsLabel")}</p>
         </div>
         <div className="flex-1 overflow-y-auto py-1">
-          {trackedRuns.length === 0 && (
+          {trackedRuns.length === 0 && scheduleAlerts.length === 0 && (
             <p className="px-4 py-6 text-sm text-secondary">{t("noRuns")}</p>
           )}
+          {scheduleAlerts.map((alert) => (
+            <button
+              key={alert.id}
+              onClick={() => {
+                setNotifOpen(false);
+                router.push(`/projects/${alert.project_id}/scheduled`);
+              }}
+              className="flex w-full items-center gap-2.5 px-4 py-3 text-left hover:bg-bg transition-colors"
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0 text-danger" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-ink">{alert.project_name}</p>
+                <p className="text-xs text-secondary">{t(SKIP_REASON_KEYS[alert.reason])}</p>
+              </div>
+            </button>
+          ))}
           {trackedRuns.map((tracked) => (
             <button
               key={tracked.run.id}

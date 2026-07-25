@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { AuthProvider } from "@/lib/auth-context";
 import { RunTrackerProvider } from "@/lib/run-tracker";
+import { ScheduleAlertsProvider } from "@/lib/schedule-alerts";
 import { ToastProvider } from "@/components/ui/toast";
 import { HeaderProvider } from "@/lib/header-context";
 import "./globals.css";
@@ -47,9 +48,11 @@ export default async function RootLayout({
         <NextIntlClientProvider messages={messages}>
           <AuthProvider>
             <RunTrackerProvider>
-              <ToastProvider>
-                <HeaderProvider>{children}</HeaderProvider>
-              </ToastProvider>
+              <ScheduleAlertsProvider>
+                <ToastProvider>
+                  <HeaderProvider>{children}</HeaderProvider>
+                </ToastProvider>
+              </ScheduleAlertsProvider>
             </RunTrackerProvider>
           </AuthProvider>
         </NextIntlClientProvider>
