@@ -27,7 +27,12 @@ from src.models import (
     User,
 )
 from src.platforms import get_platform
-from src.services.deep_analysis import fail_deep_analysis
+from src.services.deep_analysis import (
+    InsufficientTokenBalanceError,
+    fail_deep_analysis,
+    start_deep_analysis,
+)
+from src.services.queue import enqueue_deep_analysis
 from src.services.deep_analysis_extraction import extract_deep_analysis_items
 from src.services.deep_analysis_synthesis import synthesize_report
 from src.services.run_summary import generate_run_summary
@@ -234,6 +239,21 @@ async def run_analysis(ctx: dict, run_id: str) -> None:
         if run is None:
             return
         await process_run(session, run)
+        # Auto-chain: a "deep_analysis" run type triggers an immediate deep analysis once the
+        # scrape finishes cleanly. Silently skips on insufficient token balance — the scrape
+        # result is preserved and can be analyzed manually from the analysis history.
+        if run.run_type == "deep_analysis" and run.status == RunStatus.done:
+            try:
+                user = await session.get(User, run.requested_by)
+                if user is not None:
+                    settings = get_settings()
+                    analysis = await start_deep_analysis(session, run, user, settings)
+                    await session.commit()
+                    await enqueue_deep_analysis(analysis.id)
+            except InsufficientTokenBalanceError:
+                pass
+            except Exception:  # noqa: BLE001
+                pass
 
 
 async def apply_profile_update(session: AsyncSession, account: Account, user_id: uuid.UUID) -> None:

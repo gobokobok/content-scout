@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
@@ -11,11 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
-from src.models import AnalysisRun, User
+from src.models import AnalysisRun, Project, ScheduledRun, User
 from src.services.estimator import estimate_run
 from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.queue import enqueue_run
 from src.services.runs import resolve_target_accounts
+from src.services.workspace import get_user_workspace
 
 router = APIRouter(tags=["runs"])
 
@@ -50,6 +51,7 @@ class RunRequestIn(BaseModel):
     duration_days: int | None = Field(default=None, ge=1, le=7)
     item_limit: int | None = Field(default=None, ge=1, le=50)
     account_ids: list[uuid.UUID] | None = None
+    run_type: Literal["stat_collection", "deep_analysis"] = "stat_collection"
 
     @model_validator(mode="after")
     def _exactly_one_scope(self) -> "RunRequestIn":
@@ -69,6 +71,7 @@ class EstimateOut(BaseModel):
 class RunOut(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
+    run_type: str
     status: str
     duration_days: int | None
     item_limit: int | None
@@ -93,6 +96,7 @@ class RunOut(BaseModel):
         return cls(
             id=run.id,
             project_id=run.project_id,
+            run_type=run.run_type,
             status=run.status.value,
             duration_days=run.duration_days,
             item_limit=run.item_limit,
@@ -111,6 +115,28 @@ class RunOut(BaseModel):
             summary_text=run.summary_text,
             summary_topics=run.summary_topics,
         )
+
+
+class RunFeedItem(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    project_name: str
+    run_type: str
+    status: str
+    progress_items: int
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class ScheduledFeedItem(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    project_name: str
+    run_type: str
+    mode: str
+    days_of_week: list[int]
+    active: bool
+    created_at: datetime
 
 
 async def _check_run_quota(session: AsyncSession, user_id: uuid.UUID) -> None:
@@ -187,6 +213,7 @@ async def create_run(
         item_limit=body.item_limit,
         account_ids=body.account_ids,
         estimated_cost_usd=est.estimated_cost_usd,
+        run_type=body.run_type,
     )
     session.add(run)
     await session.commit()
@@ -216,3 +243,59 @@ async def get_run(run_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> 
     except ProjectNotFoundError:
         raise RUN_NOT_FOUND from None
     return RunOut.from_model(run)
+
+
+# Cross-project feed — backs the unified home screen run feed.
+feed_router = APIRouter(tags=["runs"])
+
+
+@feed_router.get("/me/run-feed", response_model=list[RunFeedItem])
+async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedItem]:
+    """All AnalysisRuns across the user's projects, newest-first."""
+    workspace = await get_user_workspace(session, user)
+    rows = await session.execute(
+        select(AnalysisRun, Project.name)
+        .join(Project, Project.id == AnalysisRun.project_id)
+        .where(Project.workspace_id == workspace.id)
+        .order_by(AnalysisRun.created_at.desc())
+        .limit(200)
+    )
+    return [
+        RunFeedItem(
+            id=run.id,
+            project_id=run.project_id,
+            project_name=project_name,
+            run_type=run.run_type,
+            status=run.status.value,
+            progress_items=run.progress_items,
+            created_at=run.created_at,
+            finished_at=run.finished_at,
+        )
+        for run, project_name in rows.all()
+    ]
+
+
+@feed_router.get("/me/scheduled-run-feed", response_model=list[ScheduledFeedItem])
+async def get_scheduled_run_feed(user: CurrentUser, session: SessionDep) -> list[ScheduledFeedItem]:
+    """All ScheduledRuns across the user's projects, newest-first."""
+    workspace = await get_user_workspace(session, user)
+    rows = await session.execute(
+        select(ScheduledRun, Project.name)
+        .join(Project, Project.id == ScheduledRun.project_id)
+        .where(Project.workspace_id == workspace.id)
+        .order_by(ScheduledRun.created_at.desc())
+        .limit(200)
+    )
+    return [
+        ScheduledFeedItem(
+            id=sr.id,
+            project_id=sr.project_id,
+            project_name=project_name,
+            run_type=sr.run_type,
+            mode=sr.mode.value,
+            days_of_week=sorted(sr.days_of_week),
+            active=sr.active,
+            created_at=sr.created_at,
+        )
+        for sr, project_name in rows.all()
+    ]

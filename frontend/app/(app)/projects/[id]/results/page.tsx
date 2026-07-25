@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { useProject } from "@/lib/project-context";
 import { RUN_STATUS_DOT, RUN_STATUS_PILL } from "@/lib/format";
-import { RunDialog } from "../run-dialog";
+import { RunDialog } from "@/components/run-dialog";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);

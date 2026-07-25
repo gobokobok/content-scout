@@ -13,7 +13,7 @@ import {
   AlertTriangle,
   Loader2,
   Settings,
-  FolderOpen,
+  Users,
   ChevronRight,
   ShieldCheck,
   LogOut,
@@ -144,12 +144,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </Link>
         <nav className="flex flex-1 flex-col overflow-y-auto py-2">
           <Link
-            href="/"
+            href="/competitors"
             onClick={() => setMenuOpen(false)}
             className="flex items-center gap-3 px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
           >
-            <FolderOpen className="h-4.5 w-4.5 text-secondary" />
-            {t("projects")}
+            <Users className="h-4.5 w-4.5 text-secondary" />
+            {t("competitors")}
           </Link>
           <Link
             href="/usage"

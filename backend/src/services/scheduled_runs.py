@@ -100,6 +100,7 @@ async def _fire_one(session: AsyncSession, schedule: ScheduledRun) -> AnalysisRu
     run = AnalysisRun(
         project_id=schedule.project_id,
         requested_by=schedule.created_by,
+        run_type=schedule.run_type,
         duration_days=schedule.duration_days,
         item_limit=schedule.item_limit,
         account_ids=schedule.account_ids,

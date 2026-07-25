@@ -103,6 +103,7 @@ export interface EstimateResponse {
 export interface RunResponse {
   id: string;
   project_id: string;
+  run_type: "stat_collection" | "deep_analysis";
   status: "pending" | "scraping" | "summarizing" | "done" | "failed";
   duration_days: number | null;
   item_limit: number | null;
@@ -122,10 +123,33 @@ export interface RunResponse {
   summary_topics: string[] | null;
 }
 
+export interface RunFeedItem {
+  id: string;
+  project_id: string;
+  project_name: string;
+  run_type: "stat_collection" | "deep_analysis";
+  status: "pending" | "scraping" | "summarizing" | "done" | "failed";
+  progress_items: number;
+  created_at: string;
+  finished_at: string | null;
+}
+
+export interface ScheduledFeedItem {
+  id: string;
+  project_id: string;
+  project_name: string;
+  run_type: "stat_collection" | "deep_analysis";
+  mode: "once" | "recurring";
+  days_of_week: number[];
+  active: boolean;
+  created_at: string;
+}
+
 export interface RunRequest {
   duration_days?: number;
   item_limit?: number;
   account_ids?: string[];
+  run_type?: "stat_collection" | "deep_analysis";
 }
 
 export interface ContentItemResponse {
@@ -154,6 +178,7 @@ export type ScheduledRunSkipReason = "no_accounts" | "no_tokens" | "quota_exceed
 export interface ScheduledRunResponse {
   id: string;
   project_id: string;
+  run_type: "stat_collection" | "deep_analysis";
   account_ids: string[] | null;
   duration_days: number | null;
   item_limit: number | null;
@@ -181,6 +206,7 @@ export interface ScheduledRunRequest {
   duration_days?: number;
   item_limit?: number;
   account_ids?: string[];
+  run_type?: "stat_collection" | "deep_analysis";
   mode: ScheduleMode;
   days_of_week: number[];
   time_of_day: string;
@@ -508,6 +534,8 @@ export const api = {
     request<RunSummaryResponse[]>(
       `/me/runs?from=${from.toISOString()}&to=${to.toISOString()}`,
     ),
+  getRunFeed: () => request<RunFeedItem[]>("/me/run-feed"),
+  getScheduledRunFeed: () => request<ScheduledFeedItem[]>("/me/scheduled-run-feed"),
   getAdminUsage: (from: Date, to: Date) =>
     request<AdminUsageResponse>(
       `/admin/usage?from=${from.toISOString()}&to=${to.toISOString()}`,

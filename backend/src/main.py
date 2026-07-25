@@ -13,6 +13,7 @@ from src.api.export import router as export_router
 from src.api.history import router as history_router
 from src.api.items import router as items_router
 from src.api.projects import router as projects_router
+from src.api.runs import feed_router as runs_feed_router
 from src.api.runs import router as runs_router
 from src.api.scheduled_runs import alerts_router as scheduled_run_alerts_router
 from src.api.scheduled_runs import router as scheduled_runs_router
@@ -40,6 +41,7 @@ app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(accounts_router)
 app.include_router(runs_router)
+app.include_router(runs_feed_router)
 app.include_router(deep_analyses_router)
 app.include_router(scheduled_runs_router)
 app.include_router(scheduled_run_alerts_router)

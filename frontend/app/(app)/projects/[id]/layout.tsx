@@ -5,7 +5,6 @@ import { usePathname, useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiError, type ProjectResponse } from "@/lib/api";
-import { ProjectBottomNav } from "@/components/ui/bottom-nav";
 import { tabChipClass } from "@/components/ui";
 import { useToast } from "@/components/ui/toast";
 import { ProjectContext } from "@/lib/project-context";
@@ -51,37 +50,32 @@ export default function ProjectShellLayout({ children }: { children: React.React
 
   return (
     <ProjectContext.Provider value={{ project, isArchived }}>
-      <>
-        <main className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4 pb-20 md:pb-4">
-          {notFound && <p className="text-sm text-danger">{t("notFound")}</p>}
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
+        {notFound && <p className="text-sm text-danger">{t("notFound")}</p>}
 
-          {!notFound && isArchived && (
-            <span className="w-fit rounded-chip border border-border bg-bg px-2 py-0.5 text-xs font-medium text-secondary">
-              {t("archivedBadge")}
-            </span>
-          )}
+        {!notFound && isArchived && (
+          <span className="w-fit rounded-chip border border-border bg-bg px-2 py-0.5 text-xs font-medium text-secondary">
+            {t("archivedBadge")}
+          </span>
+        )}
 
-          {/* Desktop tab bar — hidden on mobile */}
-          <nav className="hidden gap-2 md:flex">
-            {TABS.map((tab) => {
-              const href = `/projects/${params.id}/${tab.segment}`;
-              const active =
-                pathname?.startsWith(href) ||
-                (tab.segment === "results" && pathname?.includes("/runs/"));
-              return (
-                <Link key={tab.segment} href={href} className={tabChipClass(!!active)}>
-                  {t(tab.labelKey)}
-                </Link>
-              );
-            })}
-          </nav>
+        {/* Tab bar */}
+        <nav className="flex gap-2">
+          {TABS.map((tab) => {
+            const href = `/projects/${params.id}/${tab.segment}`;
+            const active =
+              pathname?.startsWith(href) ||
+              (tab.segment === "results" && pathname?.includes("/runs/"));
+            return (
+              <Link key={tab.segment} href={href} className={tabChipClass(!!active)}>
+                {t(tab.labelKey)}
+              </Link>
+            );
+          })}
+        </nav>
 
-          {children}
-        </main>
-
-        {/* Mobile bottom tab bar */}
-        <ProjectBottomNav projectId={params.id} />
-      </>
+        {children}
+      </main>
     </ProjectContext.Provider>
   );
 }

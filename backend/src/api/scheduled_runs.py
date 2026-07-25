@@ -36,6 +36,7 @@ class ScheduledRunIn(BaseModel):
     duration_days: int | None = Field(default=None, ge=1, le=7)
     item_limit: int | None = Field(default=None, ge=1, le=50)
     account_ids: list[uuid.UUID] | None = None
+    run_type: Literal["stat_collection", "deep_analysis"] = "stat_collection"
     # once: exactly one day (its next occurrence fires, then the schedule deactivates).
     # recurring: 1-7 days, fires every selected day indefinitely (E14-S6).
     mode: Literal["once", "recurring"] = "recurring"
@@ -73,6 +74,7 @@ class ScheduledRunIn(BaseModel):
 class ScheduledRunOut(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
+    run_type: str
     account_ids: list[uuid.UUID] | None
     duration_days: int | None
     item_limit: int | None
@@ -92,6 +94,7 @@ class ScheduledRunOut(BaseModel):
         return cls(
             id=scheduled_run.id,
             project_id=scheduled_run.project_id,
+            run_type=scheduled_run.run_type,
             account_ids=scheduled_run.account_ids,
             duration_days=scheduled_run.duration_days,
             item_limit=scheduled_run.item_limit,
@@ -146,6 +149,7 @@ async def create_scheduled_run(
     scheduled_run = ScheduledRun(
         project_id=project_id,
         created_by=user.id,
+        run_type=body.run_type,
         account_ids=body.account_ids,
         duration_days=body.duration_days,
         item_limit=body.item_limit,
@@ -184,6 +188,7 @@ async def update_scheduled_run(
 ) -> ScheduledRunOut:
     await _get_project(session, user, project_id)
     scheduled_run = await _get_scheduled_run(session, project_id, scheduled_run_id)
+    scheduled_run.run_type = body.run_type
     scheduled_run.account_ids = body.account_ids
     scheduled_run.duration_days = body.duration_days
     scheduled_run.item_limit = body.item_limit
