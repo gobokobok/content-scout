@@ -25,7 +25,7 @@ Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS 
 
 **2026-07-22 execution plan — locked, extends the MVP:** Sprint 7 shipped (see DONE.md) plus two untracked-but-real feature batches now backfilled as stories: E12-S3 (mobile results controls consolidation + polish) and E3-S7 (run scope: last-N-publications mode). New epics E13–E16 (Details/nav restructure, scheduled runs, run-detail Summary+Publications tabs, Analysis teaser) are locked for **Sprint 8** (E13, E16, E15 — reshape the IA) and **Sprint 9** (E14 — needs new arq cron infra). E8-S3 (Telegram Stars subscription) is re-scoped per D30 (single 1990₽/2000-token tier) and slotted for **Sprint 10**, after the new IA lands so its entry point has a home.
 
-**2026-07-25 brainstorm session — new epic drafted, not yet scheduled:** E17 (Run Deep Analysis) fleshes out E16-S1's "Разбор запуска" teaser card into a real paid product — nine stories, E17-S1..S9, drafted below. `Sprint: unassigned`, proposed for **Sprint 11** (after Sprint 10's E8-S3, so it has a working token-purchase flow behind it — though note the token *deduction* mechanism this epic reuses is already live, per `worker.py`/`api/runs.py`, independent of E8-S3 shipping). Comment scraping is dual-vendor (Bright Data primary, Apify fallback — D32); the token pricing multiplier is deliberately left unset pending a real pilot run's `usage_events` (D35) rather than assumed from the base run's flat per-item rate. See D32–D35.
+**2026-07-25 brainstorm session — new epic drafted, not yet scheduled:** E17 (Run Deep Analysis) fleshes out E16-S1's "Разбор запуска" teaser card into a real paid product — nine stories, E17-S1..S9, drafted below. `Sprint: unassigned`, proposed for **Sprint 11** (after Sprint 10's E8-S3, so it has a working token-purchase flow behind it — though note the token *deduction* mechanism this epic reuses is already live, per `worker.py`/`api/runs.py`, independent of E8-S3 shipping). Comment scraping is dual-vendor (Apify's `apidojo/instagram-comments-scraper-api` primary, Bright Data fallback — D32, revised same-day after directly evaluating the actor); the token pricing multiplier is deliberately left unset pending a real pilot run's `usage_events` (D35) rather than assumed from the base run's flat per-item rate. See D32–D35.
 
 ---
 
@@ -2099,21 +2099,22 @@ backend/src/models/deep_analysis.py (new) + migration, backend/src/config.py, ba
 ### Handover
 —
 
-## [E17-S2] Comment scraping: Bright Data primary, Apify fallback
+## [E17-S2] Comment scraping: Apify `apidojo` actor primary, Bright Data fallback
 **Epic:** Run Deep Analysis
 **Sprint:** unassigned (proposed Sprint 11)
 **Status:** backlog
 **Priority:** high
 **Depends on:** E17-S1
 ### Goal
-Fetch up to `deep_analysis_comments_per_post` comments per analyzed publication, trying Bright Data's Instagram Scraper API first and falling back automatically to Apify's official `instagram-comment-scraper` if Bright Data fails — the first application of the "external services get a documented fallback vendor" pattern (D32).
+Fetch up to `deep_analysis_comments_per_post` comments per analyzed publication, trying Apify's `apidojo/instagram-comments-scraper-api` actor first (via the already-pinned `apify-client` — no new dependency for this leg) and falling back automatically to Bright Data's Instagram Scraper API if the primary actor fails a given post — the first application of the "external services get a documented fallback vendor" pattern (D32), with Bright Data specifically chosen for the fallback because it's a different company's infrastructure, not just a second actor on the same Apify platform.
 ### Acceptance Criteria
 - [ ] `fetch_comments(item, limit) -> list[RawComment]` lives in a new narrow service, not the `Platform` protocol — this is single-platform, dual-vendor, scoped only to deep analysis, per D32's note that this doesn't generalize to a new abstraction
-- [ ] Bright Data client wrapped with timeout + retry (per CONVENTIONS.md); on exhausted retries or an error response, falls back to the Apify comment actor for that same post rather than failing the item
+- [ ] Primary call uses `apidojo/instagram-comments-scraper-api` (`startUrls` = the item's post URL); wrapped with timeout + retry (per CONVENTIONS.md). On exhausted retries or an error response, falls back to a new Bright Data client for that same post rather than failing the item
+- [ ] Primary vendor's pricing has two components (post-query event + per-comment overage past the first 15) — model as two `usage_events` rows per post so the ledger reflects the real billing shape, not a single linear rate
 - [ ] Per-post failure (both vendors fail) doesn't fail the whole analysis — post is skipped, degrades gracefully (ties into E17-S9)
-- [ ] Whichever vendor actually served each fetch is recorded distinctly in `usage_events` (`brightdata_comment_result` / `apify_comment_result` kinds, each with their own `unit_cost_usd`) so real per-vendor cost and fallback rate are visible in the ledger
-- [ ] Verify empirically (spike, documented in Changelog) whether either vendor returns comments in engagement order; if not, sort client-side by `likes` before truncating to the cap
-- [ ] Integration tests against recorded fixtures for both vendors (no live Bright Data/Apify calls in CI, per CONVENTIONS.md)
+- [ ] Whichever vendor actually served each fetch is recorded distinctly in `usage_events` (`apify_comment_result` for the primary actor's two-part cost, `brightdata_comment_result` for fallback fetches) so real per-vendor cost and fallback rate are visible in the ledger
+- [ ] Verify empirically (spike, documented in Changelog) whether the primary actor's per-comment "ranking status" field correlates with engagement order; if comments aren't effectively engagement-sorted, sort client-side by `likes` before truncating to the cap
+- [ ] Integration tests against recorded fixtures for both vendors (no live Apify/Bright Data calls in CI, per CONVENTIONS.md)
 ### Definition of Done
 - [ ] All AC checked
 - [ ] Tests written and passing
@@ -2122,11 +2123,11 @@ Fetch up to `deep_analysis_comments_per_post` comments per analyzed publication,
 - [ ] DONE.md updated
 - [ ] BACKLOG.md updated
 ### Smoke test
-Run a deep analysis on DEV against a real project — comments are fetched for its posts; temporarily invalidating the Bright Data token confirms the Apify fallback path serves the same request successfully.
+Run a deep analysis on DEV against a real project — comments are fetched for its posts via the primary actor; temporarily breaking that actor call (e.g. invalid actor id) confirms the Bright Data fallback path serves the same request successfully.
 ### Files to read
-CLAUDE.md, DECISIONS.md (D2, D32, D34), backend/src/platforms/instagram.py (retry/timeout pattern to mirror), backend/src/models/usage_event.py, ENV.md
+CLAUDE.md, DECISIONS.md (D2, D32, D34), backend/src/platforms/instagram.py (retry/timeout pattern to mirror, and confirms `apify-client` usage), backend/src/models/usage_event.py, ENV.md
 ### Files to create or modify
-backend/src/services/comment_scraper.py (new), backend/src/config.py, backend/tests/test_comment_scraper.py, backend/tests/fixtures/brightdata_comments_sample.json, backend/tests/fixtures/apify_comments_sample.json, ENV.md, DECISIONS.md
+backend/src/services/comment_scraper.py (new), backend/src/config.py, backend/tests/test_comment_scraper.py, backend/tests/fixtures/apify_comments_sample.json, backend/tests/fixtures/brightdata_comments_sample.json, ENV.md, DECISIONS.md
 ### Handover
 —
 
