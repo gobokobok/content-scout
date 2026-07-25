@@ -17,12 +17,15 @@ Epics:
 - **E14 Scheduled Runs** — recurring analysis on a day-of-week + time schedule, new arq cron infra, Telegram summary notification on completion
 - **E15 Run Detail View** — opening a run from Details shows Summary (AI overview of what competitors post about, top viral topics, top 5 posts) and Publications tabs
 - **E16 Analysis Teaser** — placeholder page for future paid deep-analysis products (competitor/run/publication deep-dive, script rewrite)
+- **E17 Run Deep Analysis** — paid add-on fulfilling E16-S1's "Разбор запуска" teaser card: on-demand deep analysis of one completed run's publications + comments (topic/format/hook frequency vs. virality, comment sentiment/complaints/praises/unanswered-questions), producing a two-tab Статистика/Рекомендации report; metered in tokens at a markup over internal cost (D26, D35)
 
 Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled). Mobile card layout for tables is now scheduled (E12-S2, Sprint 6 — supersedes the horizontal-scroll-only clause of D16 per D28).
 
 **2026-07-21 reprioritization — tuning toward a single-blogger MVP:** E2-S3, E5-S3, E5-S4 (competitor follower count + comments column), E5-S5 (virality score, new) are next up; E8-S6 (Telegram Mini App bootstrap fix, new) is critical and blocking the pilot. Everything else currently `backlog` (E3-S3, E3-S4, E3-S5, E7-S3, E8-S4, E9-S1, E9-S2, E10-S1, E10-S2, E10-S3, E11-S1, E11-S2, E11-S3) is explicitly deferred post-MVP — see each story's `Sprint:` line for why.
 
 **2026-07-22 execution plan — locked, extends the MVP:** Sprint 7 shipped (see DONE.md) plus two untracked-but-real feature batches now backfilled as stories: E12-S3 (mobile results controls consolidation + polish) and E3-S7 (run scope: last-N-publications mode). New epics E13–E16 (Details/nav restructure, scheduled runs, run-detail Summary+Publications tabs, Analysis teaser) are locked for **Sprint 8** (E13, E16, E15 — reshape the IA) and **Sprint 9** (E14 — needs new arq cron infra). E8-S3 (Telegram Stars subscription) is re-scoped per D30 (single 1990₽/2000-token tier) and slotted for **Sprint 10**, after the new IA lands so its entry point has a home.
+
+**2026-07-25 brainstorm session — new epic drafted, not yet scheduled:** E17 (Run Deep Analysis) fleshes out E16-S1's "Разбор запуска" teaser card into a real paid product — nine stories, E17-S1..S9, drafted below. `Sprint: unassigned`, proposed for **Sprint 11** (after Sprint 10's E8-S3, so it has a working token-purchase flow behind it — though note the token *deduction* mechanism this epic reuses is already live, per `worker.py`/`api/runs.py`, independent of E8-S3 shipping). Comment scraping is dual-vendor (Bright Data primary, Apify fallback — D32); the token pricing multiplier is deliberately left unset pending a real pilot run's `usage_events` (D35) rather than assumed from the base run's flat per-item rate. See D32–D35.
 
 ---
 
@@ -2066,3 +2069,265 @@ frontend/app/(app)/projects/[id]/analysis/page.tsx (new, repurposes create/page.
 - No backend changes, no new dependencies, no ENV vars.
 - No frontend unit test suite exists in this repo (CI gate is typecheck + eslint per CONVENTIONS.md); both clean (`tsc --noEmit`, `next lint`). Verified visually via a temporary `frontend/app/dev-preview/analysis` scratch route (imported the real page component directly, no mock props needed since it takes none), screenshotted at desktop (1600px) and 375px, deleted before commit.
 **Smoke test:** DEFERRED — needs a real DEV project open on the Анализ tab to confirm the live cards render with no console errors (same deferral pattern as the rest of this project's verification).
+
+## [E17-S1] Deep analysis schema, pricing config, and token-charge plumbing
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (proposed Sprint 11, after E8-S3 — 2026-07-25 brainstorm session)
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E16-S1
+### Goal
+The data model, config, and token-deduction plumbing a deep analysis needs to exist and be paid for, before any scraping or Claude work happens.
+### Acceptance Criteria
+- [ ] `deep_analyses` table: id, run_id, project_id, requested_by, status (`pending`/`extracting`/`synthesizing`/`done`/`failed`), tokens_charged, report_stats (JSONB), report_recommendations (JSONB), error_message, created_at, completed_at — Alembic migration
+- [ ] Config: `deep_analysis_token_multiplier` (placeholder value, explicitly flagged non-final per D35) and `deep_analysis_comments_per_post` (default 25, per D34)
+- [ ] The start endpoint (wired in E17-S5) checks `user.token_balance >= items_count * deep_analysis_token_multiplier` before enqueueing and deducts up front, reusing the `insufficient_token_balance` guard pattern already in `api/runs.py`
+- [ ] A deep analysis can only be started against a run with `status=done`
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV, attempt to start a deep analysis with insufficient balance — rejected with the same Russian error pattern as run creation; with sufficient balance, tokens deduct immediately and a `pending` row appears.
+### Files to read
+CLAUDE.md, DECISIONS.md (D26, D32–D35), backend/src/models/analysis_run.py, backend/src/api/runs.py, backend/src/models/user.py
+### Files to create or modify
+backend/src/models/deep_analysis.py (new) + migration, backend/src/config.py, backend/tests/test_deep_analysis_model.py
+### Handover
+—
+
+## [E17-S2] Comment scraping: Bright Data primary, Apify fallback
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (proposed Sprint 11)
+**Status:** backlog
+**Priority:** high
+**Depends on:** E17-S1
+### Goal
+Fetch up to `deep_analysis_comments_per_post` comments per analyzed publication, trying Bright Data's Instagram Scraper API first and falling back automatically to Apify's official `instagram-comment-scraper` if Bright Data fails — the first application of the "external services get a documented fallback vendor" pattern (D32).
+### Acceptance Criteria
+- [ ] `fetch_comments(item, limit) -> list[RawComment]` lives in a new narrow service, not the `Platform` protocol — this is single-platform, dual-vendor, scoped only to deep analysis, per D32's note that this doesn't generalize to a new abstraction
+- [ ] Bright Data client wrapped with timeout + retry (per CONVENTIONS.md); on exhausted retries or an error response, falls back to the Apify comment actor for that same post rather than failing the item
+- [ ] Per-post failure (both vendors fail) doesn't fail the whole analysis — post is skipped, degrades gracefully (ties into E17-S9)
+- [ ] Whichever vendor actually served each fetch is recorded distinctly in `usage_events` (`brightdata_comment_result` / `apify_comment_result` kinds, each with their own `unit_cost_usd`) so real per-vendor cost and fallback rate are visible in the ledger
+- [ ] Verify empirically (spike, documented in Changelog) whether either vendor returns comments in engagement order; if not, sort client-side by `likes` before truncating to the cap
+- [ ] Integration tests against recorded fixtures for both vendors (no live Bright Data/Apify calls in CI, per CONVENTIONS.md)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run a deep analysis on DEV against a real project — comments are fetched for its posts; temporarily invalidating the Bright Data token confirms the Apify fallback path serves the same request successfully.
+### Files to read
+CLAUDE.md, DECISIONS.md (D2, D32, D34), backend/src/platforms/instagram.py (retry/timeout pattern to mirror), backend/src/models/usage_event.py, ENV.md
+### Files to create or modify
+backend/src/services/comment_scraper.py (new), backend/src/config.py, backend/tests/test_comment_scraper.py, backend/tests/fixtures/brightdata_comments_sample.json, backend/tests/fixtures/apify_comments_sample.json, ENV.md, DECISIONS.md
+### Handover
+—
+
+## [E17-S3] Per-item extraction pass (Haiku)
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (proposed Sprint 11)
+**Status:** backlog
+**Priority:** high
+**Depends on:** E17-S2
+### Goal
+One Claude Haiku call per analyzed item that tags content signals (topic, format, hook type, CTA presence) and, from E17-S2's fetched comments, extracts sentiment plus the top complaints/praises/unanswered questions/notable phrases — structured JSON, not prose.
+### Acceptance Criteria
+- [ ] Prompt documented in `docs/PROMPTS.md`; model is `claude-haiku-4-5` per D33
+- [ ] Reuses `summarizer.py`'s batching/concurrency/retry scaffolding and D29's cost policy (512px images where a cover is used, Message Batches API for batches ≥20 items)
+- [ ] Output stored per-item so E17-S4 can consume it without re-querying comments (new `deep_analysis_items` table, one row per content_item per deep_analysis)
+- [ ] A failed/unparseable extraction for one item doesn't fail the analysis — degrades to metrics-only for that item, matching the fallback-tolerant pattern used throughout this pipeline
+- [ ] `claude_input_tokens`/`claude_output_tokens` usage_events written per D12
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV, a deep analysis's extraction phase completes for all items in a finished run; usage_events gain the expected input/output token pairs.
+### Files to read
+CLAUDE.md, docs/PROMPTS.md, backend/src/services/summarizer.py, DECISIONS.md (D29, D33)
+### Files to create or modify
+backend/src/models/deep_analysis.py (add `deep_analysis_items` table + migration), backend/src/services/deep_analysis_extraction.py (new), docs/PROMPTS.md, backend/tests/test_deep_analysis_extraction.py
+### Handover
+—
+
+## [E17-S4] Synthesis pass — full report (Sonnet)
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (proposed Sprint 11)
+**Status:** backlog
+**Priority:** high
+**Depends on:** E17-S3
+### Goal
+One Claude Sonnet call per deep analysis, fed the run's metrics (`services/metrics.py`) plus every item's E17-S3 extract, producing the full two-tab report as typed JSON: Статистика (topic frequency vs. virality, format/hook/CTA breakdown, cadence, comment-sentiment summary) and Рекомендации (ranked content ideas, do-more/do-less, hook templates, FAQ pack, posting-schedule suggestion, steal-this shortlist).
+### Acceptance Criteria
+- [ ] Prompt documented in `docs/PROMPTS.md`; model is `claude-sonnet-5` per D33 — the only non-Haiku call in this pipeline, matching D7's "stronger model reserved for the synthesis-type call" precedent
+- [ ] Structured JSON output (tool-use/structured-output, not free text) matching a schema the frontend can render directly — mirrors E15-S1's parse-and-store pattern but richer
+- [ ] Result stored on `deep_analyses.report_stats`/`report_recommendations`; `status` moves `extracting` → `synthesizing` → `done`/`failed`
+- [ ] A failed or unparseable synthesis call sets `status=failed` with a Russian error message, never leaves the row stuck
+- [ ] `claude_input_tokens`/`claude_output_tokens` usage_events written per D12
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+A DEV deep analysis reaches `done` with a plausible Russian report in both sections; a forced malformed-response case lands in `failed`, not stuck in `synthesizing`.
+### Files to read
+CLAUDE.md, docs/PROMPTS.md, backend/src/services/run_summary.py (closest existing single-call-synthesis pattern), DECISIONS.md (D33)
+### Files to create or modify
+backend/src/services/deep_analysis_synthesis.py (new), backend/src/worker.py (new arq job, thin-wrapper/core split per E2-S3's established pattern), docs/PROMPTS.md, backend/tests/test_deep_analysis_synthesis.py
+### Handover
+—
+
+## [E17-S5] Deep Analysis API
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (proposed Sprint 11)
+**Status:** backlog
+**Priority:** high
+**Depends on:** E17-S4
+### Goal
+Endpoints to start a deep analysis, list a project's history, and poll/read one report — the same workspace-scoped ownership pattern as every other project-scoped router.
+### Acceptance Criteria
+- [ ] `POST /projects/{id}/runs/{runId}/deep-analyses` — validates run is `done`, checks/deducts token balance (E17-S1), enqueues the worker pipeline (E17-S2→S4)
+- [ ] `GET /projects/{id}/deep-analyses` — history list, most recent first
+- [ ] `GET /deep-analyses/{id}` — status while in progress, full report once `done`
+- [ ] All routes 404 for foreign-workspace/missing ids via `get_owned_project`, matching every existing router
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV: start a deep analysis, poll it to `done`, list it in project history — all scoped correctly, a second user's project returns 404.
+### Files to read
+CLAUDE.md, backend/src/services/projects.py, backend/src/api/runs.py
+### Files to create or modify
+backend/src/api/deep_analyses.py (new), backend/src/services/queue.py, backend/tests/test_deep_analyses_api.py
+### Handover
+—
+
+## [E17-S6] Analysis entry point: history + new-analysis picker
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (proposed Sprint 11)
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E17-S5
+### Goal
+Wires E16-S1's disabled «Разбор запуска» card to a real page: a history list of past deep analyses plus a way to start a new one against a completed run.
+### Acceptance Criteria
+- [ ] «Разбор запуска» card in `/projects/[id]/analysis` becomes clickable, opens a history list (StatusPill, date, run reference, «Открыть» on done rows) with a lime «Новый анализ» pill
+- [ ] New-analysis flow reuses the unified Sheet component (DESIGN_SYSTEM §4/§6): pick a completed run (date, item count), see the token cost (mono, lime-soft row, same visual pattern as the existing «Новый анализ» sheet's СТОИМОСТЬ section) before confirming
+- [ ] Confirming starts the job and shows an in-progress state; the other two teaser cards (Разбор конкурента, Разбор публикации) remain disabled, untouched
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV/375px, tap «Разбор запуска», start a new analysis against a finished run, see it appear in-progress then move to done in the history list.
+### Files to read
+CLAUDE.md, DECISIONS.md (D31), docs/DESIGN_SYSTEM.md, frontend/app/(app)/projects/[id]/analysis/page.tsx, frontend/components/ui/bottom-sheet.tsx
+### Files to create or modify
+frontend/app/(app)/projects/[id]/analysis/page.tsx, frontend/components/deep-analysis-sheet.tsx (new), frontend/lib/api.ts, frontend/messages/ru.json
+### Handover
+—
+
+## [E17-S7] Report page: Статистика tab
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (proposed Sprint 11)
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E17-S6
+### Goal
+The Статистика half of the deep analysis report — what competitors post about, how often, and how well it performs.
+### Acceptance Criteria
+- [ ] New route `/projects/[id]/deep-analyses/[analysisId]`, Segmented control (Статистика/Рекомендации) per DESIGN_SYSTEM §4
+- [ ] Topic frequency-vs-virality as a ranked card list with heat badges (not a scatter chart — stays consistent with the card-not-chart mobile mandate)
+- [ ] Format/hook/CTA breakdown, posting cadence, comment-sentiment summary with representative quote cards
+- [ ] Gracefully renders the degraded state from E17-S9 (comment-thin runs) without looking broken
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV/375px, open a done deep analysis — Статистика tab renders plausible topic/format/comment data with no console errors.
+### Files to read
+CLAUDE.md, docs/DESIGN_SYSTEM.md, frontend/components/results-cards.tsx (heat badge pattern to reuse)
+### Files to create or modify
+frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx (new), frontend/lib/api.ts, frontend/messages/ru.json
+### Handover
+—
+
+## [E17-S8] Report page: Рекомендации tab
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (proposed Sprint 11)
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E17-S7
+### Goal
+The Рекомендации half of the report — the actionable output the add-on is actually sold on.
+### Acceptance Criteria
+- [ ] Ranked content-idea cards (topic, format, hook, one-line why) driven by `report_recommendations`
+- [ ] Do-more/do-less list, hook templates, FAQ pack (unanswered questions from comments), posting-schedule suggestion
+- [ ] Steal-this shortlist reuses `results-cards` visuals for the linked posts (deep-links into the run's Publications tab)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV/375px, the Рекомендации tab renders all sections with plausible content and working links into Publications.
+### Files to read
+CLAUDE.md, docs/DESIGN_SYSTEM.md, frontend/components/results-cards.tsx
+### Files to create or modify
+frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, frontend/messages/ru.json
+### Handover
+—
+
+## [E17-S9] Thin-comment-data fallback and partial pricing
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (proposed Sprint 11, stretch — do after real DEV usage data shows how often this fires)
+**Status:** backlog
+**Priority:** low
+**Depends on:** E17-S2, E17-S4
+### Goal
+When a run's comments come back sparse or empty (disabled/restricted comments, both vendors failing per-post), the report degrades to content-layer-only insights instead of a broken/empty comment section, and the customer isn't charged the full "with comments" price for a comments-empty result.
+### Acceptance Criteria
+- [ ] Below a configurable comment-coverage threshold, `report_stats`/`report_recommendations` omit comment-derived sections rather than rendering them empty
+- [ ] Tokens charged reflect actual coverage (e.g. a reduced multiplier when comment coverage falls below the threshold) rather than the full rate always assumed at E17-S1's up-front deduction
+- [ ] Frontend (E17-S7/S8) shows a clear Russian note when comment-derived sections were skipped, not a silent gap
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+A DEV deep analysis against a project with comments disabled on most posts completes with a graceful degraded report and a reduced token charge.
+### Files to read
+CLAUDE.md, DECISIONS.md (D34, D35), backend/src/services/comment_scraper.py, backend/src/api/deep_analyses.py
+### Files to create or modify
+backend/src/services/deep_analysis_synthesis.py, backend/src/api/deep_analyses.py, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx
+### Handover
+—
