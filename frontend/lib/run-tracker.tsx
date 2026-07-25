@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { api, type RunResponse } from "./api";
+import { useAuth } from "./auth-context";
 
 const STORAGE_KEY = "content-scout-tracked-runs";
 const POLL_INTERVAL_MS = 3000;
@@ -43,6 +44,7 @@ function loadStoredRefs(): StoredRunRef[] {
 }
 
 export function RunTrackerProvider({ children }: { children: React.ReactNode }) {
+  const { refreshUser } = useAuth();
   const [runs, setRuns] = useState<Map<string, TrackedRun>>(new Map());
   const runsRef = useRef(runs);
   runsRef.current = runs;
@@ -105,6 +107,7 @@ export function RunTrackerProvider({ children }: { children: React.ReactNode }) 
           }
         }),
       ).then((updates) => {
+        let anyJustFinished = false;
         setRuns((prev) => {
           const next = new Map(prev);
           for (const updated of updates) {
@@ -112,14 +115,18 @@ export function RunTrackerProvider({ children }: { children: React.ReactNode }) 
             const existing = next.get(updated.id);
             if (!existing) continue;
             const justFinished = !TERMINAL.has(existing.run.status) && TERMINAL.has(updated.status);
+            if (justFinished) anyJustFinished = true;
             next.set(updated.id, { ...existing, run: updated, seen: justFinished ? false : existing.seen });
           }
           return next;
         });
+        // A run finishing may have spent tokens — keep the header's balance current
+        // without waiting for the user to open the usage page.
+        if (anyJustFinished) void refreshUser();
       });
     }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshUser]);
 
   const track = useCallback((run: RunResponse, projectId: string, projectName: string) => {
     setRuns((prev) => {

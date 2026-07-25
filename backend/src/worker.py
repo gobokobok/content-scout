@@ -194,7 +194,7 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         await session.commit()
         requesting_user = requesting_user or await session.get(User, run.requested_by)
         if requesting_user and run.notify_on_complete:
-            await notify_run_complete(run, requesting_user)
+            await notify_run_complete(run, requesting_user, session)
 
     except asyncio.CancelledError:
         run.status = RunStatus.failed
@@ -204,7 +204,7 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         try:
             requesting_user = await session.get(User, run.requested_by)
             if requesting_user and run.notify_on_complete:
-                await notify_run_complete(run, requesting_user)
+                await notify_run_complete(run, requesting_user, session)
         except Exception:  # noqa: BLE001
             pass
         raise
@@ -217,7 +217,7 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         try:
             requesting_user = await session.get(User, run.requested_by)
             if requesting_user and run.notify_on_complete:
-                await notify_run_complete(run, requesting_user)
+                await notify_run_complete(run, requesting_user, session)
         except Exception:  # noqa: BLE001
             pass
 

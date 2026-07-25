@@ -21,7 +21,7 @@ All environment variables. No values here — see `.env.example` for the templat
 | TELEGRAM_BOT_TOKEN | Bot token from @BotFather (Sprint 6: E8-S1/S2/S5; api + worker) | ✔ | ✔ | ✔ (separate bot) |
 | TELEGRAM_BOT_USERNAME | Bot @handle without @ — returned by `GET /auth/telegram/config`; shows Login Widget on /login when set | ✔ | ✔ | ✔ |
 | TELEGRAM_WEBHOOK_SECRET | Random string (≥32 chars) checked against `X-Telegram-Bot-Api-Secret-Token` on `/telegram/webhook` (api) | ✔ | ✔ | ✔ (distinct) |
-| WEB_URL | Public frontend URL sent as the Mini App URL in bot messages and the chat menu button | http://localhost:3000 | https://web-dev-99e3.up.railway.app | PROD frontend URL |
+| WEB_URL | Public frontend URL sent as the Mini App URL in bot messages and the chat menu button — **must be set on both `api` and `worker`** (`notify_run_complete` runs in the worker; missing there silently falls back to the `http://localhost:3000` code default, producing a dead link in the completion DM — this happened in both DEV and PROD until 2026-07-25) | http://localhost:3000 | https://web-dev-99e3.up.railway.app | PROD frontend URL |
 | REGISTRATION_INVITE_CODE | When set, /auth/register requires this code (E7-S4). Empty = open registration | optional | ✔ | ✔ |
 | MAX_RUNS_PER_USER_PER_DAY | Per-user daily run quota (E7-S4, default 10) | optional | ✔ | ✔ |
 

@@ -694,7 +694,7 @@ async def test_scheduled_run_completion_notifies_telegram(
         await process_run(session, run)
 
     mock_notify.assert_awaited_once()
-    notified_run, notified_user = mock_notify.await_args.args
+    notified_run, notified_user, _notified_session = mock_notify.await_args.args
     assert notified_run.id == run.id
     assert notified_user.id == owner.id
 
