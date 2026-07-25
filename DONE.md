@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E17 hotfix 2] Second DEV smoke-test pass — synthesis call rejected by real API
+**Completed:** 2026-07-25
+**Handover:**
+- With the extraction retry fixed, a second real run got past extraction (all 4 items `done`) but still failed, now at synthesis, with the generic `_UNPARSEABLE_MESSAGE_RU` fallback. `synthesize_report`'s `except Exception` swallowed the real error with no log line — same silent-failure shape as the first bug, just one stage further downstream.
+- Diagnosed by replaying the exact call (`deep_analysis_synthesis.SYSTEM_PROMPT` + `REPORT_TOOL`, forced `tool_choice`) against the real Anthropic API using the DEV worker's own key (via `railway variables`): `BadRequestError: temperature is deprecated for this model`. `claude-sonnet-5` rejects the `temperature` param entirely — Haiku (used for extraction/summaries) doesn't have this restriction, which is why only the synthesis call was ever affected. Confirmed the fix by re-running the same replay without `temperature`: real `tool_use` response came back correctly.
+- Fix: removed `temperature=0.3` from the one `messages.create` call in `deep_analysis_synthesis.py`.
+- Also added `logger.exception(...)` in that `except` block (stdlib `logging`, matching the convention already used in `telegram_notify.py`/`telegram_webhook.py`) — this failure mode has now cost two rounds of blind DB-querying-plus-manual-API-replay to diagnose; a log line makes the next one visible in `railway logs` directly.
+- Separately fixed a raw-key toast (`Analysis.genericError` rendered untranslated) spotted in the same screenshot — the `Analysis` i18n namespace was missing a `genericError` key that `analysis/page.tsx`'s error handler references.
+- Full suite still 282 passed, ruff/mypy/tsc/next-lint/next-build all clean.
+- Deployed to DEV only. Re-test pending.
+**Smoke test:** user-driven, in progress across two rounds now.
+**Promoted to backlog:** none new.
+
 ## [E17 hotfix] First real DEV smoke test — 3 bugs found and fixed
 **Completed:** 2026-07-25
 **Handover:**

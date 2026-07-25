@@ -1,3 +1,4 @@
+import logging
 import math
 import uuid
 from collections.abc import Sequence
@@ -24,6 +25,8 @@ from src.models import (
     User,
 )
 from src.services.metrics import bucket_virality, virality_baseline_subquery, virality_ratio
+
+logger = logging.getLogger(__name__)
 
 _TYPE_LABELS_RU = {
     ContentType.reel: "Reels",
@@ -286,7 +289,6 @@ async def synthesize_report(
         response = await _client.messages.create(  # type: ignore[call-overload]
             model=settings.deep_analysis_synthesis_model,
             max_tokens=4096,
-            temperature=0.3,
             system=SYSTEM_PROMPT,
             tools=[REPORT_TOOL],
             tool_choice={"type": "tool", "name": "submit_deep_analysis_report"},
@@ -338,4 +340,5 @@ async def synthesize_report(
             )
         )
     except Exception:  # noqa: BLE001 — never fails the caller (mirrors generate_run_summary)
+        logger.exception("deep analysis synthesis failed for analysis_id=%s", analysis.id)
         await _fail(analysis, _UNPARSEABLE_MESSAGE_RU)
