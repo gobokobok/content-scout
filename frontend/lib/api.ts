@@ -284,6 +284,78 @@ export type ItemSortField =
   | "engagement_rate"
   | "virality";
 
+// E17: Run Deep Analysis
+export type DeepAnalysisStatus = "pending" | "extracting" | "synthesizing" | "done" | "failed";
+
+export interface DeepAnalysisTopicStat {
+  topic: string;
+  frequency: number;
+  avg_virality: "high" | "medium" | "low" | "unknown";
+}
+
+export interface DeepAnalysisFormatStat {
+  format: string;
+  count: number;
+}
+
+export interface DeepAnalysisHookStat {
+  hook_type: string;
+  count: number;
+}
+
+export interface DeepAnalysisStats {
+  topics: DeepAnalysisTopicStat[];
+  formats: DeepAnalysisFormatStat[];
+  hooks: DeepAnalysisHookStat[];
+  cta_share: number | null;
+  cadence_summary: string;
+  sentiment_summary: string;
+  representative_quotes: string[];
+  // E17-S9: set when comment coverage across the run's items was too thin to trust
+  // comment-derived sections — those sections are stripped server-side when this is true.
+  comment_coverage_degraded?: boolean;
+}
+
+export interface DeepAnalysisContentIdea {
+  topic: string;
+  format: string;
+  hook: string;
+  why: string;
+}
+
+export interface DeepAnalysisStealThisItem {
+  content_item_id: string;
+  reason: string;
+}
+
+export interface DeepAnalysisRecommendations {
+  content_ideas: DeepAnalysisContentIdea[];
+  do_more: string[];
+  do_less: string[];
+  hook_templates: string[];
+  faq_pack: string[];
+  posting_schedule: string;
+  steal_this: DeepAnalysisStealThisItem[];
+  comment_coverage_degraded?: boolean;
+}
+
+export interface DeepAnalysisResponse {
+  id: string;
+  run_id: string;
+  project_id: string;
+  status: DeepAnalysisStatus;
+  tokens_charged: number;
+  error_message: string | null;
+  report_stats: DeepAnalysisStats | null;
+  report_recommendations: DeepAnalysisRecommendations | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface DeepAnalysisEstimateResponse {
+  tokens: number;
+}
+
 export const api = {
   getRegisterConfig: () =>
     request<{ require_invite: boolean }>("/auth/register/config"),
@@ -373,6 +445,18 @@ export const api = {
       method: "DELETE",
     }),
   listSkippedSchedules: () => request<SkippedScheduleResponse[]>("/scheduled-runs/skipped"),
+  listDeepAnalyses: (projectId: string) =>
+    request<DeepAnalysisResponse[]>(`/projects/${projectId}/deep-analyses`),
+  estimateDeepAnalysis: (projectId: string, runId: string) =>
+    request<DeepAnalysisEstimateResponse>(
+      `/projects/${projectId}/runs/${runId}/deep-analyses/estimate`,
+    ),
+  createDeepAnalysis: (projectId: string, runId: string) =>
+    request<DeepAnalysisResponse>(`/projects/${projectId}/runs/${runId}/deep-analyses`, {
+      method: "POST",
+    }),
+  getDeepAnalysis: (analysisId: string) =>
+    request<DeepAnalysisResponse>(`/deep-analyses/${analysisId}`),
   getTopVirality: (runId: string, limit = 5) =>
     request<TopViralityResponse>(`/runs/${runId}/top-virality?limit=${limit}`),
   listRunItems: (

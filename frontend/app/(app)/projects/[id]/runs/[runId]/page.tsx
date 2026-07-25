@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, Film, ImageIcon, Images } from "lucide-react";
 import {
@@ -48,9 +48,13 @@ export default function RunDetailPage() {
   const tCards = useTranslations("ResultsCards");
   const params = useParams<{ id: string; runId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { addToast } = useToast();
 
-  const [tab, setTab] = useState<Tab>("summary");
+  // Deep-linkable from outside (e.g. E17-S8's "steal this" cards): /runs/[runId]?tab=publications
+  const [tab, setTab] = useState<Tab>(
+    searchParams.get("tab") === "publications" ? "publications" : "summary",
+  );
   const [run, setRun] = useState<RunResponse | null>(null);
   const [topVirality, setTopVirality] = useState<ContentItemResponse[] | null>(null);
   const [selectedItem, setSelectedItem] = useState<ContentItemResponse | null>(null);

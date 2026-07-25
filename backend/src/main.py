@@ -8,6 +8,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from src.api.accounts import router as accounts_router
 from src.api.admin import router as admin_router
 from src.api.auth import router as auth_router
+from src.api.deep_analyses import router as deep_analyses_router
 from src.api.export import router as export_router
 from src.api.history import router as history_router
 from src.api.items import router as items_router
@@ -39,6 +40,7 @@ app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(accounts_router)
 app.include_router(runs_router)
+app.include_router(deep_analyses_router)
 app.include_router(scheduled_runs_router)
 app.include_router(scheduled_run_alerts_router)
 app.include_router(items_router)

@@ -202,6 +202,8 @@ async def test_schema_has_exactly_expected_tables(session: AsyncSession) -> None
         "shortlist_items",
         "usage_events",
         "scheduled_runs",
+        "deep_analyses",
+        "deep_analysis_items",
         "alembic_version",
     }
     tables = {

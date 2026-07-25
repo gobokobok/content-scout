@@ -42,7 +42,7 @@ Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f
 
 ## Current sprint and active story
 
-- **Sprint:** 9 complete (E14 scheduled runs — schema/migration, CRUD API + arq cron dispatcher, Scheduled Runs page, Run-now/Schedule choice, Telegram notification — all shipped 2026-07-22, see SPRINT.md). Sprints 1–8 also complete. **Sprint 10 (E8-S3 monetization, D30) is next up and no longer blocked.** DEV smoke tests across Sprints 6–9 are still deferred pending a real-device pass (26 outstanding as of Sprint 9's close — consider a dedicated integration/smoke-test story before Sprint 10 ships to production).
+- **Sprint:** 9 complete (E14 scheduled runs — schema/migration, CRUD API + arq cron dispatcher, Scheduled Runs page, Run-now/Schedule choice, Telegram notification — all shipped 2026-07-22, see SPRINT.md). Sprints 1–8 also complete. **E17 (Run Deep Analysis, all 9 stories) shipped 2026-07-25, out of order, per direct user request** — comment scraping (dual-vendor, D32), Haiku extraction + Sonnet synthesis (D33), the Разбор запуска history/report UI, thin-coverage degrade + partial refund. **Sprint 10 (E8-S3 monetization, D30) is still next up and no longer blocked.** DEV smoke tests across Sprints 6–9 and E17 are still deferred pending a real-device/live-vendor pass (consider a dedicated integration/smoke-test story before Sprint 10 ships to production).
 
 ## Hard constraints
 

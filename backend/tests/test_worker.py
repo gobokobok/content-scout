@@ -12,14 +12,16 @@ from src.models import (
     KIND_CLAUDE_OUTPUT_TOKENS,
     AccountStatus,
     ContentItem,
+    DeepAnalysisStatus,
     RunStatus,
     UsageEvent,
 )
-from src.worker import process_run
+from src.worker import process_deep_analysis, process_run
 from tests.conftest import (
     make_account,
     make_account_list,
     make_content_item,
+    make_deep_analysis,
     make_project,
     make_run,
 )
@@ -333,3 +335,55 @@ async def test_process_run_duplicate_insert_is_noop(session: AsyncSession) -> No
         (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
     )
     assert second_count == first_count  # No duplicates
+
+
+# ---------------------------------------------------------------------------
+# E17-S4: deep analysis lifecycle
+# ---------------------------------------------------------------------------
+
+
+async def test_process_deep_analysis_transitions_extracting_synthesizing_done(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
+    run = await make_run(session, project=project, duration_days=1)
+    await make_content_item(session, run=run, account=account)
+    analysis = await make_deep_analysis(session, run=run)
+    await session.commit()
+
+    seen_statuses: list[DeepAnalysisStatus] = []
+
+    async def _fake_extract(session, deep_analysis_id, items, *, user_id, **_kwargs) -> None:
+        seen_statuses.append(analysis.status)
+
+    async def _fake_synthesize(session, analysis_arg, *, user_id, **_kwargs) -> None:
+        seen_statuses.append(analysis_arg.status)
+        analysis_arg.status = DeepAnalysisStatus.done
+
+    with (
+        patch("src.worker.extract_deep_analysis_items", side_effect=_fake_extract),
+        patch("src.worker.synthesize_report", side_effect=_fake_synthesize),
+    ):
+        await process_deep_analysis(session, analysis)
+
+    assert seen_statuses == [DeepAnalysisStatus.extracting, DeepAnalysisStatus.synthesizing]
+    assert analysis.status == DeepAnalysisStatus.done
+
+
+async def test_process_deep_analysis_exception_marks_failed(session: AsyncSession) -> None:
+    project = await make_project(session)
+    run = await make_run(session, project=project, duration_days=1)
+    analysis = await make_deep_analysis(session, run=run)
+    await session.commit()
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("extraction exploded")
+
+    with patch("src.worker.extract_deep_analysis_items", side_effect=_boom):
+        await process_deep_analysis(session, analysis)
+
+    assert analysis.status == DeepAnalysisStatus.failed
+    assert analysis.error_message == "extraction exploded"
+    assert analysis.completed_at is not None

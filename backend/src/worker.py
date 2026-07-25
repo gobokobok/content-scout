@@ -19,12 +19,16 @@ from src.models import (
     AccountStatus,
     AnalysisRun,
     ContentItem,
+    DeepAnalysis,
+    DeepAnalysisStatus,
     PlatformSlug,
     RunStatus,
     UsageEvent,
     User,
 )
 from src.platforms import get_platform
+from src.services.deep_analysis_extraction import extract_deep_analysis_items
+from src.services.deep_analysis_synthesis import synthesize_report
 from src.services.run_summary import generate_run_summary
 from src.services.runs import resolve_target_accounts
 from src.services.scheduled_runs import fire_due_schedules
@@ -275,8 +279,46 @@ async def check_scheduled_runs(ctx: dict) -> None:
         await fire_due_schedules(session)
 
 
+async def process_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -> None:
+    """Core deep-analysis lifecycle logic, isolated from session/queue plumbing for
+    testability (mirrors `process_run`): extracting (E17-S3) -> synthesizing (E17-S4) ->
+    done/failed. Tokens are already deducted up front by `services/deep_analysis.py:
+    start_deep_analysis` before this job is even enqueued."""
+    try:
+        analysis.status = DeepAnalysisStatus.extracting
+        await session.commit()
+
+        items = list(
+            await session.scalars(select(ContentItem).where(ContentItem.run_id == analysis.run_id))
+        )
+        await extract_deep_analysis_items(
+            session, analysis.id, items, user_id=analysis.requested_by
+        )
+        await session.commit()
+
+        analysis.status = DeepAnalysisStatus.synthesizing
+        await session.commit()
+
+        await synthesize_report(session, analysis, user_id=analysis.requested_by)
+        await session.commit()
+    except Exception as exc:  # noqa: BLE001 — worker boundary: never let a deep analysis hang
+        analysis.status = DeepAnalysisStatus.failed
+        analysis.error_message = str(exc)[:1000]
+        analysis.completed_at = datetime.now(UTC)
+        await session.commit()
+
+
+async def run_deep_analysis(ctx: dict, deep_analysis_id: str) -> None:
+    sessionmaker = get_sessionmaker()
+    async with sessionmaker() as session:
+        analysis = await session.get(DeepAnalysis, uuid.UUID(deep_analysis_id))
+        if analysis is None:
+            return
+        await process_deep_analysis(session, analysis)
+
+
 class WorkerSettings:
-    functions = [run_analysis, fetch_account_profile]
+    functions = [run_analysis, fetch_account_profile, run_deep_analysis]
     cron_jobs = [cron(check_scheduled_runs, minute=set(range(0, 60, 5)), second=0)]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     job_timeout = get_settings().worker_job_timeout_secs

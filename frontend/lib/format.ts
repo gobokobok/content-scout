@@ -1,6 +1,7 @@
-import type { RunResponse } from "@/lib/api";
+import type { DeepAnalysisResponse, RunResponse } from "@/lib/api";
 
 type RunStatus = RunResponse["status"];
+type DeepAnalysisStatus = DeepAnalysisResponse["status"];
 
 // Shared "dot + soft chip" treatment for run status, used on Details' last-run
 // card, the Результаты run list, and anywhere else a run status is shown.
@@ -18,6 +19,25 @@ export const RUN_STATUS_DOT: Record<RunStatus, string> = {
   pending: "bg-accent",
   scraping: "bg-accent",
   summarizing: "bg-accent",
+};
+
+// Same "dot + soft chip" treatment as RUN_STATUS_PILL/DOT, for E17's deep-analysis status
+// (pending/extracting/synthesizing map to the same in-progress accent chip as a run's
+// pending/scraping/summarizing — the report page cares about done/failed, not which sub-step).
+export const DEEP_ANALYSIS_STATUS_PILL: Record<DeepAnalysisStatus, string> = {
+  done: "bg-success-soft text-success",
+  failed: "bg-danger-soft text-danger",
+  pending: "bg-accent-soft text-accent",
+  extracting: "bg-accent-soft text-accent",
+  synthesizing: "bg-accent-soft text-accent",
+};
+
+export const DEEP_ANALYSIS_STATUS_DOT: Record<DeepAnalysisStatus, string> = {
+  done: "bg-success",
+  failed: "bg-danger",
+  pending: "bg-accent",
+  extracting: "bg-accent",
+  synthesizing: "bg-accent",
 };
 
 export function formatNumber(n: number | null): string {

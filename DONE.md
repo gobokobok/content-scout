@@ -2,6 +2,117 @@
 
 Completed stories land here, newest first. Format:
 
+## [E17-S9] Thin-comment-data fallback and partial pricing
+**Completed:** 2026-07-25
+**Handover:**
+- Coverage measured in `synthesize_report` from the already-loaded `DeepAnalysisItem` rows: share with `comments_analyzed_count > 0`. Below `deep_analysis_comment_coverage_threshold` (new config, default 0.5): `_strip_comment_derived_sections` mutates the response **after** it comes back from Claude (clears `sentiment_summary`/`representative_quotes`/`faq_pack`, sets `comment_coverage_degraded: true` on both `stats`/`recommendations`) — a post-hoc strip guarantees no fabricated content regardless of what the model actually produced, stronger than a prompt instruction alone.
+- `_apply_thin_coverage_pricing` refunds `tokens_charged - ceil(tokens_charged * deep_analysis_thin_coverage_multiplier)` (new config, default 0.5) onto `user.token_balance` and rewrites `tokens_charged`. Has to be a refund-after-the-fact, not a smaller up-front charge, since E17-S1 charges at creation time before comment coverage is knowable.
+- `api/deep_analyses.py` needed no code change — confirmed, not skipped — since `DeepAnalysisOut` already passes the JSONB fields straight through.
+- Frontend: new optional `comment_coverage_degraded` flag on both report types; one shared `AlertTriangle` warning banner above the segmented control when set, covering both tabs from one check. `next build` re-run clean.
+- **Test-fixture bug found and fixed** (not production): tests shared one mutable `_VALID_REPORT` dict across the file; the degraded test's in-place mutation was leaking into later tests. Fixed with `copy.deepcopy` in the test's response builder — production is unaffected since the real SDK returns a fresh object per call.
+- `docs/PROMPTS.md` gained a note on the strip/refund happening outside the prompt itself.
+- 2 new backend tests; ruff/mypy clean; full suite 281 passed (was 279). `tsc`/`eslint`/`next build` clean.
+- **This closes the entire E17 epic (E17-S1→S9, 9/9 stories)**, done back-to-back in one session per direct user request.
+**Smoke test:** DEFERRED — same established pattern; needs a real DEV project with comments disabled/restricted on most posts.
+**Promoted to backlog:** `GET /items/{id}` gap (from E17-S8); reading a real pilot run's `usage_events` to set the real token multipliers per D35
+
+## [E17-S8] Report page: Рекомендации tab
+**Completed:** 2026-07-25
+**Handover:**
+- Content-idea cards, do-more/do-less, hook templates, FAQ pack, posting-schedule all render as conditional sections in the same report page as E17-S7's Статистика tab.
+- **Deliberate scope deviation, logged not hidden:** the AC's "steal-this shortlist reuses `results-cards` visuals" would mean full `ContentCard`s, but `steal_this` only carries `{content_item_id, reason}` and there's no `GET /items/{id}` endpoint anywhere in this codebase to fetch one item by id — building that was out of this story's frontend-only file list. Shipped a lightweight reason-only card that deep-links into the run's Publications tab instead (the real `ContentCard` is one tap away there).
+- That deep-link needed a real fix: `runs/[runId]/page.tsx`'s tab state was local-only, so `?tab=publications` did nothing until this story added `useSearchParams()` as the initial-state source.
+- Ran a full `next build` (not just typecheck/lint) specifically to confirm the new `useSearchParams()` usage doesn't hit Next's static-prerender Suspense requirement — confirmed fine since the route is dynamic (`ƒ`), not static.
+- `tsc --noEmit`/`next lint`/`next build` all clean.
+- **This closes the E17 epic's core report UI** (E17-S1→S8). E17-S9 (thin-comment-data fallback) is the remaining stretch story.
+**Smoke test:** DEFERRED — per CLAUDE.md, typecheck/eslint/build only. Needs a real DEV/375px pass including the steal-this deep-link.
+**Promoted to backlog:** a real `GET /items/{id}` endpoint would let steal-this render full `ContentCard` visuals as originally specced
+
+## [E17-S7] Report page: Статистика tab
+**Completed:** 2026-07-25
+**Handover:**
+- New route `deep-analyses/[analysisId]/page.tsx` — polls the report every 5s while in progress, then renders the `Segmented` Статистика/Рекомендации control once `done`.
+- Topics render as a ranked card list with heat badges (`VIRALITY_STYLE`, reused from `results-cards.tsx`) — not a chart, per the mobile card mandate; `avg_virality: "unknown"` renders no badge. Formats/hooks as chip counts, CTA share as a mono percentage, cadence/sentiment as prose, representative quotes as quote rows.
+- Every section is independently conditional on having data — generic graceful-empty handling now; E17-S9 will add an explicit thin-coverage banner once the backend can flag that case specifically.
+- Рекомендации tab is a placeholder pending E17-S8 (next in this session).
+- `tsc --noEmit`/`next lint` clean.
+**Smoke test:** DEFERRED — per CLAUDE.md, typecheck/eslint only. Needs a real DEV/375px pass on a done analysis.
+**Promoted to backlog:** none
+
+## [E17-S6] Analysis entry point: history + new-analysis picker
+**Completed:** 2026-07-25
+**Handover:**
+- `analysis/page.tsx` gained a local `view: "teaser" | "history"` state instead of a new route — clicking «Разбор запуска» (the only enabled teaser card) switches to a history list in place. Rows use the existing `StatusPill` dot+chip pattern (`RUN_STATUS_PILL`/`DOT`), mirrored as new `DEEP_ANALYSIS_STATUS_PILL`/`DOT` in `lib/format.ts`. A `done` row links to `/projects/[id]/deep-analyses/[analysisId]` (E17-S7's route).
+- **Deviation logged, not silently claimed:** the AC's "unified Sheet component (DESIGN_SYSTEM §4/§6)" refers to a not-yet-built consolidated `BottomSheet` — §6 itself lists 4 separate implementations still needing unification, an app-wide item out of this story's scope. `deep-analysis-sheet.tsx` follows the established `run-dialog.tsx` self-contained-modal pattern instead, visually matching the spec.
+- In-progress state: new analysis prepended to the list on creation; a 5s poll (mirrors `schedule-alerts.tsx`'s lightweight pattern, not `run-tracker.tsx`'s full context) refreshes while any row isn't `done`/`failed`.
+- Cost preview uses E17-S5's `estimate` endpoint. `ru.json` gained a `DeepAnalysis` namespace (also pre-added S7/S8's key set in the same edit).
+- `tsc --noEmit`/`next lint` clean (no frontend test suite in this repo, per CONVENTIONS.md).
+**Smoke test:** DEFERRED — per CLAUDE.md, frontend changes verified via typecheck/eslint only. Needs a real DEV/375px pass.
+**Promoted to backlog:** consolidate the four bottom-sheet implementations into one shared component (pre-existing DESIGN_SYSTEM §6 item)
+
+## [E17-S5] Deep Analysis API
+**Completed:** 2026-07-25
+**Handover:**
+- New `backend/src/api/deep_analyses.py` — `POST /projects/{project_id}/runs/{run_id}/deep-analyses` calls E17-S1's `start_deep_analysis` (400 `run_not_done` / 402 `insufficient_token_balance` on its two exceptions, same shape `api/runs.py:create_run` uses), commits, then enqueues the E17-S4 worker pipeline via new `services/queue.py:enqueue_deep_analysis`. `GET /projects/{id}/deep-analyses` (history, most recent first) and `GET /deep-analyses/{id}` (status/report) are plain reads through `get_owned_project`, same 404-collapses-existence pattern as every other router.
+- `DeepAnalysisOut` exposes `report_stats`/`report_recommendations` as raw JSONB passthrough — E17-S6/S7/S8's frontend renders directly, no reshaping.
+- Router registered in `main.py`. 7 new tests (`test_deep_analyses_api.py`) covering create (success/run-not-done/insufficient-balance/foreign-run-404), list ordering, and get (done-with-report / missing-or-foreign-404).
+- **This closes E17's backend half (E17-S1→S5)** — the full pipeline is reachable end-to-end from a real HTTP request. E17-S6 onward is frontend.
+- **Changelog addition (found necessary during E17-S6):** read-only `GET /projects/{project_id}/runs/{run_id}/deep-analyses/estimate` (reuses `compute_tokens_charged` without deducting) — S6's new-analysis sheet needs a pre-charge token number, which `POST .../deep-analyses` can't provide since it only returns `tokens_charged` after charging.
+- ruff/mypy clean; full suite 279 passed (was 271).
+**Smoke test:** DEFERRED — same established pattern; needs a real DEV project with a finished run to start/poll/list a deep analysis and confirm cross-user 404s.
+**Promoted to backlog:** none
+
+## [E17-S4] Synthesis pass — full report (Sonnet)
+**Completed:** 2026-07-25
+**Handover:**
+- New `backend/src/services/deep_analysis_synthesis.py:synthesize_report` — queries `done`-status `DeepAnalysisItem` rows joined to `ContentItem`/`Account`/the run's virality baseline (`services/metrics.py`), makes one forced tool-use call (`REPORT_TOOL` schema) to `deep_analysis_synthesis_model` (`claude-sonnet-5`, D33's only non-Haiku call). The tool's `.input` is already a parsed dict — no `json.loads` needed, which is what "structured output, not free text" meant.
+- Never raises: zero `done` items, an API exception, a missing `tool_use` block, or a tool input missing `stats`/`recommendations` all set `status=failed` + a Russian `error_message` + `completed_at` via an internal `_fail()` helper — mirrors `generate_run_summary`'s never-raises contract.
+- `worker.py` gained the thin-wrapper/core split (mirrors `process_run`/`run_analysis`): `process_deep_analysis` drives `extracting` → E17-S3's extraction → `synthesizing` → this story's synthesis, with an outer try/except marking `failed` on any uncaught exception. `run_deep_analysis` is the registered arq job — **not yet enqueued anywhere**, that's E17-S5.
+- `docs/PROMPTS.md` gained the synthesis prompt + tool schema.
+- 6 new tests (`test_deep_analysis_synthesis.py`) + 2 new tests (`test_worker.py`'s `process_deep_analysis` status transitions and exception handling).
+- **For E17-S5:** `process_deep_analysis`/`run_deep_analysis` are ready to enqueue; the endpoint just needs `start_deep_analysis` (E17-S1) then `enqueue_job("run_deep_analysis", ...)`.
+- ruff/mypy clean (one `# type: ignore[call-overload]` on the tool-use call, matching the existing SDK-typing-gap precedent in `summarizer.py`); full suite 271 passed (was 263).
+**Smoke test:** DEFERRED — same established pattern; needs a real DEV deep analysis to confirm a plausible report and that a forced malformed response lands in `failed`.
+**Promoted to backlog:** none
+
+## [E17-S3] Per-item extraction pass (Haiku)
+**Completed:** 2026-07-25
+**Handover:**
+- `deep_analysis_items` table (migration `d2e3f4a5b6c7`): one row per `(deep_analysis_id, content_item_id)`, `status` (`done`/`failed`), content-signal columns (`topic`/`content_format`/`hook_type`/`has_cta`) plus comment-derived columns (`sentiment`/`complaints`/`praises`/`questions`/`notable_phrases`), and `comments_analyzed_count` (the coverage signal E17-S9 will threshold on).
+- New `backend/src/services/deep_analysis_extraction.py:extract_deep_analysis_items` — fetches each item's comments via E17-S2's `fetch_comments`, then reuses `summarizer.py`'s concurrent-semaphore/Message-Batches split verbatim (same `summary_batch_threshold`/`summary_concurrency` config — no new D29 threshold to drift). Deliberately imports `summarizer.py`'s private `_fetch_image_block` rather than duplicating the resize/skip-large-caption logic.
+- Output is `json.loads`-parsed (structured JSON per the AC, not the run-summary's regex protocol). Important distinction covered by two separate tests: an **unparseable response is still billed** (the API call happened), but **exhausted retries are not** (no successful call at all).
+- `docs/PROMPTS.md` gained the extraction prompt; `tests/conftest.py` gained `make_deep_analysis()`.
+- 6 new tests. Migration verified with a real upgrade/downgrade/upgrade round-trip. ruff/mypy clean; full suite 263 passed (was 257).
+- **For E17-S4:** `DeepAnalysisItem` rows for a `deep_analysis_id` are the complete synthesis input — no comment re-fetch needed.
+**Smoke test:** DEFERRED — same established pattern; needs a real DEV deep analysis to confirm extraction completes and usage_events gain the expected pairs.
+**Promoted to backlog:** none
+
+## [E17-S2] Comment scraping: Apify `apidojo` actor primary, Bright Data fallback
+**Completed:** 2026-07-25
+**Handover:**
+- New `backend/src/services/comment_scraper.py`: `ApifyCommentsClient` (primary, `apidojo/instagram-comments-scraper-api`, `startUrls`/`resultsLimit` input, 3-attempt retry mirroring `platforms/instagram.py`) and `BrightDataCommentsClient` (fallback, Bright Data's trigger→poll→snapshot Dataset API shape). Top-level `fetch_comments(session, item, user_id, settings, apify_client=None, brightdata_client=None)` tries primary then fallback and never raises — both failing returns `[]` with no usage_events written (E17-S9's degrade path).
+- `usage_events` gains `apify_comment_result`/`brightdata_comment_result` kinds. A successful primary fetch always writes a flat post-query row, plus an overage row only when the comment count returned exceeds the 15-included threshold (D32). A successful fallback fetch writes one `brightdata_comment_result` row.
+- **D36 (new):** comments are always sorted client-side by `likes` descending before truncating to the cap. The AC's empirical spike (does `apidojo`'s "ranking status" field already reflect engagement order?) wasn't run live — no Apify/Bright Data network access in this sandbox — but sorting is correct either way, so it shipped as the default rather than blocking on sandbox access it doesn't have.
+- New config (`apify_comments_actor_id`, `apify_comment_query_cost_usd`, `apify_comment_included_comments`, `apify_comment_overage_cost_usd`, `brightdata_api_token`, `brightdata_api_base_url`, `brightdata_ig_comments_dataset_id`, `brightdata_comment_request_cost_usd`); `ENV.md` gained the two Bright Data rows.
+- 5 new tests (`test_comment_scraper.py`) against two new fixtures, covering normalization, primary success + both usage rows, fallback-on-failure, both-vendors-fail, and the Bright Data request shape. `httpx.AsyncClient` mocked the same way `test_telegram_notify.py` already does (no new test-mocking pattern introduced).
+- **For E17-S3:** `fetch_comments` is ready to call per item during the extraction pass.
+- ruff format/check + mypy clean; full suite 257 passed (was 253).
+**Smoke test:** DEFERRED — same established pattern (no live Apify/Bright Data access in this sandbox); needs a real DEV deep analysis to confirm the primary path and, with a temporarily broken actor id, the Bright Data fallback.
+**Promoted to backlog:** none
+
+## [E17-S1] Deep analysis schema, pricing config, and token-charge plumbing
+**Completed:** 2026-07-25
+**Handover:**
+- Direct user request: run the whole E17 (Run Deep Analysis) epic back-to-back, out of the locked sprint order (E17 was proposed for Sprint 11, unlocked; Sprint 10/E8-S3 monetization is still nominally "next" per SPRINT.md but untouched by this session).
+- `deep_analyses` table (migration `c1d2e3f4a5b6`, head after `b3c4d5e6f7a8`): id, run_id, project_id, requested_by, status enum (`pending`/`extracting`/`synthesizing`/`done`/`failed`), tokens_charged, report_stats/report_recommendations (JSONB, both nullable until synthesis), error_message, created_at, completed_at. `deep_analysis_items` (E17-S3) is a separate table/migration, not part of this one.
+- New `backend/src/services/deep_analysis.py` — `compute_tokens_charged` (pure, `ceil(items_count * deep_analysis_token_multiplier)`), `start_deep_analysis` (validates `run.status == done`, deducts tokens up front, creates the `pending` row; deliberately does **not** enqueue the worker pipeline — mirrors `api/runs.py:create_run`'s split between the DB write and `enqueue_run`, so E17-S5's endpoint just calls this then enqueues), `fail_deep_analysis` (sets `failed` + `completed_at`, reused by E17-S3/S4 so no row is ever left stuck mid-pipeline).
+- Config: `deep_analysis_token_multiplier` (float, default 15.0 — explicitly commented as a D35 placeholder, not a real price) and `deep_analysis_comments_per_post` (25, per D34).
+- `RunNotDoneError`/`InsufficientTokenBalanceError` are plain exceptions from the service, translated to HTTPExceptions at the router layer — same pattern as `services/projects.py:ProjectNotFoundError`.
+- 4 new tests in `test_deep_analysis_model.py` (roundtrip/defaults, token-rounding, run-not-done rejection, insufficient-balance rejection with balance left untouched, successful deduction). `test_models.py`'s `test_schema_has_exactly_expected_tables` updated. Migration verified with a real upgrade/downgrade/upgrade round-trip against local Postgres. `ruff format`/`ruff check`/`mypy src` clean; full suite 253 passed (was 252).
+- **For E17-S2:** `deep_analysis_comments_per_post` config is ready to consume as the per-post comment cap.
+**Smoke test:** DEFERRED — same established pattern (no DEV login in this sandbox); needs a real DEV run to exercise the insufficient/sufficient-balance paths once E17-S5 wires the HTTP endpoint.
+**Promoted to backlog:** none
+
 ## [E14-S6 follow-up 2] Richer bot message, live token-balance header, dead DEV/PROD link fixed
 **Completed:** 2026-07-25
 **Handover:**

@@ -14,6 +14,7 @@ from src.models import (
     AnalysisRun,
     ContentItem,
     ContentType,
+    DeepAnalysis,
     PlatformSlug,
     Project,
     ScheduledRun,
@@ -214,6 +215,26 @@ async def make_scheduled_run(
     session.add(scheduled_run)
     await session.flush()
     return scheduled_run
+
+
+async def make_deep_analysis(
+    session: AsyncSession,
+    run: AnalysisRun | None = None,
+    requested_by: User | None = None,
+    **kw,
+) -> DeepAnalysis:
+    run = run or await make_run(session)
+    requested_by = requested_by or await make_user(session)
+    analysis = DeepAnalysis(
+        run_id=run.id,
+        project_id=run.project_id,
+        requested_by=requested_by.id,
+        tokens_charged=kw.pop("tokens_charged", 10),
+        **kw,
+    )
+    session.add(analysis)
+    await session.flush()
+    return analysis
 
 
 async def make_content_item(

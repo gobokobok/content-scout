@@ -1,0 +1,37 @@
+[
+  {
+    "comment_id": "c_bd_001",
+    "comment_text": "Комментарий brightdata #1",
+    "user_name": "bduser_1",
+    "likes": 7,
+    "comment_date": "2026-07-20T13:00:00.000Z"
+  },
+  {
+    "comment_id": "c_bd_002",
+    "comment_text": "Комментарий brightdata #2",
+    "user_name": "bduser_2",
+    "likes": 3,
+    "comment_date": "2026-07-20T13:00:00.000Z"
+  },
+  {
+    "comment_id": "c_bd_003",
+    "comment_text": "Комментарий brightdata #3",
+    "user_name": "bduser_3",
+    "likes": 10,
+    "comment_date": "2026-07-20T13:00:00.000Z"
+  },
+  {
+    "comment_id": "c_bd_004",
+    "comment_text": "Комментарий brightdata #4",
+    "user_name": "bduser_4",
+    "likes": 6,
+    "comment_date": "2026-07-20T13:00:00.000Z"
+  },
+  {
+    "comment_id": "c_bd_005",
+    "comment_text": "Комментарий brightdata #5",
+    "user_name": "bduser_5",
+    "likes": 2,
+    "comment_date": "2026-07-20T13:00:00.000Z"
+  }
+]

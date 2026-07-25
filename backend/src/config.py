@@ -51,6 +51,34 @@ class Settings(BaseSettings):
     claude_input_token_cost_usd: float = 0.000001
     claude_output_token_cost_usd: float = 0.000005
 
+    # E17: Run Deep Analysis paid add-on. deep_analysis_token_multiplier is an explicit
+    # placeholder (D35) — the real value is set only after reading a real pilot run's
+    # usage_events totals on DEV, since comment-scraping cost (D32/D34) doesn't scale like
+    # the base run's flat per-item Apify rate a naive guess would assume.
+    deep_analysis_token_multiplier: float = 15.0
+    deep_analysis_comments_per_post: int = 25  # D34
+
+    # E17-S2: comment scraping, dual-vendor per D32. Primary actor's pricing has two
+    # components — a flat post-query event, plus per-comment overage past the first
+    # apify_comment_included_comments (15).
+    apify_comments_actor_id: str = "apidojo/instagram-comments-scraper-api"
+    apify_comment_query_cost_usd: float = 0.0075
+    apify_comment_included_comments: int = 15
+    apify_comment_overage_cost_usd: float = 0.0005
+    brightdata_api_token: str = ""
+    brightdata_api_base_url: str = "https://api.brightdata.com"
+    brightdata_ig_comments_dataset_id: str = ""
+    brightdata_comment_request_cost_usd: float = 0.00075
+
+    # E17-S4: synthesis is the one non-Haiku call in the pipeline (D33).
+    deep_analysis_synthesis_model: str = "claude-sonnet-5"
+
+    # E17-S9: below this share of `done` items having any fetched comments, the report
+    # degrades to content-layer-only (comment-derived sections stripped) and the customer is
+    # only charged deep_analysis_thin_coverage_multiplier of the full rate.
+    deep_analysis_comment_coverage_threshold: float = 0.5
+    deep_analysis_thin_coverage_multiplier: float = 0.5
+
     # E5-S5: self-relative virality badge thresholds (item's performance_ratio vs. that
     # account's own median in the run) — tunable without a code change, same pattern as the
     # estimator constants above.

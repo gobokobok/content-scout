@@ -24,6 +24,8 @@ All environment variables. No values here — see `.env.example` for the templat
 | WEB_URL | Public frontend URL sent as the Mini App URL in bot messages and the chat menu button — **must be set on both `api` and `worker`** (`notify_run_complete` runs in the worker; missing there silently falls back to the `http://localhost:3000` code default, producing a dead link in the completion DM — this happened in both DEV and PROD until 2026-07-25) | http://localhost:3000 | https://web-dev-99e3.up.railway.app | PROD frontend URL |
 | REGISTRATION_INVITE_CODE | When set, /auth/register requires this code (E7-S4). Empty = open registration | optional | ✔ | ✔ |
 | MAX_RUNS_PER_USER_PER_DAY | Per-user daily run quota (E7-S4, default 10) | optional | ✔ | ✔ |
+| BRIGHTDATA_API_TOKEN | Bright Data API token — fallback vendor for E17-S2 comment scraping (D32), used only when the primary Apify `apidojo` actor fails a post | ✔ | ✔ | ✔ |
+| BRIGHTDATA_IG_COMMENTS_DATASET_ID | Bright Data Instagram comments dataset id (Dataset API `dataset_id` param) | ✔ | ✔ | ✔ |
 
 ## Frontend
 
