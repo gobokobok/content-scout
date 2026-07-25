@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Sparkles, Users, TrendingUp, FileText, Plus } from "lucide-react";
+import { ArrowLeft, ChevronRight, Users, TrendingUp, FileText, Plus } from "lucide-react";
 import { api, ApiError, type DeepAnalysisResponse, type RunResponse } from "@/lib/api";
 import { Card, Badge } from "@/components/ui";
 import { SkeletonList } from "@/components/ui/skeleton";
@@ -11,9 +11,8 @@ import { useToast } from "@/components/ui/toast";
 import { DEEP_ANALYSIS_STATUS_DOT, DEEP_ANALYSIS_STATUS_PILL } from "@/lib/format";
 import { DeepAnalysisSheet } from "@/components/deep-analysis-sheet";
 
-const TEASER_CARDS = [
+const INACTIVE_TEASER_CARDS = [
   { icon: Users, key: "competitor" },
-  { icon: TrendingUp, key: "run" },
   { icon: FileText, key: "publication" },
 ] as const;
 
@@ -157,42 +156,40 @@ export default function AnalysisPage() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-8 px-4 py-16 text-center">
-      <div className="flex flex-col items-center gap-6">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft text-accent">
-          <Sparkles className="h-8 w-8" />
+    <div className="flex flex-col gap-4">
+      <div
+        onClick={() => setView("history")}
+        className="flex cursor-pointer items-center gap-4 rounded-card bg-ink p-5 text-left text-white transition-all active:scale-[0.98]"
+      >
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-lime/15 text-lime">
+          <TrendingUp className="h-5 w-5" />
         </div>
-        <div className="max-w-sm">
-          <h2 className="mb-2 text-lg font-semibold text-ink">{t("title")}</h2>
-          <p className="text-sm leading-relaxed text-secondary">{t("comingSoon")}</p>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-white">{t("cards.run.title")}</h3>
+          <p className="mt-0.5 text-xs leading-relaxed text-[#9BA1AB]">
+            {t("cards.run.description")}
+          </p>
         </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-[#9BA1AB]" />
       </div>
 
-      <div className="grid w-full max-w-2xl gap-4 sm:grid-cols-3">
-        {TEASER_CARDS.map(({ icon: Icon, key }) => {
-          const enabled = key === "run";
-          return (
-            <Card
-              key={key}
-              onClick={enabled ? () => setView("history") : undefined}
-              className={`flex flex-col items-center gap-3 p-5 text-center transition-all ${
-                enabled
-                  ? "cursor-pointer active:scale-[0.98] hover:bg-bg"
-                  : "cursor-not-allowed opacity-60"
-              }`}
-              aria-disabled={!enabled}
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-accent">
-                <Icon className="h-5 w-5" />
-              </div>
-              <h3 className="text-sm font-semibold text-ink">{t(`cards.${key}.title`)}</h3>
-              <p className="text-xs leading-relaxed text-secondary">
-                {t(`cards.${key}.description`)}
-              </p>
-              {!enabled && <Badge>{t("cards.badge")}</Badge>}
-            </Card>
-          );
-        })}
+      <div className="grid grid-cols-2 gap-3">
+        {INACTIVE_TEASER_CARDS.map(({ icon: Icon, key }) => (
+          <Card
+            key={key}
+            className="flex flex-col items-center gap-3 p-5 text-center opacity-60"
+            aria-disabled
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-accent">
+              <Icon className="h-5 w-5" />
+            </div>
+            <h3 className="text-sm font-semibold text-ink">{t(`cards.${key}.title`)}</h3>
+            <p className="text-xs leading-relaxed text-secondary">
+              {t(`cards.${key}.description`)}
+            </p>
+            <Badge>{t("cards.badge")}</Badge>
+          </Card>
+        ))}
       </div>
     </div>
   );
