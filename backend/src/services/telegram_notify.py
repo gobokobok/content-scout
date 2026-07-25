@@ -23,6 +23,8 @@ async def notify_run_complete(run: AnalysisRun, user: User) -> None:
     if not settings.telegram_bot_token or user.telegram_id is None:
         return
 
+    balance_line = f"\n\nБаланс токенов: <b>{user.token_balance}</b>"
+
     if run.status == RunStatus.done:
         items = run.progress_items or 0
         link = f"{settings.web_url.rstrip('/')}/projects/{run.project_id}/runs/{run.id}"
@@ -30,10 +32,11 @@ async def notify_run_complete(run: AnalysisRun, user: User) -> None:
             f"✅ Анализ завершён!\n\n"
             f"Найдено публикаций: <b>{items}</b>\n\n"
             f'<a href="{link}">Открыть результаты</a>'
+            f"{balance_line}"
         )
     else:
         error = (run.error_message or "—")[:200]
-        text = f"❌ Анализ завершился с ошибкой.\n\n{error}"
+        text = f"❌ Анализ завершился с ошибкой.\n\n{error}{balance_line}"
 
     try:
         url = _BOT_API.format(token=settings.telegram_bot_token)

@@ -2,6 +2,15 @@
 
 Completed stories land here, newest first. Format:
 
+## [E14-S6 follow-up 2] Bot messages show current token balance; drop agent UI-testing requirement
+**Completed:** 2026-07-25
+**Handover:**
+- `telegram_notify.py:notify_run_complete` now appends a "Баланс токенов: N" line to both the success and failure message bodies. No new plumbing needed: `requesting_user.token_balance` is already decremented and committed in the same session before each of the 3 call sites in `worker.py`, and the two exception-path call sites re-fetch the user fresh from the DB — so the value shown is always the post-run balance, not a stale pre-run one. Updated `test_telegram_notify.py`'s `_make_user` to take an explicit `token_balance` and added assertions to the done/failed tests.
+- Per explicit user instruction, added a line to `CLAUDE.md`'s Hard constraints: agents should no longer verify frontend changes with the Browser tool / scratch-preview routes — the user does their own smoke-test pass before shipping and flagged this as costing too much session time. `tsc`/`eslint` remain the bar for frontend changes; visual verification only on explicit request.
+- ruff/mypy/full pytest (245 passed) all green; no migration, no frontend changes.
+**Smoke test:** N/A (backend text-formatting change + doc note only; user will see the balance line on their next real run notification).
+**Promoted to backlog:** none
+
 ## [E14-S6 follow-up] Surface skipped-schedule reasons (notification panel + card badge)
 **Completed:** 2026-07-25
 **Handover:**

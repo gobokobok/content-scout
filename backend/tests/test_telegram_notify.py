@@ -19,9 +19,10 @@ def _make_run(status: RunStatus, items: int = 5, error: str | None = None) -> An
     return run
 
 
-def _make_user(telegram_id: int | None) -> User:
+def _make_user(telegram_id: int | None, token_balance: int = 100) -> User:
     user = MagicMock(spec=User)
     user.telegram_id = telegram_id
+    user.token_balance = token_balance
     return user
 
 
@@ -53,7 +54,7 @@ async def test_notify_skipped_when_no_bot_token():
 async def test_notify_done_sends_message_with_link():
     """On done: sends a message containing item count and web link."""
     run = _make_run(RunStatus.done, items=42)
-    user = _make_user(telegram_id=99999)
+    user = _make_user(telegram_id=99999, token_balance=358)
 
     mock_post = AsyncMock()
     mock_http = AsyncMock()
@@ -76,13 +77,14 @@ async def test_notify_done_sends_message_with_link():
     assert "42" in payload["text"]
     # E15-S3: links to the run detail page, not the old /results?run=... query param
     assert f"https://example.com/projects/{run.project_id}/runs/{run.id}" in payload["text"]
+    assert "358" in payload["text"]
 
 
 @pytest.mark.asyncio
 async def test_notify_failed_sends_error_message():
     """On failed: sends a message with the error."""
     run = _make_run(RunStatus.failed, error="Тестовая ошибка")
-    user = _make_user(telegram_id=88888)
+    user = _make_user(telegram_id=88888, token_balance=12)
 
     mock_post = AsyncMock()
     mock_http = AsyncMock()
@@ -101,6 +103,7 @@ async def test_notify_failed_sends_error_message():
     mock_post.assert_called_once()
     payload = mock_post.call_args[1]["json"]
     assert "Тестовая ошибка" in payload["text"]
+    assert "12" in payload["text"]
 
 
 @pytest.mark.asyncio

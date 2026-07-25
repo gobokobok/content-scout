@@ -56,3 +56,4 @@ Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f
 - Analysis runs execute in the worker, never in a request handler.
 - Do not touch billing/payments — out of scope until a DECISIONS.md entry says otherwise.
 - Read only the files listed in the active story; ask before reading beyond them.
+- Do not verify UI/frontend changes yourself — no Browser tool, no scratch-preview routes, no screenshots. The user runs their own smoke-test pass before anything ships and has said this verification step was costing too much time/resources. For frontend changes, lint/typecheck (`tsc`, `eslint`) is sufficient; skip visual verification unless the user explicitly asks you to check something in the browser.
