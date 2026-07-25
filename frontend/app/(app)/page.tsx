@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, FolderOpen, MoreVertical, Plus } from "lucide-react";
+import { ChevronRight, FolderOpen, MoreVertical, Plus, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { api, ApiError, type ProjectResponse } from "@/lib/api";
@@ -11,6 +11,29 @@ import { ContextMenu } from "@/components/ui/context-menu";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 
 type Tab = "active" | "archived";
+
+// Curated, light-theme-safe gradient pairs — deterministically assigned per
+// project so cards stay visually distinct without any per-project config.
+const PROJECT_GRADIENTS = [
+  "from-[#7C3AED] to-[#4C1D95]",
+  "from-[#2563EB] to-[#1E3A8A]",
+  "from-[#0D9488] to-[#134E4A]",
+  "from-[#F97316] to-[#C2410C]",
+  "from-[#E11D48] to-[#881337]",
+  "from-[#D97706] to-[#92400E]",
+  "from-[#4F46E5] to-[#312E81]",
+  "from-[#65A30D] to-[#365314]",
+];
+
+function projectGradient(id: string): string {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return PROJECT_GRADIENTS[hash % PROJECT_GRADIENTS.length];
+}
+
+function projectInitial(name: string): string {
+  return name.trim().charAt(0).toUpperCase() || "?";
+}
 
 export default function WorkspaceHomePage() {
   const t = useTranslations("Projects");
@@ -203,9 +226,20 @@ export default function WorkspaceHomePage() {
                 <>
                   <Link
                     href={`/projects/${p.id}`}
-                    className="flex flex-1 items-center gap-2 px-4 py-3.5 text-base font-medium text-ink transition-colors hover:bg-bg"
+                    className="flex flex-1 items-center gap-3 px-4 py-3.5 text-ink transition-colors hover:bg-bg"
                   >
-                    <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                    <span
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-chip bg-gradient-to-br text-base font-semibold text-white ${projectGradient(p.id)}`}
+                    >
+                      {projectInitial(p.name)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-base font-medium">{p.name}</span>
+                      <span className="mt-0.5 flex items-center gap-1 text-xs text-secondary">
+                        <Users className="h-3.5 w-3.5 shrink-0" />
+                        {t("competitorsCount", { count: p.accounts_count })}
+                      </span>
+                    </span>
                     <ChevronRight className="h-4 w-4 shrink-0 text-secondary" />
                   </Link>
                   <button

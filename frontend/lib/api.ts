@@ -67,6 +67,7 @@ export interface ProjectResponse {
   name: string;
   created_at: string;
   archived_at: string | null;
+  accounts_count: number;
 }
 
 export interface ProjectStatsResponse {
