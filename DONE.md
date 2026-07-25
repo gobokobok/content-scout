@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E17 hotfix] First real DEV smoke test — 3 bugs found and fixed
+**Completed:** 2026-07-25
+**Handover:**
+- E17 deployed to DEV (`5be4686`), user ran a real deep analysis against a live IG account. It failed, and surfaced three real bugs no amount of unit testing had caught (mocks all returned well-formed data by construction):
+  1. **Extraction silently failed for every item.** `_parse_extraction` did a bare `json.loads` with no tolerance for markdown code fences, and `_extract_item`'s retry loop only retried on network/API exceptions — a single malformed response permanently failed that item with no retry and no log line. Confirmed via direct DEV DB query (`railway connect Postgres`): all 4 `deep_analysis_items` rows were `status=failed` despite `comments_analyzed_count=10` proving comments were fetched fine, which pointed at the parse step specifically rather than comment scraping. Fixed: `_parse_extraction` now strips leading/trailing ` ``` ` fences before parsing, and the retry loop now retries on an unparseable response too (not just exceptions) — while still billing a `UsageEvent` for every real API response returned, parseable or not, since tokens were genuinely spent either way (this is why `synthesize_report` then failed with "нет публикаций для анализа": zero `done` rows to synthesize from).
+  2. **Failed analyses were unopenable.** `analysis/page.tsx`'s history list only made a card clickable when `status === "done"`; a `failed` card had no `onClick` and no visual affordance, even though the report page already handled `failed` correctly (`error_message` display existed and worked, just unreachable). One-line fix: `openable` now includes `"failed"`.
+  3. **Deep-analysis token charges were invisible in the wallet.** `/me/usage` (the "Потрачено за период" screen) is powered by `/me/runs`, which only ever queried `AnalysisRun` — `DeepAnalysis` rows were never included, so the 60-token deep-analysis charge silently vanished from the user-facing ledger even though `user.token_balance` was correctly debited. Fixed by unioning both sources into `RunSummaryOut` (new `kind`/`tokens_charged` fields), sorted together by `created_at`; frontend shows a "· Разбор запуска" suffix on deep-analysis rows and uses `tokens_charged` (not `progress_items`) for both the per-row amount and the period total, so E17-S9 refunds are reflected correctly too.
+- New backend test `test_my_runs_includes_both_runs_and_deep_analyses`; updated `test_extract_unparseable_response_stores_failed_but_still_charges_usage` to assert 3 retried attempts × 2 usage events (was asserting the old no-retry behavior).
+- Full suite 282 passed (was 282; net +1/-0 after the retry-count test update), ruff/mypy clean. `next lint`/`tsc --noEmit`/`next build` clean.
+- Deployed to DEV only (`git push origin main`) — not tagged for PROD. PROD was already bumped separately to `v0.6.0` (pre-E17 state) earlier the same session, per the standing DEV-first-then-tag workflow.
+**Smoke test:** user-driven — this whole fix exists because of one. Re-test pending on DEV.
+**Promoted to backlog:** none new — this was pure bug-fixing on already-scoped E17 work.
+
 ## [E17-S9] Thin-comment-data fallback and partial pricing
 **Completed:** 2026-07-25
 **Handover:**

@@ -103,6 +103,8 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
     pending: "Ожидание",
     scraping: "Сбор публикаций",
     summarizing: "Анализ",
+    extracting: "Сбор данных",
+    synthesizing: "Формирование отчёта",
     done: "Готово",
     failed: "Ошибка",
   };
@@ -122,7 +124,9 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
         <dl className="flex flex-col gap-0 divide-y divide-border px-4" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailType")}</dt>
-            <dd className="text-sm font-medium text-ink">{t("runTypeAnalysis")}</dd>
+            <dd className="text-sm font-medium text-ink">
+              {run.kind === "deep_analysis" ? t("runTypeDeepAnalysis") : t("runTypeAnalysis")}
+            </dd>
           </div>
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailRunId")}</dt>
@@ -139,14 +143,16 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
             <dt className="text-sm text-secondary">{t("detailStatus")}</dt>
             <dd className="text-sm text-ink">{statusLabel[run.status] ?? run.status}</dd>
           </div>
-          <div className="flex items-center justify-between py-3">
-            <dt className="text-sm text-secondary">{t("detailPublications")}</dt>
-            <dd className="font-mono text-sm font-medium text-ink">{run.progress_items}</dd>
-          </div>
+          {run.kind === "run" && (
+            <div className="flex items-center justify-between py-3">
+              <dt className="text-sm text-secondary">{t("detailPublications")}</dt>
+              <dd className="font-mono text-sm font-medium text-ink">{run.progress_items}</dd>
+            </div>
+          )}
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailTokens")}</dt>
             <dd className="font-mono text-sm font-medium text-ink tabular-nums">
-              {new Intl.NumberFormat("ru-RU").format(run.progress_items)}
+              {new Intl.NumberFormat("ru-RU").format(run.tokens_charged)}
             </dd>
           </div>
         </dl>
@@ -210,7 +216,7 @@ export default function UsagePage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const totalTokens = runs?.reduce((sum, r) => sum + r.progress_items, 0) ?? 0;
+  const totalTokens = runs?.reduce((sum, r) => sum + r.tokens_charged, 0) ?? 0;
 
   const groups = (() => {
     if (!runs) return [];
@@ -374,9 +380,14 @@ export default function UsagePage() {
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
                       {r.project_name}
+                      {r.kind === "deep_analysis" && (
+                        <span className="ml-1.5 text-xs font-normal text-secondary">
+                          · {t("runTypeDeepAnalysis")}
+                        </span>
+                      )}
                     </span>
                     <span className="shrink-0 font-mono text-sm font-semibold text-ink">
-                      −{new Intl.NumberFormat("ru-RU").format(r.progress_items)}
+                      −{new Intl.NumberFormat("ru-RU").format(r.tokens_charged)}
                     </span>
                   </button>
                 ))}

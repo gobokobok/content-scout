@@ -158,8 +158,12 @@ async def _build_content_blocks(
 
 
 def _parse_extraction(text: str) -> dict[str, Any] | None:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+        cleaned = cleaned.removesuffix("```").strip()
     try:
-        data = json.loads(text)
+        data = json.loads(cleaned)
     except (json.JSONDecodeError, TypeError):
         return None
     if not isinstance(data, dict):
@@ -238,7 +242,8 @@ async def _extract_item(
 
         text = "".join(block.text for block in response.content if block.type == "text").strip()
         data = _parse_extraction(text)
-        session.add(_store_extraction(item, comments, deep_analysis_id, data))
+        # Tokens were spent regardless of whether the response parsed — record the cost
+        # every time a call actually returns, not just on the attempt that succeeds.
         session.add(
             UsageEvent(
                 user_id=user_id,
@@ -257,7 +262,11 @@ async def _extract_item(
                 unit_cost_usd=Decimal(str(settings.claude_output_token_cost_usd)),
             )
         )
-        return
+        if data is not None:
+            session.add(_store_extraction(item, comments, deep_analysis_id, data))
+            return
+        if attempt < _MAX_ATTEMPTS - 1:
+            await asyncio.sleep(2**attempt)
 
     session.add(_store_extraction(item, comments, deep_analysis_id, None))
 

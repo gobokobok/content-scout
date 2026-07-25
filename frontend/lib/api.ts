@@ -236,10 +236,12 @@ export interface RunSummaryResponse {
   id: string;
   project_id: string;
   project_name: string;
+  kind: "run" | "deep_analysis";
   status: string;
   duration_days: number | null;
   item_limit: number | null;
   progress_items: number;
+  tokens_charged: number;
   total_input_tokens: number;
   total_output_tokens: number;
   created_at: string;

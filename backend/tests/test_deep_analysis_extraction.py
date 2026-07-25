@@ -127,9 +127,11 @@ async def test_extract_unparseable_response_stores_failed_but_still_charges_usag
     assert rows[0].topic is None
     assert rows[0].comments_analyzed_count == 0
 
-    # A real (if unparseable) API response still burned real tokens — must still be billed.
+    # Unparseable responses are retried (not just API exceptions) — every real API response
+    # still burned real tokens, so all 3 attempts must be billed, not just the last.
+    assert len(fake_client.messages.calls) == 3
     usage = (await session.scalars(select(UsageEvent).where(UsageEvent.run_id == run.id))).all()
-    assert len(usage) == 2
+    assert len(usage) == 6
 
 
 async def test_extract_retries_then_stores_failed_with_no_usage(session: AsyncSession) -> None:

@@ -106,7 +106,7 @@ export default function AnalysisPage() {
         {analyses !== null && analyses.length > 0 && (
           <div className="flex flex-col gap-2">
             {analyses.map((analysis) => {
-              const openable = analysis.status === "done";
+              const openable = analysis.status === "done" || analysis.status === "failed";
               return (
                 <div
                   key={analysis.id}

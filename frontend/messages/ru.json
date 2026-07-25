@@ -281,6 +281,7 @@
   "apply": "Применить",
   "empty": "За этот период запусков не было.",
   "runTypeAnalysis": "Анализ",
+  "runTypeDeepAnalysis": "Разбор запуска",
   "detailType": "Тип",
   "detailRunId": "ID запуска",
   "detailStarted": "Запущен",

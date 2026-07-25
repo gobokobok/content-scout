@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.db import get_session
-from src.models import AnalysisRun, Project, UsageEvent
+from src.models import AnalysisRun, DeepAnalysis, Project, UsageEvent
 from src.models.workspace import WorkspaceMember
 
 router = APIRouter(tags=["usage"])
@@ -34,10 +34,12 @@ class RunSummaryOut(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
     project_name: str
+    kind: str
     status: str
     duration_days: int | None
     item_limit: int | None
     progress_items: int
+    tokens_charged: int
     total_input_tokens: int
     total_output_tokens: int
     created_at: datetime
@@ -77,28 +79,61 @@ async def get_my_runs(
     from_: datetime = Query(alias="from"),
     to: datetime = Query(),
 ) -> list[RunSummaryOut]:
-    rows = await session.execute(
+    run_rows = await session.execute(
         select(AnalysisRun, Project.name.label("project_name"))
         .join(Project, AnalysisRun.project_id == Project.id)
         .join(WorkspaceMember, WorkspaceMember.workspace_id == Project.workspace_id)
         .where(WorkspaceMember.user_id == user.id)
         .where(AnalysisRun.created_at >= from_)
         .where(AnalysisRun.created_at < to)
-        .order_by(AnalysisRun.created_at.desc())
     )
-    return [
+    entries = [
         RunSummaryOut(
             id=run.id,
             project_id=run.project_id,
             project_name=project_name,
+            kind="run",
             status=run.status,
             duration_days=run.duration_days,
             item_limit=run.item_limit,
             progress_items=run.progress_items,
+            tokens_charged=run.progress_items,
             total_input_tokens=run.total_input_tokens,
             total_output_tokens=run.total_output_tokens,
             created_at=run.created_at,
             finished_at=run.finished_at,
         )
-        for run, project_name in rows
+        for run, project_name in run_rows
     ]
+
+    # E17: deep-analysis token charges must appear in the same ledger view — they're deducted
+    # from the same token_balance but weren't previously surfaced anywhere in this list.
+    deep_analysis_rows = await session.execute(
+        select(DeepAnalysis, Project.name.label("project_name"))
+        .join(Project, DeepAnalysis.project_id == Project.id)
+        .join(WorkspaceMember, WorkspaceMember.workspace_id == Project.workspace_id)
+        .where(WorkspaceMember.user_id == user.id)
+        .where(DeepAnalysis.created_at >= from_)
+        .where(DeepAnalysis.created_at < to)
+    )
+    entries.extend(
+        RunSummaryOut(
+            id=analysis.id,
+            project_id=analysis.project_id,
+            project_name=project_name,
+            kind="deep_analysis",
+            status=analysis.status,
+            duration_days=None,
+            item_limit=None,
+            progress_items=0,
+            tokens_charged=analysis.tokens_charged,
+            total_input_tokens=0,
+            total_output_tokens=0,
+            created_at=analysis.created_at,
+            finished_at=analysis.completed_at,
+        )
+        for analysis, project_name in deep_analysis_rows
+    )
+
+    entries.sort(key=lambda e: e.created_at, reverse=True)
+    return entries

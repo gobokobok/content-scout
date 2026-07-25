@@ -15,7 +15,7 @@ from src.models import (
     UsageEvent,
 )
 from src.services.usage import rollup_run_totals
-from tests.conftest import make_project, make_run, make_user, make_workspace
+from tests.conftest import make_deep_analysis, make_project, make_run, make_user, make_workspace
 
 
 class _TestClient(AsyncClient):
@@ -64,6 +64,12 @@ def _url(from_: datetime, to: datetime) -> str:
     f = from_.isoformat().replace("+", "%2B")
     t = to.isoformat().replace("+", "%2B")
     return f"/me/usage?from={f}&to={t}"
+
+
+def _runs_url(from_: datetime, to: datetime) -> str:
+    f = from_.isoformat().replace("+", "%2B")
+    t = to.isoformat().replace("+", "%2B")
+    return f"/me/runs?from={f}&to={t}"
 
 
 async def test_rollup_run_totals_sums_all_kinds_into_cost_and_claude_kinds_into_tokens(
@@ -268,3 +274,48 @@ async def test_usage_endpoint_response_shape(session: AsyncSession) -> None:
         assert set(body.keys()) == {"from_", "to", "total_cost_usd", "by_kind"}
         entry = body["by_kind"][0]
         assert set(entry.keys()) == {"kind", "quantity", "cost_usd"}
+
+
+# --- GET /me/runs endpoint tests ---
+
+
+async def test_my_runs_includes_both_runs_and_deep_analyses(session: AsyncSession) -> None:
+    user = await make_user(session)
+    ws = await make_workspace(session, owner=user)
+    project = await make_project(session, workspace=ws)
+    now = datetime.now(UTC)
+
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        status="done",
+        progress_items=4,
+        created_at=now - timedelta(hours=2),
+    )
+    analysis = await make_deep_analysis(
+        session,
+        run=run,
+        requested_by=user,
+        tokens_charged=60,
+        status="failed",
+        created_at=now - timedelta(hours=1),
+    )
+    await session.commit()
+
+    async with await _client(session) as c:
+        resp = await c.get(
+            _runs_url(now - timedelta(days=1), now + timedelta(days=1)),
+            headers=auth_headers(user.id),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+
+    by_id = {e["id"]: e for e in body}
+    assert by_id[str(run.id)]["kind"] == "run"
+    assert by_id[str(run.id)]["tokens_charged"] == 4
+    assert by_id[str(analysis.id)]["kind"] == "deep_analysis"
+    assert by_id[str(analysis.id)]["tokens_charged"] == 60
+    assert by_id[str(analysis.id)]["status"] == "failed"
+    # most recent first
+    assert [e["id"] for e in body] == [str(analysis.id), str(run.id)]
