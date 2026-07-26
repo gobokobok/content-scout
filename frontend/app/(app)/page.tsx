@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Plus } from "lucide-react";
+import { ArrowDownUp, Check, Plus } from "lucide-react";
 import {
   api,
   ApiError,
@@ -17,10 +17,12 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { RunDialog } from "@/components/run-dialog";
 import { RunTypePickerSheet } from "@/components/run-type-picker-sheet";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 
 type Tab = "runs" | "scheduled";
 type RunTypeFilter = "all" | "stat_collection" | "deep_analysis";
 type RunType = "stat_collection" | "deep_analysis";
+type RunSort = "newest" | "oldest" | "type";
 
 const IN_PROGRESS_STATUSES = new Set(["pending", "scraping", "summarizing"]);
 const POLL_MS = 5000;
@@ -48,6 +50,8 @@ export default function RunFeedPage() {
 
   const [tab, setTab] = useState<Tab>("runs");
   const [filter, setFilter] = useState<RunTypeFilter>("all");
+  const [sort, setSort] = useState<RunSort>("newest");
+  const [sortOpen, setSortOpen] = useState(false);
   const [runs, setRuns] = useState<RunFeedItem[] | null>(null);
   const [scheduled, setScheduled] = useState<ScheduledFeedItem[] | null>(null);
 
@@ -105,8 +109,13 @@ export default function RunFeedPage() {
     setDialogRunType(runType);
   }
 
-  const filteredRuns =
-    filter === "all" ? (runs ?? []) : (runs ?? []).filter((r) => r.run_type === filter);
+  const filteredRuns = (() => {
+    let list = filter === "all" ? (runs ?? []) : (runs ?? []).filter((r) => r.run_type === filter);
+    if (sort === "oldest") list = [...list].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    else if (sort === "type") list = [...list].sort((a, b) => a.run_type.localeCompare(b.run_type));
+    // "newest" is the default order from the API (desc) — no re-sort needed
+    return list;
+  })();
 
   const statusLabel: Record<RunFeedItem["status"], string> = {
     pending: t("statusPending"),
@@ -138,22 +147,35 @@ export default function RunFeedPage() {
         ))}
       </div>
 
-      {/* Run type filter pills — runs tab only */}
+      {/* Filter + sort row — runs tab only */}
       {tab === "runs" && (
-        <div className="flex flex-wrap gap-2">
-          {(["all", "stat_collection", "deep_analysis"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`rounded-chip px-3.5 py-1.5 text-sm font-medium transition-all active:scale-[0.98] ${
-                filter === f
-                  ? "bg-ink text-white"
-                  : "border border-border text-secondary hover:text-ink"
-              }`}
-            >
-              {f === "all" ? t("filterAll") : f === "stat_collection" ? t("filterStat") : t("filterDeep")}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSortOpen(true)}
+            aria-label={t("sortIconLabel")}
+            className={`inline-flex items-center justify-center rounded-control border p-2 transition-colors ${
+              sort !== "newest"
+                ? "border-accent/30 bg-accent-soft text-accent"
+                : "border-border text-secondary hover:bg-bg"
+            }`}
+          >
+            <ArrowDownUp className="h-4 w-4" />
+          </button>
+          <div className="flex flex-wrap gap-2">
+            {(["all", "stat_collection", "deep_analysis"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`rounded-chip px-3.5 py-1.5 text-sm font-medium transition-all active:scale-[0.98] ${
+                  filter === f
+                    ? "bg-ink text-white"
+                    : "border border-border text-secondary hover:text-ink"
+                }`}
+              >
+                {f === "all" ? t("filterAll") : f === "stat_collection" ? t("filterStat") : t("filterDeep")}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -237,6 +259,22 @@ export default function RunFeedPage() {
           )}
         </>
       )}
+
+      {/* Sort picker */}
+      <BottomSheet open={sortOpen} onClose={() => setSortOpen(false)} title={t("sortIconLabel")}>
+        {(["newest", "oldest", "type"] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => { setSort(s); setSortOpen(false); }}
+            className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-base text-ink hover:bg-bg transition-colors"
+          >
+            <span className="flex-1">
+              {s === "newest" ? t("sortNewest") : s === "oldest" ? t("sortOldest") : t("sortByType")}
+            </span>
+            {sort === s && <Check className="h-4 w-4 text-accent" />}
+          </button>
+        ))}
+      </BottomSheet>
 
       {/* FAB */}
       <button

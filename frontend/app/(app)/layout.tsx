@@ -14,6 +14,7 @@ import {
   Loader2,
   Settings,
   Users,
+  Activity,
   ChevronRight,
   ShieldCheck,
   LogOut,
@@ -143,6 +144,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <ChevronRight className="h-4 w-4 shrink-0 text-secondary" />
         </Link>
         <nav className="flex flex-1 flex-col overflow-y-auto py-2">
+          <Link
+            href="/"
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center gap-3 px-4 py-3.5 text-base text-ink hover:bg-bg transition-colors"
+          >
+            <Activity className="h-4.5 w-4.5 text-secondary" />
+            {t("runs")}
+          </Link>
           <Link
             href="/competitors"
             onClick={() => setMenuOpen(false)}
