@@ -235,7 +235,7 @@ export default function UsagePage() {
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
       <button
-        onClick={() => router.back()}
+        onClick={() => router.push("/")}
         className="flex w-fit items-center gap-1 text-sm text-secondary transition-colors hover:text-ink"
       >
         <ArrowLeft className="h-4 w-4" />
