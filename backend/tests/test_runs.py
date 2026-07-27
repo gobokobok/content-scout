@@ -246,11 +246,13 @@ async def test_run_feed_exposes_accounts_and_items_progress(session: AsyncSessio
         assert item["progress_accounts"] == 2
         assert item["progress_items"] == 14
         assert item["comments_count"] is None
+        assert item["deep_analysis_id"] is None
 
 
 async def test_run_feed_sums_comments_for_deep_analysis_run(session: AsyncSession) -> None:
     """A deep-analysis run's Comments figure is the sum of its DeepAnalysisItems'
-    comments_analyzed_count, aggregated across the run's DeepAnalysis via run_id."""
+    comments_analyzed_count, aggregated across the run's DeepAnalysis via run_id. The feed also
+    surfaces that DeepAnalysis's id, so the home feed can link straight to its report."""
     owner, project = await _setup_project_with_accounts(session, n=1)
     run = await make_run(session, project=project, requested_by=owner, run_type="deep_analysis")
     analysis = await make_deep_analysis(session, run=run, requested_by=owner)
@@ -280,3 +282,20 @@ async def test_run_feed_sums_comments_for_deep_analysis_run(session: AsyncSessio
         [item] = resp.json()
         assert item["run_type"] == "deep_analysis"
         assert item["comments_count"] == 10
+        assert item["deep_analysis_id"] == str(analysis.id)
+
+
+async def test_run_feed_deep_analysis_id_null_before_auto_chain_creates_one(
+    session: AsyncSession,
+) -> None:
+    """A deep_analysis-type run whose base scrape has not finished yet (or whose auto-chain
+    has not fired) has no DeepAnalysis row — the feed must not invent one."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_run(session, project=project, requested_by=owner, run_type="deep_analysis")
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get("/me/run-feed", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        [item] = resp.json()
+        assert item["deep_analysis_id"] is None

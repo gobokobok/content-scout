@@ -143,6 +143,18 @@ export default function RunFeedPage() {
     }
   }
 
+  function onOpenRun(run: RunFeedItem) {
+    // A deep_analysis run whose auto-chained DeepAnalysis already exists opens its report
+    // (Статистика/Рекомендации) directly instead of the base run's Резюме/Публикации view —
+    // the DeepAnalysis isn't created until the base scrape finishes, so this still falls back
+    // to the run detail page while it's in progress or if the auto-chain hasn't fired yet.
+    if (run.run_type === "deep_analysis" && run.deep_analysis_id) {
+      router.push(`/projects/${run.project_id}/deep-analyses/${run.deep_analysis_id}`);
+    } else {
+      router.push(`/projects/${run.project_id}/runs/${run.id}`);
+    }
+  }
+
   // Load default project + accounts on mount
   useEffect(() => {
     api
@@ -262,15 +274,18 @@ export default function RunFeedPage() {
                       run.run_type === "deep_analysis" ? "bg-ink text-lime" : "bg-lime text-ink"
                     }`}
                   >
-                    <span className="[writing-mode:vertical-rl] text-[10px] font-semibold tracking-wide">
+                    <span className="[writing-mode:vertical-rl] rotate-180 text-[10px] font-semibold tracking-wide">
                       {run.run_type === "deep_analysis" ? t("runTypeDeep") : t("runTypeStat")}
                     </span>
                   </div>
                   <button
-                    onClick={() => router.push(`/projects/${run.project_id}/runs/${run.id}`)}
+                    onClick={() => onOpenRun(run)}
                     className="flex flex-1 flex-col gap-2 px-4 py-3.5 text-left transition-all active:scale-[0.99] hover:bg-bg"
                   >
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-mono text-sm font-medium text-ink">
+                        {formatDate(run.created_at)}
+                      </p>
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11.5px] font-medium ${
                           RUN_STATUS_PILL[run.status]
@@ -280,7 +295,6 @@ export default function RunFeedPage() {
                         {statusLabel[run.status]}
                       </span>
                     </div>
-                    <p className="font-mono text-sm font-medium text-ink">{formatDate(run.created_at)}</p>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                       <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
                         <Users className="h-3.5 w-3.5" />
@@ -348,7 +362,7 @@ export default function RunFeedPage() {
                         sr.run_type === "deep_analysis" ? "bg-ink text-lime" : "bg-lime text-ink"
                       }`}
                     >
-                      <span className="[writing-mode:vertical-rl] text-[10px] font-semibold tracking-wide">
+                      <span className="[writing-mode:vertical-rl] rotate-180 text-[10px] font-semibold tracking-wide">
                         {sr.run_type === "deep_analysis" ? t("runTypeDeep") : t("runTypeStat")}
                       </span>
                     </div>

@@ -132,6 +132,7 @@ export interface RunFeedItem {
   progress_accounts: number;
   progress_items: number;
   comments_count: number | null;
+  deep_analysis_id: string | null;
   created_at: string;
   finished_at: string | null;
 }

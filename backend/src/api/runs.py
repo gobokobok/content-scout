@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import func, select
+from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.scheduled_runs import ScheduledRunOut
@@ -127,6 +127,9 @@ class RunFeedItem(BaseModel):
     progress_accounts: int
     progress_items: int
     comments_count: int | None
+    # The auto-chained DeepAnalysis for this run, once it exists — lets the home feed link a
+    # done deep_analysis run straight to its report instead of the plain run-detail page.
+    deep_analysis_id: uuid.UUID | None
     created_at: datetime
     finished_at: datetime | None
 
@@ -252,22 +255,30 @@ feed_router = APIRouter(tags=["runs"])
 async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedItem]:
     """All AnalysisRuns across the user's projects, newest-first."""
     workspace = await get_user_workspace(session, user)
-    # Deep-analysis runs auto-chain a DeepAnalysis (E17/nav-overhaul) whose comment
-    # coverage lives on its items — aggregate it per run_id so the feed can show a
-    # "Comments: N" figure without an N+1 query per row.
+    # Deep-analysis runs auto-chain a DeepAnalysis (E17/nav-overhaul) whose comment coverage
+    # lives on its items — aggregate it per run_id so the feed can show a "Comments: N" figure
+    # without an N+1 query per row. The auto-chain creates at most one DeepAnalysis per run, so
+    # MAX(id) here is just "the one that exists", not an arbitrary tie-break — cast to text
+    # since Postgres has no MAX aggregate for uuid.
     comments_subq = (
         select(
             DeepAnalysis.run_id.label("run_id"),
             func.coalesce(func.sum(DeepAnalysisItem.comments_analyzed_count), 0).label(
                 "comments_count"
             ),
+            func.max(cast(DeepAnalysis.id, String)).label("deep_analysis_id"),
         )
         .outerjoin(DeepAnalysisItem, DeepAnalysisItem.deep_analysis_id == DeepAnalysis.id)
         .group_by(DeepAnalysis.run_id)
         .subquery()
     )
     rows = await session.execute(
-        select(AnalysisRun, Project.name, comments_subq.c.comments_count)
+        select(
+            AnalysisRun,
+            Project.name,
+            comments_subq.c.comments_count,
+            comments_subq.c.deep_analysis_id,
+        )
         .join(Project, Project.id == AnalysisRun.project_id)
         .outerjoin(comments_subq, comments_subq.c.run_id == AnalysisRun.id)
         .where(Project.workspace_id == workspace.id)
@@ -284,10 +295,11 @@ async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedIt
             progress_accounts=run.progress_accounts,
             progress_items=run.progress_items,
             comments_count=comments_count,
+            deep_analysis_id=deep_analysis_id,
             created_at=run.created_at,
             finished_at=run.finished_at,
         )
-        for run, project_name, comments_count in rows.all()
+        for run, project_name, comments_count, deep_analysis_id in rows.all()
     ]
 
 
