@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, CalendarClock, Plus } from "lucide-react";
+import { ArrowLeft, CalendarClock, MessageCircle, Plus, Users, FileText } from "lucide-react";
 import {
   api,
   ApiError,
@@ -184,18 +184,12 @@ export default function RunFeedPage() {
                 <button
                   key={run.id}
                   onClick={() => router.push(`/projects/${run.project_id}/runs/${run.id}`)}
-                  className="flex items-center gap-3 rounded-card border border-border bg-card px-4 py-3.5 text-left transition-all active:scale-[0.99] hover:bg-bg"
+                  className="flex flex-col gap-2 rounded-card border border-border bg-card px-4 py-3.5 text-left transition-all active:scale-[0.99] hover:bg-bg"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <span className="rounded-chip bg-bg px-2 py-0.5 text-[11px] font-medium text-secondary border border-border">
-                        {run.run_type === "deep_analysis" ? t("runTypeDeep") : t("runTypeStat")}
-                      </span>
-                    </div>
-                    <p className="font-mono text-sm font-medium text-ink">{formatDate(run.created_at)}</p>
-                    <p className="mt-0.5 truncate text-xs text-secondary">{run.project_name}</p>
-                  </div>
-                  <div className="shrink-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-chip bg-bg px-2 py-0.5 text-[11px] font-medium text-secondary border border-border">
+                      {run.run_type === "deep_analysis" ? t("runTypeDeep") : t("runTypeStat")}
+                    </span>
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11.5px] font-medium ${
                         RUN_STATUS_PILL[run.status]
@@ -204,6 +198,26 @@ export default function RunFeedPage() {
                       <span className={`h-1.5 w-1.5 rounded-full ${RUN_STATUS_DOT[run.status]}`} />
                       {statusLabel[run.status]}
                     </span>
+                  </div>
+                  <p className="font-mono text-sm font-medium text-ink">{formatDate(run.created_at)}</p>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
+                      <Users className="h-3.5 w-3.5" />
+                      {t("kpiCompetitors")}{" "}
+                      <span className="font-mono font-semibold text-ink">{run.progress_accounts}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
+                      <FileText className="h-3.5 w-3.5" />
+                      {t("kpiPublications")}{" "}
+                      <span className="font-mono font-semibold text-ink">{run.progress_items}</span>
+                    </span>
+                    {run.run_type === "deep_analysis" && run.comments_count !== null && (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        {t("kpiComments")}{" "}
+                        <span className="font-mono font-semibold text-ink">{run.comments_count}</span>
+                      </span>
+                    )}
                   </div>
                 </button>
               ))}
@@ -251,7 +265,6 @@ export default function RunFeedPage() {
                       {" · "}
                       {sr.days_of_week.map((d) => t(WEEKDAY_KEYS[d])).join(", ")}
                     </p>
-                    <p className="mt-0.5 truncate text-xs text-secondary">{sr.project_name}</p>
                   </div>
                 </button>
               ))}

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
-from src.models import AnalysisRun, Project, ScheduledRun, User
+from src.models import AnalysisRun, DeepAnalysis, DeepAnalysisItem, Project, ScheduledRun, User
 from src.services.estimator import estimate_run
 from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.queue import enqueue_run
@@ -123,7 +123,9 @@ class RunFeedItem(BaseModel):
     project_name: str
     run_type: str
     status: str
+    progress_accounts: int
     progress_items: int
+    comments_count: int | None
     created_at: datetime
     finished_at: datetime | None
 
@@ -253,9 +255,24 @@ feed_router = APIRouter(tags=["runs"])
 async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedItem]:
     """All AnalysisRuns across the user's projects, newest-first."""
     workspace = await get_user_workspace(session, user)
+    # Deep-analysis runs auto-chain a DeepAnalysis (E17/nav-overhaul) whose comment
+    # coverage lives on its items — aggregate it per run_id so the feed can show a
+    # "Comments: N" figure without an N+1 query per row.
+    comments_subq = (
+        select(
+            DeepAnalysis.run_id.label("run_id"),
+            func.coalesce(func.sum(DeepAnalysisItem.comments_analyzed_count), 0).label(
+                "comments_count"
+            ),
+        )
+        .outerjoin(DeepAnalysisItem, DeepAnalysisItem.deep_analysis_id == DeepAnalysis.id)
+        .group_by(DeepAnalysis.run_id)
+        .subquery()
+    )
     rows = await session.execute(
-        select(AnalysisRun, Project.name)
+        select(AnalysisRun, Project.name, comments_subq.c.comments_count)
         .join(Project, Project.id == AnalysisRun.project_id)
+        .outerjoin(comments_subq, comments_subq.c.run_id == AnalysisRun.id)
         .where(Project.workspace_id == workspace.id)
         .order_by(AnalysisRun.created_at.desc())
         .limit(200)
@@ -267,11 +284,13 @@ async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedIt
             project_name=project_name,
             run_type=run.run_type,
             status=run.status.value,
+            progress_accounts=run.progress_accounts,
             progress_items=run.progress_items,
+            comments_count=comments_count,
             created_at=run.created_at,
             finished_at=run.finished_at,
         )
-        for run, project_name in rows.all()
+        for run, project_name, comments_count in rows.all()
     ]
 
 

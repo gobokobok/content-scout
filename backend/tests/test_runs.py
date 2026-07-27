@@ -7,10 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.tokens import create_access_token
 from src.db import get_session
 from src.main import app
-from src.models import RunStatus, RunSummaryStatus
+from src.models import DeepAnalysisItem, DeepAnalysisItemStatus, RunStatus, RunSummaryStatus
 from tests.conftest import (
     make_account,
     make_account_list,
+    make_content_item,
+    make_deep_analysis,
     make_project,
     make_run,
     make_user,
@@ -221,3 +223,60 @@ async def test_get_run_default_summary_status_is_pending(session: AsyncSession) 
         assert body["summary_status"] == "pending"
         assert body["summary_text"] is None
         assert body["summary_topics"] is None
+
+
+async def test_run_feed_exposes_accounts_and_items_progress(session: AsyncSession) -> None:
+    """Home feed cards (nav-overhaul) show Competitors/Publications figures straight off
+    AnalysisRun's own progress counters — no aggregation needed for a plain run."""
+    owner, project = await _setup_project_with_accounts(session, n=2)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=owner,
+        progress_accounts=2,
+        progress_items=14,
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get("/me/run-feed", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        [item] = resp.json()
+        assert item["id"] == str(run.id)
+        assert item["progress_accounts"] == 2
+        assert item["progress_items"] == 14
+        assert item["comments_count"] is None
+
+
+async def test_run_feed_sums_comments_for_deep_analysis_run(session: AsyncSession) -> None:
+    """A deep-analysis run's Comments figure is the sum of its DeepAnalysisItems'
+    comments_analyzed_count, aggregated across the run's DeepAnalysis via run_id."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    run = await make_run(session, project=project, requested_by=owner, run_type="deep_analysis")
+    analysis = await make_deep_analysis(session, run=run, requested_by=owner)
+    item_a = await make_content_item(session, run=run)
+    item_b = await make_content_item(session, run=run)
+    session.add_all(
+        [
+            DeepAnalysisItem(
+                deep_analysis_id=analysis.id,
+                content_item_id=item_a.id,
+                status=DeepAnalysisItemStatus.done,
+                comments_analyzed_count=7,
+            ),
+            DeepAnalysisItem(
+                deep_analysis_id=analysis.id,
+                content_item_id=item_b.id,
+                status=DeepAnalysisItemStatus.done,
+                comments_analyzed_count=3,
+            ),
+        ]
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get("/me/run-feed", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        [item] = resp.json()
+        assert item["run_type"] == "deep_analysis"
+        assert item["comments_count"] == 10

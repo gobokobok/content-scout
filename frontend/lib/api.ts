@@ -129,7 +129,9 @@ export interface RunFeedItem {
   project_name: string;
   run_type: "stat_collection" | "deep_analysis";
   status: "pending" | "scraping" | "summarizing" | "done" | "failed";
+  progress_accounts: number;
   progress_items: number;
+  comments_count: number | null;
   created_at: string;
   finished_at: string | null;
 }
