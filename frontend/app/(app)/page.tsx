@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
+  Bell,
   CalendarClock,
   MessageCircle,
   MoreVertical,
@@ -316,10 +317,6 @@ export default function RunFeedPage() {
             <div className="flex flex-col gap-2">
               {scheduled.map((sr) => {
                 const lastRun = sr.last_run_id ? lastRuns[sr.last_run_id] : undefined;
-                const scopeText =
-                  sr.duration_days != null
-                    ? tSched("scopeDays", { count: sr.duration_days })
-                    : tSched("scopeCount", { count: sr.item_limit ?? 0 });
                 const accountsText =
                   sr.account_ids == null
                     ? tSched("allAccounts")
@@ -328,24 +325,32 @@ export default function RunFeedPage() {
                   .sort((a, b) => a - b)
                   .map((d) => tSched(`weekday${d}`))
                   .join(", ");
+                const modeText =
+                  sr.mode === "once" ? tSched("repeatModeOnce") : tSched("repeatModeRecurring");
 
                 return (
                   <div
                     key={sr.id}
-                    className="flex flex-col gap-2 rounded-card border border-border bg-card p-4"
+                    className="flex overflow-hidden rounded-card border border-border bg-card"
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div
+                      className={`flex w-[5%] min-w-[22px] shrink-0 items-center justify-center ${
+                        sr.run_type === "deep_analysis" ? "bg-ink text-lime" : "bg-lime text-ink"
+                      }`}
+                    >
+                      <span className="[writing-mode:vertical-rl] text-[10px] font-semibold tracking-wide">
+                        {sr.run_type === "deep_analysis" ? t("runTypeDeep") : t("runTypeStat")}
+                      </span>
+                    </div>
+                    <div className="flex flex-1 items-start justify-between gap-2 p-4">
                       <button
                         onClick={() => void onOpenSchedule(sr)}
                         className="flex flex-1 flex-col items-start gap-1 text-left"
                       >
                         <span className="text-sm font-semibold text-ink">
-                          {scopeText} · {accountsText}
+                          {daysText} · {sr.time_of_day.slice(0, 5)} · {modeText}
                         </span>
-                        <span className="text-xs text-secondary">
-                          {daysText}, {sr.time_of_day.slice(0, 5)}
-                          {sr.mode === "once" ? ` · ${tSched("repeatModeOnce")}` : ""}
-                        </span>
+                        <span className="text-xs text-secondary">{accountsText}</span>
                         <span className="text-xs text-secondary">
                           {tSched("lastRunLabel")}:{" "}
                           {lastRun
@@ -357,12 +362,15 @@ export default function RunFeedPage() {
                             {tSched(SKIP_REASON_KEYS[sr.last_skip_reason])}
                           </span>
                         )}
-                        <div className="mt-1 flex flex-wrap gap-1.5">
+                        <div className="mt-1 flex items-center gap-2">
                           <Badge variant={sr.active ? "success" : "default"}>
                             {sr.active ? tSched("activeLabel") : tSched("inactiveLabel")}
                           </Badge>
                           {sr.notify_enabled && (
-                            <Badge variant="default">{tSched("notifyBadge")}</Badge>
+                            <Bell
+                              className="h-3.5 w-3.5 text-secondary"
+                              aria-label={tSched("notifyBadge")}
+                            />
                           )}
                         </div>
                       </button>
@@ -371,7 +379,7 @@ export default function RunFeedPage() {
                           setScheduleMenuId(sr.id);
                           setScheduleMenuAnchorEl(e.currentTarget);
                         }}
-                        className="rounded-control p-1.5 text-secondary hover:bg-border transition-colors"
+                        className="shrink-0 rounded-control p-1.5 text-secondary hover:bg-border transition-colors"
                         aria-label="Действия"
                       >
                         <MoreVertical className="h-4 w-4" />
