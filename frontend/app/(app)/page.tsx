@@ -23,7 +23,12 @@ import {
   type ScheduledFeedItem,
   type ScheduledRunSkipReason,
 } from "@/lib/api";
-import { RUN_STATUS_DOT, RUN_STATUS_PILL } from "@/lib/format";
+import {
+  DEEP_ANALYSIS_STATUS_DOT,
+  DEEP_ANALYSIS_STATUS_PILL,
+  RUN_STATUS_DOT,
+  RUN_STATUS_PILL,
+} from "@/lib/format";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui";
@@ -203,6 +208,35 @@ export default function RunFeedPage() {
     failed: t("statusFailed"),
   };
 
+  const deepAnalysisStatusLabel: Record<
+    NonNullable<RunFeedItem["deep_analysis_status"]>,
+    string
+  > = {
+    pending: t("statusPending"),
+    extracting: t("statusExtracting"),
+    synthesizing: t("statusSynthesizing"),
+    done: t("statusDone"),
+    failed: t("statusFailed"),
+  };
+
+  // A deep_analysis run can finish its base scrape cleanly (status=done) while the analysis
+  // itself is still processing or has failed — once the DeepAnalysis exists, its own status is
+  // what the user actually cares about, not the base run's.
+  function effectiveStatus(run: RunFeedItem) {
+    if (run.run_type === "deep_analysis" && run.deep_analysis_status) {
+      return {
+        label: deepAnalysisStatusLabel[run.deep_analysis_status],
+        pillClass: DEEP_ANALYSIS_STATUS_PILL[run.deep_analysis_status],
+        dotClass: DEEP_ANALYSIS_STATUS_DOT[run.deep_analysis_status],
+      };
+    }
+    return {
+      label: statusLabel[run.status],
+      pillClass: RUN_STATUS_PILL[run.status],
+      dotClass: RUN_STATUS_DOT[run.status],
+    };
+  }
+
   return (
     <main
       className="relative mx-auto flex w-full max-w-2xl flex-col gap-4 p-4"
@@ -264,7 +298,9 @@ export default function RunFeedPage() {
           )}
           {filteredRuns.length > 0 && (
             <div className="flex flex-col gap-2">
-              {filteredRuns.map((run) => (
+              {filteredRuns.map((run) => {
+                const status = effectiveStatus(run);
+                return (
                 <div
                   key={run.id}
                   className="flex overflow-hidden rounded-card border border-border bg-card"
@@ -287,12 +323,10 @@ export default function RunFeedPage() {
                         {formatDate(run.created_at)}
                       </p>
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11.5px] font-medium ${
-                          RUN_STATUS_PILL[run.status]
-                        }`}
+                        className={`inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11.5px] font-medium ${status.pillClass}`}
                       >
-                        <span className={`h-1.5 w-1.5 rounded-full ${RUN_STATUS_DOT[run.status]}`} />
-                        {statusLabel[run.status]}
+                        <span className={`h-1.5 w-1.5 rounded-full ${status.dotClass}`} />
+                        {status.label}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -316,7 +350,8 @@ export default function RunFeedPage() {
                     </div>
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

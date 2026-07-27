@@ -128,8 +128,11 @@ class RunFeedItem(BaseModel):
     progress_items: int
     comments_count: int | None
     # The auto-chained DeepAnalysis for this run, once it exists — lets the home feed link a
-    # done deep_analysis run straight to its report instead of the plain run-detail page.
+    # done deep_analysis run straight to its report instead of the plain run-detail page, and
+    # show the *analysis*'s own status (extracting/synthesizing/failed) rather than just the
+    # base run's — a run can finish scraping cleanly while its deep analysis still fails.
     deep_analysis_id: uuid.UUID | None
+    deep_analysis_status: str | None
     created_at: datetime
     finished_at: datetime | None
 
@@ -267,6 +270,7 @@ async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedIt
                 "comments_count"
             ),
             func.max(cast(DeepAnalysis.id, String)).label("deep_analysis_id"),
+            func.max(cast(DeepAnalysis.status, String)).label("deep_analysis_status"),
         )
         .outerjoin(DeepAnalysisItem, DeepAnalysisItem.deep_analysis_id == DeepAnalysis.id)
         .group_by(DeepAnalysis.run_id)
@@ -278,6 +282,7 @@ async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedIt
             Project.name,
             comments_subq.c.comments_count,
             comments_subq.c.deep_analysis_id,
+            comments_subq.c.deep_analysis_status,
         )
         .join(Project, Project.id == AnalysisRun.project_id)
         .outerjoin(comments_subq, comments_subq.c.run_id == AnalysisRun.id)
@@ -296,10 +301,11 @@ async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedIt
             progress_items=run.progress_items,
             comments_count=comments_count,
             deep_analysis_id=deep_analysis_id,
+            deep_analysis_status=deep_analysis_status,
             created_at=run.created_at,
             finished_at=run.finished_at,
         )
-        for run, project_name, comments_count, deep_analysis_id in rows.all()
+        for run, project_name, comments_count, deep_analysis_id, deep_analysis_status in rows.all()
     ]
 
 

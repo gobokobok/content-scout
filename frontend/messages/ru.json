@@ -117,6 +117,8 @@
   "statusPending": "Ожидание…",
   "statusScraping": "Сбор публикаций…",
   "statusSummarizing": "Описания…",
+  "statusExtracting": "Сбор данных…",
+  "statusSynthesizing": "Формирование отчёта…",
   "statusDone": "Готово",
   "statusFailed": "Ошибка"
  },

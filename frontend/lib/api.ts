@@ -133,6 +133,7 @@ export interface RunFeedItem {
   progress_items: number;
   comments_count: number | null;
   deep_analysis_id: string | null;
+  deep_analysis_status: "pending" | "extracting" | "synthesizing" | "done" | "failed" | null;
   created_at: string;
   finished_at: string | null;
 }

@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.tokens import create_access_token
 from src.db import get_session
 from src.main import app
-from src.models import DeepAnalysisItem, DeepAnalysisItemStatus, RunStatus, RunSummaryStatus
+from src.models import (
+    DeepAnalysisItem,
+    DeepAnalysisItemStatus,
+    DeepAnalysisStatus,
+    RunStatus,
+    RunSummaryStatus,
+)
 from tests.conftest import (
     make_account,
     make_account_list,
@@ -247,6 +253,7 @@ async def test_run_feed_exposes_accounts_and_items_progress(session: AsyncSessio
         assert item["progress_items"] == 14
         assert item["comments_count"] is None
         assert item["deep_analysis_id"] is None
+        assert item["deep_analysis_status"] is None
 
 
 async def test_run_feed_sums_comments_for_deep_analysis_run(session: AsyncSession) -> None:
@@ -283,6 +290,7 @@ async def test_run_feed_sums_comments_for_deep_analysis_run(session: AsyncSessio
         assert item["run_type"] == "deep_analysis"
         assert item["comments_count"] == 10
         assert item["deep_analysis_id"] == str(analysis.id)
+        assert item["deep_analysis_status"] == "pending"
 
 
 async def test_run_feed_deep_analysis_id_null_before_auto_chain_creates_one(
@@ -299,3 +307,37 @@ async def test_run_feed_deep_analysis_id_null_before_auto_chain_creates_one(
         assert resp.status_code == 200
         [item] = resp.json()
         assert item["deep_analysis_id"] is None
+        assert item["deep_analysis_status"] is None
+
+
+async def test_run_feed_surfaces_failed_deep_analysis_status_even_when_run_done(
+    session: AsyncSession,
+) -> None:
+    """The bug this guards against: a run can finish its base scrape cleanly (status=done,
+    the green 'Completed' card) while its auto-chained deep analysis later hard-fails --
+    the feed must expose the analysis's own failed status so the UI does not show a done run
+    that silently opens a failed report."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=owner,
+        run_type="deep_analysis",
+        status=RunStatus.done,
+    )
+    await make_deep_analysis(
+        session,
+        run=run,
+        requested_by=owner,
+        status=DeepAnalysisStatus.failed,
+        tokens_charged=0,
+        error_message="Не удалось сформировать отчёт. Попробуйте запустить анализ ещё раз.",
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get("/me/run-feed", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        [item] = resp.json()
+        assert item["status"] == "done"
+        assert item["deep_analysis_status"] == "failed"
