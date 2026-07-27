@@ -376,6 +376,7 @@ export interface DeepAnalysisResponse {
   error_message: string | null;
   report_stats: DeepAnalysisStats | null;
   report_recommendations: DeepAnalysisRecommendations | null;
+  comments_analyzed_count: number | null;
   created_at: string;
   completed_at: string | null;
 }

@@ -3,12 +3,19 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.tokens import create_access_token
 from src.db import get_session
 from src.main import app
-from src.models import DeepAnalysisStatus, RunStatus
+from src.models import (
+    ContentItem,
+    DeepAnalysisItem,
+    DeepAnalysisItemStatus,
+    DeepAnalysisStatus,
+    RunStatus,
+)
 from tests.conftest import (
     make_content_item,
     make_deep_analysis,
@@ -179,6 +186,37 @@ async def test_get_deep_analysis_returns_report_when_done(session: AsyncSession)
         assert body["status"] == "done"
         assert body["report_stats"] == {"topics": []}
         assert body["report_recommendations"] == {"content_ideas": []}
+
+
+async def test_get_deep_analysis_sums_comments_analyzed_count(session: AsyncSession) -> None:
+    """The report page's summary card needs a total-comments-analyzed figure, which is not
+    stored on DeepAnalysis itself -- aggregated here from its items."""
+    owner, project, run = await _setup_done_run(session)
+    analysis = await make_deep_analysis(session, run=run, requested_by=owner)
+    items = await session.execute(select(ContentItem).where(ContentItem.run_id == run.id))
+    item_a, item_b = [row[0] for row in items.all()]
+    session.add_all(
+        [
+            DeepAnalysisItem(
+                deep_analysis_id=analysis.id,
+                content_item_id=item_a.id,
+                status=DeepAnalysisItemStatus.done,
+                comments_analyzed_count=5,
+            ),
+            DeepAnalysisItem(
+                deep_analysis_id=analysis.id,
+                content_item_id=item_b.id,
+                status=DeepAnalysisItemStatus.done,
+                comments_analyzed_count=2,
+            ),
+        ]
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/deep-analyses/{analysis.id}", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert resp.json()["comments_analyzed_count"] == 7
 
 
 async def test_get_deep_analysis_404_for_missing_or_foreign(session: AsyncSession) -> None:

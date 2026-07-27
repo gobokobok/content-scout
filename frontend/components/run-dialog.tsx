@@ -402,12 +402,6 @@ export function RunDialog({
         >
           {!run && !scheduled && (
             <div className="flex flex-col gap-5 p-4">
-              {runType === "deep_analysis" && (
-                <p className="rounded-[10px] bg-accent-soft px-3 py-2.5 text-xs text-accent">
-                  {t("deepHint")}
-                </p>
-              )}
-
               {/* Step 1 — analysis scope */}
               <div className="flex flex-col gap-2.5">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">

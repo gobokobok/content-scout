@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
-from src.models import AnalysisRun, ContentItem, DeepAnalysis, User
+from src.models import AnalysisRun, ContentItem, DeepAnalysis, DeepAnalysisItem, User
 from src.services.deep_analysis import (
     InsufficientTokenBalanceError,
     RunNotDoneError,
@@ -65,6 +65,10 @@ class DeepAnalysisOut(BaseModel):
     error_message: str | None
     report_stats: dict[str, Any] | None
     report_recommendations: dict[str, Any] | None
+    # Total comments actually fetched across this analysis's items — only populated by
+    # get_deep_analysis (the report page's summary card), not list/create, which have no need
+    # for it and would otherwise pay for the aggregate query on every row.
+    comments_analyzed_count: int | None = None
     created_at: datetime
     completed_at: datetime | None
 
@@ -167,4 +171,11 @@ async def get_deep_analysis(
         await get_owned_project(session, user, analysis.project_id)
     except ProjectNotFoundError:
         raise DEEP_ANALYSIS_NOT_FOUND from None
-    return DeepAnalysisOut.from_model(analysis)
+    comments_analyzed_count = await session.scalar(
+        select(func.coalesce(func.sum(DeepAnalysisItem.comments_analyzed_count), 0)).where(
+            DeepAnalysisItem.deep_analysis_id == analysis.id
+        )
+    )
+    result = DeepAnalysisOut.from_model(analysis)
+    result.comments_analyzed_count = comments_analyzed_count
+    return result

@@ -18,8 +18,8 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
-import { api, ApiError, type DeepAnalysisResponse } from "@/lib/api";
-import { Segmented } from "@/components/ui";
+import { api, ApiError, type DeepAnalysisResponse, type RunResponse } from "@/lib/api";
+import { TabChip } from "@/components/ui";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { DEEP_ANALYSIS_STATUS_DOT, DEEP_ANALYSIS_STATUS_PILL, VIRALITY_STYLE } from "@/lib/format";
@@ -42,6 +42,7 @@ export default function DeepAnalysisReportPage() {
 
   const [tab, setTab] = useState<Tab>("stats");
   const [analysis, setAnalysis] = useState<DeepAnalysisResponse | null>(null);
+  const [run, setRun] = useState<RunResponse | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -61,6 +62,16 @@ export default function DeepAnalysisReportPage() {
     const handle = setInterval(() => void load(), POLL_INTERVAL_MS);
     return () => clearInterval(handle);
   }, [analysis, load]);
+
+  // Summary card needs the base run's account/publication counts — fetched once the analysis
+  // (and thus its stable run_id) is known, not on every poll tick.
+  useEffect(() => {
+    if (!analysis?.run_id) return;
+    api
+      .getRun(analysis.run_id)
+      .then(setRun)
+      .catch(() => {});
+  }, [analysis?.run_id]);
 
   const statusLabel: Record<DeepAnalysisResponse["status"], string> = {
     pending: t("statusPending"),
@@ -117,14 +128,13 @@ export default function DeepAnalysisReportPage() {
 
       {analysis && analysis.status === "done" && (
         <div className="flex flex-col gap-4">
-          <Segmented
-            value={tab}
-            onChange={setTab}
-            options={[
-              { value: "stats", label: t("statsTab") },
-              { value: "recommendations", label: t("recommendationsTab") },
-            ]}
-          />
+          <div className="flex gap-2">
+            {(["stats", "recommendations"] as const).map((key) => (
+              <TabChip key={key} active={tab === key} onClick={() => setTab(key)}>
+                {key === "stats" ? t("statsTab") : t("recommendationsTab")}
+              </TabChip>
+            ))}
+          </div>
 
           {stats?.comment_coverage_degraded && (
             <div className="flex items-start gap-2 rounded-card border border-warning/30 bg-accent-soft px-3.5 py-3">
@@ -135,6 +145,37 @@ export default function DeepAnalysisReportPage() {
 
           {tab === "stats" && (
             <div className="flex flex-col gap-4">
+              <div className="flex flex-col divide-y divide-border rounded-card border border-border bg-card px-4">
+                <div className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm text-secondary">{t("dateLabel")}</span>
+                  <span className="text-sm font-medium text-ink">
+                    {formatDate(analysis.created_at)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm text-secondary">{t("accountsAnalyzed")}</span>
+                  <span className="text-sm font-medium text-ink">
+                    {run?.progress_accounts ?? "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm text-secondary">{t("publicationsAnalyzed")}</span>
+                  <span className="text-sm font-medium text-ink">
+                    {run?.progress_items ?? "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm text-secondary">{t("tokensSpentLabel")}</span>
+                  <span className="text-sm font-medium text-ink">{analysis.tokens_charged}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm text-secondary">{t("commentsAnalyzedLabel")}</span>
+                  <span className="text-sm font-medium text-ink">
+                    {analysis.comments_analyzed_count ?? "—"}
+                  </span>
+                </div>
+              </div>
+
               {(!stats ||
                 (stats.topics.length === 0 &&
                   stats.formats.length === 0 &&
