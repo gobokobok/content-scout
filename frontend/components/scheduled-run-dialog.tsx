@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Check, Users } from "lucide-react";
+import { ArrowLeft, Check, Plus, Users } from "lucide-react";
 import { api, ApiError, type AccountResponse, type ScheduledRunResponse } from "@/lib/api";
+import { useToast } from "@/components/ui/toast";
 import { formatFollowers } from "@/lib/format";
 import { detectLocalTimezone } from "@/lib/telegram-webapp";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
@@ -14,7 +15,7 @@ const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 type ScopeMode = "days" | "count";
 type RepeatMode = "once" | "recurring";
-type View = "form" | "pickCompetitors";
+type View = "form" | "pickCompetitors" | "addCompetitor";
 
 function toTimeInputValue(timeOfDay: string): string {
   return timeOfDay.slice(0, 5);
@@ -24,6 +25,37 @@ function chipClass(active: boolean): string {
   return `h-10 min-w-10 rounded-[10px] px-2 font-mono text-[13px] font-medium transition-all active:scale-[0.98] ${
     active ? "bg-ink text-lime font-semibold" : "border border-border text-ink hover:bg-bg"
   }`;
+}
+
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-sm font-medium text-ink">{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={onChange}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+          checked ? "bg-lime" : "bg-border"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
+  );
 }
 
 export function ScheduledRunDialog({
@@ -40,6 +72,8 @@ export function ScheduledRunDialog({
   onSaved: () => void;
 }) {
   const t = useTranslations("ScheduledRuns");
+  const tCompetitors = useTranslations("Competitors");
+  const { addToast } = useToast();
 
   const [view, setView] = useState<View>("form");
   const [scopeMode, setScopeMode] = useState<ScopeMode>(
@@ -47,10 +81,13 @@ export function ScheduledRunDialog({
   );
   const [duration, setDuration] = useState(existing?.duration_days ?? 3);
   const [itemLimit, setItemLimit] = useState(existing?.item_limit ?? 10);
-  const [allAccounts, setAllAccounts] = useState(existing?.account_ids == null);
+  const [localAccounts, setLocalAccounts] = useState<AccountResponse[]>(accounts);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
-    existing?.account_ids ?? [],
+    existing?.account_ids ?? accounts.map((a) => a.id),
   );
+  const [addText, setAddText] = useState("");
+  const [addSubmitting, setAddSubmitting] = useState(false);
+  const [addErrors, setAddErrors] = useState<{ input: string; message_ru: string }[]>([]);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>(existing?.mode ?? "recurring");
   const [selectedDays, setSelectedDays] = useState<number[]>(existing?.days_of_week ?? []);
   const [timeOfDay, setTimeOfDay] = useState(
@@ -77,6 +114,29 @@ export function ScheduledRunDialog({
     );
   }
 
+  async function onAddCompetitor(e: React.FormEvent) {
+    e.preventDefault();
+    const entries = addText.split("\n").map((line) => line.trim()).filter(Boolean);
+    if (entries.length === 0) return;
+    setAddSubmitting(true);
+    setAddErrors([]);
+    try {
+      const result = await api.addAccounts(projectId, entries);
+      setAddErrors(result.errors);
+      setAddText("");
+      if (result.added.length > 0) {
+        setLocalAccounts((prev) => [...prev, ...result.added]);
+        setSelectedAccountIds((prev) => [...prev, ...result.added.map((a) => a.id)]);
+        addToast(tCompetitors("addedCount", { count: result.added.length }));
+        setView("pickCompetitors");
+      }
+    } catch (err) {
+      addToast(err instanceof ApiError ? err.messageRu : tCompetitors("genericError"));
+    } finally {
+      setAddSubmitting(false);
+    }
+  }
+
   function toggleDay(d: number) {
     if (repeatMode === "once") {
       setSelectedDays([d]);
@@ -98,7 +158,7 @@ export function ScheduledRunDialog({
       setError(t("selectDayError"));
       return;
     }
-    if (!allAccounts && selectedAccountIds.length === 0) {
+    if (selectedAccountIds.length === 0) {
       setError(t("selectCompetitorsError"));
       return;
     }
@@ -106,7 +166,7 @@ export function ScheduledRunDialog({
     const base = {
       duration_days: scopeMode === "days" ? duration : undefined,
       item_limit: scopeMode === "count" ? itemLimit : undefined,
-      account_ids: allAccounts ? undefined : selectedAccountIds,
+      account_ids: selectedAccountIds,
       mode: repeatMode,
       days_of_week: selectedDays,
       time_of_day: `${timeOfDay}:00`,
@@ -140,18 +200,26 @@ export function ScheduledRunDialog({
             {t("backToForm")}
           </button>
 
+          <button
+            onClick={() => setView("addCompetitor")}
+            className="flex items-center gap-3 rounded-card border border-dashed border-accent/40 bg-accent-soft px-4 py-3 text-left text-accent transition-colors active:scale-[0.99] hover:bg-accent-soft/80"
+          >
+            <Plus className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-semibold">{tCompetitors("addCompetitorButton")}</span>
+          </button>
+
           <div className="flex flex-col overflow-hidden rounded-card border border-border">
-            {accounts.length === 0 && (
+            {localAccounts.length === 0 && (
               <p className="p-4 text-sm text-secondary">{t("noAccounts")}</p>
             )}
-            {accounts.map((a, idx) => {
+            {localAccounts.map((a, idx) => {
               const selected = selectedAccountIds.includes(a.id);
               return (
                 <button
                   key={a.id}
                   onClick={() => toggleAccount(a.id)}
                   className={`flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-bg ${
-                    idx < accounts.length - 1 ? "border-b border-border" : ""
+                    idx < localAccounts.length - 1 ? "border-b border-border" : ""
                   }`}
                 >
                   <span
@@ -190,6 +258,53 @@ export function ScheduledRunDialog({
           >
             {t("selectedCompetitorsCount", { count: selectedAccountIds.length })} · {t("doneButton")}
           </button>
+        </div>
+      </BottomSheet>
+    );
+  }
+
+  if (view === "addCompetitor") {
+    return (
+      <BottomSheet open onClose={onClose} title={tCompetitors("addSheetTitle")}>
+        <div className="flex flex-col gap-3 p-4">
+          <button
+            onClick={() => {
+              setView("pickCompetitors");
+              setAddText("");
+              setAddErrors([]);
+            }}
+            className="flex w-fit items-center gap-1 text-sm text-secondary hover:text-ink transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {t("backToForm")}
+          </button>
+
+          <form onSubmit={(e) => void onAddCompetitor(e)} className="flex flex-col gap-3">
+            <textarea
+              value={addText}
+              onChange={(e) => setAddText(e.target.value)}
+              placeholder={tCompetitors("textareaPlaceholder")}
+              rows={5}
+              autoFocus
+              className="w-full resize-none rounded-control border border-border bg-bg px-3 py-2 text-base text-ink placeholder:text-secondary focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+            {addErrors.length > 0 && (
+              <ul className="flex flex-col gap-1">
+                {addErrors.map((e, i) => (
+                  <li key={i} className="text-sm text-danger">
+                    {e.input}: {e.message_ru}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              type="submit"
+              disabled={addSubmitting || !addText.trim()}
+              className="rounded-chip bg-lime px-4 py-3 text-sm font-semibold text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] transition-all active:scale-[0.98] disabled:opacity-50"
+            >
+              {addSubmitting ? tCompetitors("adding") : tCompetitors("addButton")}
+            </button>
+          </form>
         </div>
       </BottomSheet>
     );
@@ -236,44 +351,34 @@ export function ScheduledRunDialog({
         </div>
 
         {/* Competitors */}
-        <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+        <div className="flex flex-col gap-2.5 pt-7">
           <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
             {t("step2Title")}
           </span>
-          <Segmented
-            value={allAccounts ? "all" : "select"}
-            onChange={(v) => {
-              if (v === "all") setAllAccounts(true);
-              else { setAllAccounts(false); setView("pickCompetitors"); }
-            }}
-            options={[
-              { value: "all", label: t("allAccounts") },
-              { value: "select", label: t("selectCompetitorsButton") },
-            ]}
-          />
-          {!allAccounts && (
-            <button
-              onClick={() => setView("pickCompetitors")}
-              className="w-fit text-sm font-medium text-accent hover:underline"
-            >
+          <button
+            onClick={() => setView("pickCompetitors")}
+            className="flex items-center justify-between gap-2 rounded-control border border-border px-3.5 py-3 text-left transition-colors hover:bg-bg"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-ink">
+              <Users className="h-4 w-4 text-secondary" />
+              {t("addCompetitorsButton")}
+            </span>
+            <span className="text-xs text-secondary">
               {t("selectedCompetitorsCount", { count: selectedAccountIds.length })}
-            </button>
-          )}
+            </span>
+          </button>
         </div>
 
         {/* Schedule */}
-        <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+        <div className="flex flex-col gap-2.5 pt-7">
           <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
             {t("step3Title")}
           </span>
           <div className="flex flex-col gap-3 rounded-[14px] bg-bg p-3">
-            <Segmented
-              value={repeatMode}
-              onChange={onRepeatModeChange}
-              options={[
-                { value: "once", label: t("repeatModeOnce") },
-                { value: "recurring", label: t("repeatModeRecurring") },
-              ]}
+            <ToggleSwitch
+              checked={repeatMode === "recurring"}
+              onChange={() => onRepeatModeChange(repeatMode === "recurring" ? "once" : "recurring")}
+              label={t("repeatModeToggleLabel")}
             />
             <div className="grid grid-cols-7 gap-1.5">
               {WEEKDAYS.map((d) => (
@@ -292,23 +397,12 @@ export function ScheduledRunDialog({
             <p className="text-xs text-secondary">
               {repeatMode === "once" ? t("repeatModeOnceHint") : t("repeatModeRecurringHint")}
             </p>
-            <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
-              <span className="text-sm font-medium text-ink">{t("notifyLabel")}</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={notifyEnabled}
-                onClick={() => setNotifyEnabled((v) => !v)}
-                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                  notifyEnabled ? "bg-lime" : "bg-border"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                    notifyEnabled ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </button>
+            <div className="pt-3">
+              <ToggleSwitch
+                checked={notifyEnabled}
+                onChange={() => setNotifyEnabled((v) => !v)}
+                label={t("notifyLabel")}
+              />
             </div>
           </div>
         </div>
