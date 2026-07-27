@@ -446,7 +446,7 @@ export function RunDialog({
               </div>
 
               {/* Step 2 — competitors */}
-              <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+              <div className="flex flex-col gap-2.5 pt-7">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
                   {t("competitorsStepLabel")}
                 </span>
@@ -465,7 +465,7 @@ export function RunDialog({
               </div>
 
               {/* Step 3 — when to run */}
-              <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+              <div className="flex flex-col gap-2.5 pt-7">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
                   {t("launchModeLabel")}
                 </span>
