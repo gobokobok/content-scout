@@ -82,7 +82,7 @@
  },
  "Competitors": {
   "title": "Конкуренты",
-  "backToDetails": "Детали проекта",
+  "backToDetails": "Назад",
   "infoLabel": "О лимите конкурентов",
   "infoExplanation": "Можно добавить до 50 конкурентов.",
   "empty": "Список конкурентов пуст.",

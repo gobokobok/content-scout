@@ -83,9 +83,8 @@ export default function CompetitorsTabPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Back to Детали */}
       <Link
-        href={`/projects/${params.id}/details`}
+        href="/"
         className="flex w-fit items-center gap-1 text-sm text-secondary hover:text-ink transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
