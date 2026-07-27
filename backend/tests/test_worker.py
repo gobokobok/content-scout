@@ -1,9 +1,9 @@
 import asyncio
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models import (
@@ -12,11 +12,12 @@ from src.models import (
     KIND_CLAUDE_OUTPUT_TOKENS,
     AccountStatus,
     ContentItem,
+    DeepAnalysis,
     DeepAnalysisStatus,
     RunStatus,
     UsageEvent,
 )
-from src.worker import process_deep_analysis, process_run
+from src.worker import maybe_start_deep_analysis, process_deep_analysis, process_run
 from tests.conftest import (
     make_account,
     make_account_list,
@@ -392,3 +393,98 @@ async def test_process_deep_analysis_exception_marks_failed(session: AsyncSessio
     # A hard failure delivers zero report — the up-front charge is refunded in full.
     assert analysis.tokens_charged == 0
     assert user.token_balance == 160
+
+
+# ---------------------------------------------------------------------------
+# run_analysis auto-chain (nav overhaul): a done "deep_analysis" run starts + enqueues a
+# DeepAnalysis with no separate user step. Previously untested — the only coverage was of
+# process_run/process_deep_analysis individually, never the glue between them.
+# ---------------------------------------------------------------------------
+
+
+async def test_maybe_start_deep_analysis_creates_and_enqueues_when_run_done(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        run_type="deep_analysis",
+        status=RunStatus.done,
+    )
+    await make_content_item(session, run=run, account=account)
+    await session.commit()
+
+    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue:
+        await maybe_start_deep_analysis(session, run)
+
+    analysis = (
+        await session.scalars(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
+    ).one()
+    assert analysis.status == DeepAnalysisStatus.pending
+    assert analysis.tokens_charged > 0
+    mock_enqueue.assert_awaited_once_with(analysis.id)
+
+
+async def test_maybe_start_deep_analysis_skips_for_stat_collection_run(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    run = await make_run(
+        session, project=project, run_type="stat_collection", status=RunStatus.done
+    )
+    await session.commit()
+
+    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue:
+        await maybe_start_deep_analysis(session, run)
+
+    mock_enqueue.assert_not_awaited()
+    count = await session.scalar(
+        select(func.count()).select_from(DeepAnalysis).where(DeepAnalysis.run_id == run.id)
+    )
+    assert count == 0
+
+
+async def test_maybe_start_deep_analysis_skips_when_run_not_done(session: AsyncSession) -> None:
+    project = await make_project(session)
+    run = await make_run(
+        session, project=project, run_type="deep_analysis", status=RunStatus.failed
+    )
+    await session.commit()
+
+    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue:
+        await maybe_start_deep_analysis(session, run)
+
+    mock_enqueue.assert_not_awaited()
+
+
+async def test_maybe_start_deep_analysis_skips_silently_on_insufficient_balance(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=0)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        run_type="deep_analysis",
+        status=RunStatus.done,
+    )
+    await make_content_item(session, run=run, account=account)
+    await session.commit()
+
+    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue:
+        await maybe_start_deep_analysis(session, run)  # must not raise
+
+    mock_enqueue.assert_not_awaited()
+    count = await session.scalar(
+        select(func.count()).select_from(DeepAnalysis).where(DeepAnalysis.run_id == run.id)
+    )
+    assert count == 0
+    assert user.token_balance == 0

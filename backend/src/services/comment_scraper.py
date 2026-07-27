@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -16,6 +17,8 @@ from src.models import (
     ContentItem,
     UsageEvent,
 )
+
+logger = logging.getLogger(__name__)
 
 _MAX_ATTEMPTS = 3
 _APIFY_RUN_TIMEOUT_SECS = 120
@@ -201,15 +204,25 @@ async def fetch_comments(
         comments = _sort_and_cap(comments, limit)
         _record_apify_usage(session, user_id, item, len(comments), settings)
         return comments
-    except ApifyCommentsFailedError:
-        pass
+    except ApifyCommentsFailedError as apify_exc:
+        logger.warning(
+            "Apify comment fetch failed for item_id=%s, trying Bright Data: %s",
+            item.id,
+            apify_exc,
+        )
 
     try:
         comments = await brightdata.fetch_comments(item.url, limit)
         comments = _sort_and_cap(comments, limit)
         _record_brightdata_usage(session, user_id, item, settings)
         return comments
-    except BrightDataCommentsFailedError:
+    except BrightDataCommentsFailedError as brightdata_exc:
+        logger.warning(
+            "Both comment vendors failed for item_id=%s (Apify already failed above); "
+            "Bright Data: %s — this item's comments will be empty",
+            item.id,
+            brightdata_exc,
+        )
         return []
 
 

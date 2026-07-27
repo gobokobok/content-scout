@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -41,6 +42,8 @@ from src.services.scheduled_runs import fire_due_schedules
 from src.services.summarizer import summarize_run_items
 from src.services.telegram_notify import notify_run_complete
 from src.services.usage import rollup_run_totals
+
+logger = logging.getLogger(__name__)
 
 _SUMMARIZER_HTTP_TIMEOUT = 10.0
 _TOKEN_BALANCE_EXHAUSTED_MSG = (
@@ -232,6 +235,30 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             pass
 
 
+async def maybe_start_deep_analysis(session: AsyncSession, run: AnalysisRun) -> None:
+    """Auto-chain (nav overhaul, E17 follow-up): a "deep_analysis"-type run immediately starts
+    and enqueues a DeepAnalysis once its base scrape finishes cleanly — no separate user step.
+    Never raises: a soft-fail here (insufficient tokens, a DB/queue hiccup, a misconfigured
+    comment vendor) leaves the scrape result intact and analyzable manually later, but is always
+    logged so a real failure isn't silently invisible — the previous bare `except: pass` here
+    made a genuine chaining bug indistinguishable from "nothing to do" in production.
+    """
+    if run.run_type != "deep_analysis" or run.status != RunStatus.done:
+        return
+    try:
+        user = await session.get(User, run.requested_by)
+        if user is None:
+            return
+        settings = get_settings()
+        analysis = await start_deep_analysis(session, run, user, settings)
+        await session.commit()
+        await enqueue_deep_analysis(analysis.id)
+    except InsufficientTokenBalanceError:
+        logger.info("Skipping auto deep-analysis for run_id=%s: insufficient token balance", run.id)
+    except Exception:  # noqa: BLE001 — logged, never lets chaining fail the base run
+        logger.exception("Auto deep-analysis chaining failed for run_id=%s", run.id)
+
+
 async def run_analysis(ctx: dict, run_id: str) -> None:
     sessionmaker = get_sessionmaker()
     async with sessionmaker() as session:
@@ -239,21 +266,7 @@ async def run_analysis(ctx: dict, run_id: str) -> None:
         if run is None:
             return
         await process_run(session, run)
-        # Auto-chain: a "deep_analysis" run type triggers an immediate deep analysis once the
-        # scrape finishes cleanly. Silently skips on insufficient token balance — the scrape
-        # result is preserved and can be analyzed manually from the analysis history.
-        if run.run_type == "deep_analysis" and run.status == RunStatus.done:
-            try:
-                user = await session.get(User, run.requested_by)
-                if user is not None:
-                    settings = get_settings()
-                    analysis = await start_deep_analysis(session, run, user, settings)
-                    await session.commit()
-                    await enqueue_deep_analysis(analysis.id)
-            except InsufficientTokenBalanceError:
-                pass
-            except Exception:  # noqa: BLE001
-                pass
+        await maybe_start_deep_analysis(session, run)
 
 
 async def apply_profile_update(session: AsyncSession, account: Account, user_id: uuid.UUID) -> None:
