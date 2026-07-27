@@ -50,7 +50,9 @@ class AnalysisRun(UuidPk, CreatedAt, Base):
     )
 
     # "stat_collection" = standard scrape; "deep_analysis" = scrape + auto-chained deep analysis.
-    run_type: Mapped[str] = mapped_column(String(32), nullable=False, server_default="stat_collection")
+    run_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="stat_collection"
+    )
 
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id"), nullable=False, index=True

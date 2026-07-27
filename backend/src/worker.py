@@ -32,9 +32,9 @@ from src.services.deep_analysis import (
     fail_deep_analysis,
     start_deep_analysis,
 )
-from src.services.queue import enqueue_deep_analysis
 from src.services.deep_analysis_extraction import extract_deep_analysis_items
 from src.services.deep_analysis_synthesis import synthesize_report
+from src.services.queue import enqueue_deep_analysis
 from src.services.run_summary import generate_run_summary
 from src.services.runs import resolve_target_accounts
 from src.services.scheduled_runs import fire_due_schedules
