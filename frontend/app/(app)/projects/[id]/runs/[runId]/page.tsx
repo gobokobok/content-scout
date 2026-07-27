@@ -242,6 +242,14 @@ export default function RunDetailPage() {
                 </div>
               </div>
 
+              {run.deep_analysis_skip_reason && (
+                <p className="rounded-card border border-danger/30 bg-danger-soft px-3.5 py-3 text-sm text-danger">
+                  {run.deep_analysis_skip_reason === "insufficient_tokens"
+                    ? t("deepAnalysisSkipInsufficientTokens")
+                    : t("deepAnalysisSkipError")}
+                </p>
+              )}
+
               <div className="rounded-card border border-border bg-card p-4">
                 <p className="mb-2 text-sm font-semibold text-ink">{t("aiSummaryTitle")}</p>
                 {run.summary_status === "done" && (

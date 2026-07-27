@@ -91,6 +91,8 @@ class RunOut(BaseModel):
     summary_status: str
     summary_text: str | None
     summary_topics: list[str] | None
+    # Set when a deep_analysis run's auto-chain skipped instead of creating a DeepAnalysis.
+    deep_analysis_skip_reason: str | None
 
     @classmethod
     def from_model(cls, run: AnalysisRun) -> "RunOut":
@@ -115,6 +117,7 @@ class RunOut(BaseModel):
             summary_status=run.summary_status.value,
             summary_text=run.summary_text,
             summary_topics=run.summary_topics,
+            deep_analysis_skip_reason=run.deep_analysis_skip_reason,
         )
 
 
@@ -133,6 +136,10 @@ class RunFeedItem(BaseModel):
     # base run's — a run can finish scraping cleanly while its deep analysis still fails.
     deep_analysis_id: uuid.UUID | None
     deep_analysis_status: str | None
+    # Set when the auto-chain (worker.py:maybe_start_deep_analysis) skipped instead of creating
+    # a DeepAnalysis — "insufficient_tokens" or "error" — so a done deep_analysis run with no
+    # analysis isn't visually indistinguishable from a plain stat_collection run.
+    deep_analysis_skip_reason: str | None
     created_at: datetime
     finished_at: datetime | None
 
@@ -302,6 +309,7 @@ async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedIt
             comments_count=comments_count,
             deep_analysis_id=deep_analysis_id,
             deep_analysis_status=deep_analysis_status,
+            deep_analysis_skip_reason=run.deep_analysis_skip_reason,
             created_at=run.created_at,
             finished_at=run.finished_at,
         )

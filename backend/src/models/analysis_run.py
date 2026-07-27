@@ -53,6 +53,10 @@ class AnalysisRun(UuidPk, CreatedAt, Base):
     run_type: Mapped[str] = mapped_column(
         String(32), nullable=False, server_default="stat_collection"
     )
+    # Set when a deep_analysis run's auto-chain (worker.py:maybe_start_deep_analysis) does not
+    # create a DeepAnalysis: "insufficient_tokens" or "error". NULL for stat_collection runs and
+    # for deep_analysis runs where the chain succeeded.
+    deep_analysis_skip_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id"), nullable=False, index=True

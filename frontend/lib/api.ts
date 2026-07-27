@@ -121,6 +121,7 @@ export interface RunResponse {
   summary_status: "pending" | "done" | "failed";
   summary_text: string | null;
   summary_topics: string[] | null;
+  deep_analysis_skip_reason: "insufficient_tokens" | "error" | null;
 }
 
 export interface RunFeedItem {
@@ -134,6 +135,7 @@ export interface RunFeedItem {
   comments_count: number | null;
   deep_analysis_id: string | null;
   deep_analysis_status: "pending" | "extracting" | "synthesizing" | "done" | "failed" | null;
+  deep_analysis_skip_reason: "insufficient_tokens" | "error" | null;
   created_at: string;
   finished_at: string | null;
 }

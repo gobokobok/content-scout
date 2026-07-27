@@ -239,9 +239,11 @@ async def maybe_start_deep_analysis(session: AsyncSession, run: AnalysisRun) -> 
     """Auto-chain (nav overhaul, E17 follow-up): a "deep_analysis"-type run immediately starts
     and enqueues a DeepAnalysis once its base scrape finishes cleanly — no separate user step.
     Never raises: a soft-fail here (insufficient tokens, a DB/queue hiccup, a misconfigured
-    comment vendor) leaves the scrape result intact and analyzable manually later, but is always
-    logged so a real failure isn't silently invisible — the previous bare `except: pass` here
-    made a genuine chaining bug indistinguishable from "nothing to do" in production.
+    comment vendor) leaves the scrape result intact and analyzable manually later. Always
+    logged, and — unlike the original version of this function — always recorded on the run
+    itself via deep_analysis_skip_reason: a bare `except: pass` here previously made a skipped
+    chain indistinguishable from a run that was never meant to have one, with zero trace once
+    the log line scrolled out of Railway's retention window.
     """
     if run.run_type != "deep_analysis" or run.status != RunStatus.done:
         return
@@ -251,12 +253,17 @@ async def maybe_start_deep_analysis(session: AsyncSession, run: AnalysisRun) -> 
             return
         settings = get_settings()
         analysis = await start_deep_analysis(session, run, user, settings)
+        run.deep_analysis_skip_reason = None
         await session.commit()
         await enqueue_deep_analysis(analysis.id)
     except InsufficientTokenBalanceError:
         logger.info("Skipping auto deep-analysis for run_id=%s: insufficient token balance", run.id)
+        run.deep_analysis_skip_reason = "insufficient_tokens"
+        await session.commit()
     except Exception:  # noqa: BLE001 — logged, never lets chaining fail the base run
         logger.exception("Auto deep-analysis chaining failed for run_id=%s", run.id)
+        run.deep_analysis_skip_reason = "error"
+        await session.commit()
 
 
 async def run_analysis(ctx: dict, run_id: str) -> None:

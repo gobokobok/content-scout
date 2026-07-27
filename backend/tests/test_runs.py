@@ -341,3 +341,26 @@ async def test_run_feed_surfaces_failed_deep_analysis_status_even_when_run_done(
         [item] = resp.json()
         assert item["status"] == "done"
         assert item["deep_analysis_status"] == "failed"
+
+
+async def test_run_feed_surfaces_deep_analysis_skip_reason(session: AsyncSession) -> None:
+    """The bug reported live: a deep_analysis run whose auto-chain skipped (insufficient
+    balance) has no DeepAnalysis row at all, so without this field it is visually
+    indistinguishable from a plain stat_collection run."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_run(
+        session,
+        project=project,
+        requested_by=owner,
+        run_type="deep_analysis",
+        status=RunStatus.done,
+        deep_analysis_skip_reason="insufficient_tokens",
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get("/me/run-feed", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        [item] = resp.json()
+        assert item["deep_analysis_id"] is None
+        assert item["deep_analysis_skip_reason"] == "insufficient_tokens"

@@ -427,7 +427,34 @@ async def test_maybe_start_deep_analysis_creates_and_enqueues_when_run_done(
     ).one()
     assert analysis.status == DeepAnalysisStatus.pending
     assert analysis.tokens_charged > 0
+    assert run.deep_analysis_skip_reason is None
     mock_enqueue.assert_awaited_once_with(analysis.id)
+
+
+async def test_maybe_start_deep_analysis_clears_stale_skip_reason_on_success(
+    session: AsyncSession,
+) -> None:
+    """A run that skipped once (e.g. insufficient balance, later topped up and retried some
+    other way) should not keep showing a stale skip reason once the chain does succeed."""
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        run_type="deep_analysis",
+        status=RunStatus.done,
+        deep_analysis_skip_reason="insufficient_tokens",
+    )
+    await make_content_item(session, run=run, account=account)
+    await session.commit()
+
+    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()):
+        await maybe_start_deep_analysis(session, run)
+
+    assert run.deep_analysis_skip_reason is None
 
 
 async def test_maybe_start_deep_analysis_skips_for_stat_collection_run(
@@ -488,3 +515,29 @@ async def test_maybe_start_deep_analysis_skips_silently_on_insufficient_balance(
     )
     assert count == 0
     assert user.token_balance == 0
+    assert run.deep_analysis_skip_reason == "insufficient_tokens"
+
+
+async def test_maybe_start_deep_analysis_records_error_reason_on_unexpected_exception(
+    session: AsyncSession,
+) -> None:
+    """A genuine bug in the chain (DB hiccup, unexpected exception) must still leave a visible
+    trace on the run, not just a log line that scrolls out of retention."""
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        run_type="deep_analysis",
+        status=RunStatus.done,
+    )
+    await make_content_item(session, run=run, account=account)
+    await session.commit()
+
+    with patch("src.worker.start_deep_analysis", side_effect=RuntimeError("boom")):
+        await maybe_start_deep_analysis(session, run)  # must not raise
+
+    assert run.deep_analysis_skip_reason == "error"
