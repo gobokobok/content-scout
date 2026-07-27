@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import { api, ApiError, type ProjectResponse } from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { ProjectContext } from "@/lib/project-context";
-import { useHeaderTitle } from "@/lib/header-context";
 
 export default function ProjectShellLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("ProjectShell");
@@ -36,8 +35,6 @@ export default function ProjectShellLayout({ children }: { children: React.React
   }, [params.id, t, addToast]);
 
   const isArchived = project?.archived_at !== null && project?.archived_at !== undefined;
-
-  useHeaderTitle(project?.name ?? null);
 
   return (
     <ProjectContext.Provider value={{ project, isArchived }}>

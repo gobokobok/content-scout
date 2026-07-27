@@ -192,7 +192,7 @@ export default function RunDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <button
-        onClick={() => router.push(`/projects/${params.id}/results`)}
+        onClick={() => router.push("/")}
         className="flex w-fit items-center gap-1 text-sm text-secondary hover:text-ink transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
