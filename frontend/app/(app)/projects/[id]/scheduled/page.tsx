@@ -220,7 +220,7 @@ export default function ScheduledRunsPage() {
                       </span>
                     )}
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      <Badge variant={s.active ? "success" : "default"}>
+                      <Badge variant={s.active ? "success" : "muted"}>
                         {s.active ? t("activeLabel") : t("inactiveLabel")}
                       </Badge>
                       {s.notify_enabled && <Badge variant="default">{t("notifyBadge")}</Badge>}

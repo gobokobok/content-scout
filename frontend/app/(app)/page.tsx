@@ -387,7 +387,7 @@ export default function RunFeedPage() {
                           </span>
                         )}
                         <div className="mt-1 flex items-center gap-2">
-                          <Badge variant={sr.active ? "success" : "default"}>
+                          <Badge variant={sr.active ? "success" : "muted"}>
                             {sr.active ? tSched("activeLabel") : tSched("inactiveLabel")}
                           </Badge>
                           {sr.notify_enabled && (

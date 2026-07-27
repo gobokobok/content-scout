@@ -58,13 +58,14 @@ export const Textarea = forwardRef<
 ));
 Textarea.displayName = "Textarea";
 
-type BadgeVariant = "default" | "success" | "warning" | "danger";
+type BadgeVariant = "default" | "success" | "warning" | "danger" | "muted";
 
 const BADGE_VARIANTS: Record<BadgeVariant, string> = {
   default: "bg-accent-soft text-accent",
   success: "bg-success-soft text-success",
   warning: "bg-accent-soft text-accent",
   danger: "bg-danger-soft text-danger",
+  muted: "bg-border/60 text-secondary",
 };
 
 export function tabChipClass(active: boolean, className = ""): string {

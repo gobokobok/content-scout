@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
@@ -17,6 +17,16 @@ from src.services.workspace import get_user_workspace
 router = APIRouter(prefix="/projects/{project_id}/scheduled-runs", tags=["scheduled-runs"])
 # Cross-project — backs the header notification panel, which has no single project in scope.
 alerts_router = APIRouter(prefix="/scheduled-runs", tags=["scheduled-runs"])
+
+# A once-mode schedule that already fired successfully (deactivated, no skip reason) is done —
+# its result lives on as a completed run in the Запуски feed, so it is dropped from every
+# scheduled-run list rather than lingering as a dead inactive row. A once-mode schedule that was
+# *skipped* stays visible (with its skip reason) since the user has not addressed it yet.
+SCHEDULE_LIST_VISIBLE = or_(
+    ScheduledRun.mode != ScheduleMode.once,
+    ScheduledRun.active.is_(True),
+    ScheduledRun.last_skip_reason.is_not(None),
+)
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -172,7 +182,7 @@ async def list_scheduled_runs(
     await _get_project(session, user, project_id)
     scheduled_runs = await session.scalars(
         select(ScheduledRun)
-        .where(ScheduledRun.project_id == project_id)
+        .where(ScheduledRun.project_id == project_id, SCHEDULE_LIST_VISIBLE)
         .order_by(ScheduledRun.created_at.desc())
     )
     return [ScheduledRunOut.from_model(sr) for sr in scheduled_runs]

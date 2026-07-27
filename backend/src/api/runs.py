@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.scheduled_runs import ScheduledRunOut
+from src.api.scheduled_runs import SCHEDULE_LIST_VISIBLE, ScheduledRunOut
 from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
@@ -310,7 +310,7 @@ async def get_scheduled_run_feed(user: CurrentUser, session: SessionDep) -> list
     rows = await session.execute(
         select(ScheduledRun, Project.name)
         .join(Project, Project.id == ScheduledRun.project_id)
-        .where(Project.workspace_id == workspace.id)
+        .where(Project.workspace_id == workspace.id, SCHEDULE_LIST_VISIBLE)
         .order_by(ScheduledRun.created_at.desc())
         .limit(200)
     )

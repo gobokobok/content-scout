@@ -221,6 +221,86 @@ async def test_list_scheduled_runs_scoped_to_project(session: AsyncSession) -> N
         assert len(resp.json()) == 1
 
 
+async def test_list_scheduled_runs_hides_fired_once_schedule(session: AsyncSession) -> None:
+    """A once-mode schedule that already fired self-deactivates (E14-S6) — its result lives on
+    as a completed run in the Запуски feed, so it should no longer clutter the scheduled list."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_scheduled_run(
+        session, project=project, created_by=owner, mode=ScheduleMode.once, active=False
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/scheduled-runs", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+
+async def test_list_scheduled_runs_keeps_skipped_once_schedule(session: AsyncSession) -> None:
+    """A once-mode schedule that was *skipped* (no accounts/tokens/quota) never actually ran —
+    it should stay visible with its skip reason so the user can see and fix it."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_scheduled_run(
+        session,
+        project=project,
+        created_by=owner,
+        mode=ScheduleMode.once,
+        active=False,
+        last_skip_reason=ScheduledRunSkipReason.no_tokens,
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/scheduled-runs", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+
+
+async def test_list_scheduled_runs_keeps_active_once_schedule(session: AsyncSession) -> None:
+    """An active once-mode schedule has not fired yet — still visible."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_scheduled_run(
+        session, project=project, created_by=owner, mode=ScheduleMode.once, active=True
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/scheduled-runs", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+
+
+async def test_list_scheduled_runs_keeps_inactive_recurring_schedule(
+    session: AsyncSession,
+) -> None:
+    """The disappear-after-firing behavior is once-mode specific — a recurring schedule the
+    user paused manually must stay visible (that is a real, revisitable Неактивно state)."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_scheduled_run(
+        session, project=project, created_by=owner, mode=ScheduleMode.recurring, active=False
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/scheduled-runs", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+
+
+async def test_scheduled_run_feed_hides_fired_once_schedule(session: AsyncSession) -> None:
+    """Same visibility rule applies to the cross-project home-feed endpoint."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    await make_scheduled_run(
+        session, project=project, created_by=owner, mode=ScheduleMode.once, active=False
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get("/me/scheduled-run-feed", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+
 async def test_scheduled_run_feed_exposes_full_record_and_project_name(
     session: AsyncSession,
 ) -> None:
