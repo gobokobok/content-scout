@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowDownUp, Check, Plus } from "lucide-react";
+import { ArrowLeft, CalendarClock, Plus } from "lucide-react";
 import {
   api,
   ApiError,
@@ -17,12 +17,10 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { RunDialog } from "@/components/run-dialog";
 import { RunTypePickerSheet } from "@/components/run-type-picker-sheet";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
 
-type Tab = "runs" | "scheduled";
+type View = "feed" | "schedule";
 type RunTypeFilter = "all" | "stat_collection" | "deep_analysis";
 type RunType = "stat_collection" | "deep_analysis";
-type RunSort = "newest" | "oldest" | "type";
 
 const IN_PROGRESS_STATUSES = new Set(["pending", "scraping", "summarizing"]);
 const POLL_MS = 5000;
@@ -48,10 +46,8 @@ export default function RunFeedPage() {
   const router = useRouter();
   const { addToast } = useToast();
 
-  const [tab, setTab] = useState<Tab>("runs");
+  const [view, setView] = useState<View>("feed");
   const [filter, setFilter] = useState<RunTypeFilter>("all");
-  const [sort, setSort] = useState<RunSort>("newest");
-  const [sortOpen, setSortOpen] = useState(false);
   const [runs, setRuns] = useState<RunFeedItem[] | null>(null);
   const [scheduled, setScheduled] = useState<ScheduledFeedItem[] | null>(null);
 
@@ -109,13 +105,11 @@ export default function RunFeedPage() {
     setDialogRunType(runType);
   }
 
-  const filteredRuns = (() => {
-    let list = filter === "all" ? (runs ?? []) : (runs ?? []).filter((r) => r.run_type === filter);
-    if (sort === "oldest") list = [...list].sort((a, b) => a.created_at.localeCompare(b.created_at));
-    else if (sort === "type") list = [...list].sort((a, b) => a.run_type.localeCompare(b.run_type));
-    // "newest" is the default order from the API (desc) — no re-sort needed
-    return list;
-  })();
+  const filteredRuns =
+    filter === "all" ? (runs ?? []) : (runs ?? []).filter((r) => r.run_type === filter);
+
+  const hasStatRuns = (runs ?? []).some((r) => r.run_type === "stat_collection");
+  const hasDeepRuns = (runs ?? []).some((r) => r.run_type === "deep_analysis");
 
   const statusLabel: Record<RunFeedItem["status"], string> = {
     pending: t("statusPending"),
@@ -130,58 +124,56 @@ export default function RunFeedPage() {
       className="relative mx-auto flex w-full max-w-2xl flex-col gap-4 p-4"
       style={{ paddingBottom: "max(5.5rem, calc(env(safe-area-inset-bottom) + 5.5rem))" }}
     >
-      {/* Tabs */}
-      <div className="inline-flex w-fit gap-0.5 rounded-chip bg-[#E9EBE6] p-[3px]">
-        {(["runs", "scheduled"] as const).map((tabKey) => (
-          <button
-            key={tabKey}
-            onClick={() => setTab(tabKey)}
-            className={`rounded-chip px-4 py-2 text-sm transition-all active:scale-[0.98] ${
-              tab === tabKey
-                ? "bg-ink font-semibold text-white"
-                : "font-medium text-secondary hover:text-ink"
-            }`}
-          >
-            {tabKey === "runs" ? t("tabRuns") : t("tabScheduled")}
-          </button>
-        ))}
-      </div>
-
-      {/* Filter + sort row — runs tab only */}
-      {tab === "runs" && (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSortOpen(true)}
-            aria-label={t("sortIconLabel")}
-            className={`inline-flex items-center justify-center rounded-control border p-2 transition-colors ${
-              sort !== "newest"
-                ? "border-accent/30 bg-accent-soft text-accent"
-                : "border-border text-secondary hover:bg-bg"
-            }`}
-          >
-            <ArrowDownUp className="h-4 w-4" />
-          </button>
-          <div className="flex flex-wrap gap-2">
-            {(["all", "stat_collection", "deep_analysis"] as const).map((f) => (
+      {view === "feed" && (
+        <>
+          {/* Filter chips + schedule icon */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
-                key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => setFilter("all")}
                 className={`rounded-chip px-3.5 py-1.5 text-sm font-medium transition-all active:scale-[0.98] ${
-                  filter === f
+                  filter === "all"
                     ? "bg-ink text-white"
                     : "border border-border text-secondary hover:text-ink"
                 }`}
               >
-                {f === "all" ? t("filterAll") : f === "stat_collection" ? t("filterStat") : t("filterDeep")}
+                {t("filterAll")}
               </button>
-            ))}
+              {hasStatRuns && (
+                <button
+                  onClick={() => setFilter("stat_collection")}
+                  className={`rounded-chip px-3.5 py-1.5 text-sm font-medium transition-all active:scale-[0.98] ${
+                    filter === "stat_collection"
+                      ? "bg-ink text-white"
+                      : "border border-border text-secondary hover:text-ink"
+                  }`}
+                >
+                  {t("filterStat")}
+                </button>
+              )}
+              {hasDeepRuns && (
+                <button
+                  onClick={() => setFilter("deep_analysis")}
+                  className={`rounded-chip px-3.5 py-1.5 text-sm font-medium transition-all active:scale-[0.98] ${
+                    filter === "deep_analysis"
+                      ? "bg-ink text-white"
+                      : "border border-border text-secondary hover:text-ink"
+                  }`}
+                >
+                  {t("filterDeep")}
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setView("schedule")}
+              aria-label={t("scheduleIconLabel")}
+              className="inline-flex shrink-0 items-center justify-center rounded-control border border-border p-2.5 text-secondary transition-colors active:scale-[0.98] hover:bg-bg"
+            >
+              <CalendarClock className="h-4 w-4" />
+            </button>
           </div>
-        </div>
-      )}
 
-      {/* Runs tab */}
-      {tab === "runs" && (
-        <>
+          {/* Runs list */}
           {runs === null && <SkeletonList count={4} />}
           {runs !== null && filteredRuns.length === 0 && (
             <p className="py-8 text-center text-sm text-secondary">{t("emptyRuns")}</p>
@@ -220,9 +212,17 @@ export default function RunFeedPage() {
         </>
       )}
 
-      {/* Scheduled tab */}
-      {tab === "scheduled" && (
+      {view === "schedule" && (
         <>
+          <button
+            onClick={() => setView("feed")}
+            className="flex w-fit items-center gap-1 text-sm text-secondary transition-colors hover:text-ink"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {t("back")}
+          </button>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("tabScheduled")}</h1>
+
           {scheduled === null && <SkeletonList count={3} />}
           {scheduled !== null && scheduled.length === 0 && (
             <p className="py-8 text-center text-sm text-secondary">{t("emptyScheduled")}</p>
@@ -260,30 +260,14 @@ export default function RunFeedPage() {
         </>
       )}
 
-      {/* Sort picker */}
-      <BottomSheet open={sortOpen} onClose={() => setSortOpen(false)} title={t("sortIconLabel")}>
-        {(["newest", "oldest", "type"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => { setSort(s); setSortOpen(false); }}
-            className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-base text-ink hover:bg-bg transition-colors"
-          >
-            <span className="flex-1">
-              {s === "newest" ? t("sortNewest") : s === "oldest" ? t("sortOldest") : t("sortByType")}
-            </span>
-            {sort === s && <Check className="h-4 w-4 text-accent" />}
-          </button>
-        ))}
-      </BottomSheet>
-
-      {/* FAB */}
+      {/* FAB — available on both the feed and schedule views */}
       <button
         onClick={() => setPickerOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-lime shadow-[0_8px_24px_rgba(140,170,20,0.40)] transition-all active:scale-[0.96] hover:opacity-90"
+        className="fixed bottom-6 right-6 z-40 flex h-16 w-16 items-center justify-center rounded-card bg-lime shadow-[0_8px_24px_rgba(140,170,20,0.40)] transition-all active:scale-[0.96] hover:opacity-90"
         style={{ bottom: "max(1.5rem, calc(env(safe-area-inset-bottom) + 1.5rem))" }}
         aria-label="Новый запуск"
       >
-        <Plus className="h-6 w-6 text-ink" />
+        <Plus className="h-7 w-7 text-ink" />
       </button>
 
       {/* Run type picker */}

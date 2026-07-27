@@ -100,19 +100,16 @@
   "noData": "нет данных"
  },
  "RunFeed": {
-  "tabRuns": "Запуски",
   "tabScheduled": "Расписание",
+  "back": "Назад",
+  "scheduleIconLabel": "Расписание",
   "filterAll": "Все",
-  "filterStat": "Ревью конкурентов",
-  "filterDeep": "Анализ публикаций",
+  "filterStat": "Ревью",
+  "filterDeep": "Анализ",
   "emptyRuns": "Пока нет запусков. Нажмите «+», чтобы создать первый.",
   "emptyScheduled": "Нет запланированных запусков.",
-  "runTypeStat": "Ревью конкурентов",
-  "runTypeDeep": "Анализ публикаций и комментариев",
-  "sortIconLabel": "Сортировка",
-  "sortNewest": "Сначала новые",
-  "sortOldest": "Сначала старые",
-  "sortByType": "По типу запуска",
+  "runTypeStat": "Ревью",
+  "runTypeDeep": "Анализ",
   "genericError": "Произошла ошибка. Попробуйте ещё раз.",
   "statusPending": "Ожидание…",
   "statusScraping": "Сбор публикаций…",
@@ -135,11 +132,7 @@
   "statTitle": "Ревью конкурентов",
   "statDescription": "Соберём публикации конкурентов и сформируем описания.",
   "deepTitle": "Анализ публикаций и комментариев",
-  "deepDescription": "Детальный анализ конкурентов включая топ комментарии каждой публикации.",
-  "competitorTitle": "Анализ конкурентов",
-  "competitorDescription": "Скоро",
-  "publicationTitle": "Анализ публикации",
-  "publicationDescription": "Скоро"
+  "deepDescription": "Детальный анализ конкурентов включая топ комментарии каждой публикации."
  },
  "RunDialog": {
   "title": "Новый анализ",
