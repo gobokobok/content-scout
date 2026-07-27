@@ -136,15 +136,11 @@ export interface RunFeedItem {
   finished_at: string | null;
 }
 
-export interface ScheduledFeedItem {
-  id: string;
-  project_id: string;
+// Full ScheduledRunResponse shape (not just a summary) plus project_name — the home feed's
+// Расписание list opens this schedule's edit dialog directly on tap, which needs the
+// complete record.
+export interface ScheduledFeedItem extends ScheduledRunResponse {
   project_name: string;
-  run_type: "stat_collection" | "deep_analysis";
-  mode: "once" | "recurring";
-  days_of_week: number[];
-  active: boolean;
-  created_at: string;
 }
 
 export interface RunRequest {

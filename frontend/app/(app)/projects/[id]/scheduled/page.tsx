@@ -18,7 +18,7 @@ import { SkeletonList } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { useProject } from "@/lib/project-context";
-import { ScheduledRunDialog } from "./scheduled-run-dialog";
+import { ScheduledRunDialog } from "@/components/scheduled-run-dialog";
 
 const SKIP_REASON_KEYS: Record<ScheduledRunSkipReason, string> = {
   no_accounts: "skipReasonNoAccounts",

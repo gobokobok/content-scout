@@ -118,17 +118,7 @@
   "statusScraping": "Сбор публикаций…",
   "statusSummarizing": "Описания…",
   "statusDone": "Готово",
-  "statusFailed": "Ошибка",
-  "scheduledModeOnce": "Разовый",
-  "scheduledModeRecurring": "Повторяющийся",
-  "scheduledInactive": "Отключено",
-  "weekday0Short": "Пн",
-  "weekday1Short": "Вт",
-  "weekday2Short": "Ср",
-  "weekday3Short": "Чт",
-  "weekday4Short": "Пт",
-  "weekday5Short": "Сб",
-  "weekday6Short": "Вс"
+  "statusFailed": "Ошибка"
  },
  "RunTypePicker": {
   "title": "Выбери задачу",

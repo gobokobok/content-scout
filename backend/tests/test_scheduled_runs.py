@@ -221,6 +221,37 @@ async def test_list_scheduled_runs_scoped_to_project(session: AsyncSession) -> N
         assert len(resp.json()) == 1
 
 
+async def test_scheduled_run_feed_exposes_full_record_and_project_name(
+    session: AsyncSession,
+) -> None:
+    """The home feed's Расписание list opens a schedule's edit dialog directly on tap
+    (nav-overhaul follow-up), which needs the same fields the per-project CRUD endpoints
+    return — not just the summary the feed previously exposed."""
+    owner, project = await _setup_project_with_accounts(session, n=2)
+    scheduled = await make_scheduled_run(
+        session,
+        project=project,
+        created_by=owner,
+        duration_days=5,
+        days_of_week=[1, 3],
+        time_of_day=time(18, 30),
+        notify_enabled=True,
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get("/me/scheduled-run-feed", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        [item] = resp.json()
+        assert item["id"] == str(scheduled.id)
+        assert item["project_name"] == project.name
+        assert item["duration_days"] == 5
+        assert item["days_of_week"] == [1, 3]
+        assert item["time_of_day"] == "18:30:00"
+        assert item["notify_enabled"] is True
+        assert item["active"] is True
+
+
 async def test_update_scheduled_run(session: AsyncSession) -> None:
     owner, project = await _setup_project_with_accounts(session, n=1)
     scheduled = await make_scheduled_run(session, project=project, created_by=owner)

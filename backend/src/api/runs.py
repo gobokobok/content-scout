@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.scheduled_runs import ScheduledRunOut
 from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
@@ -130,15 +131,11 @@ class RunFeedItem(BaseModel):
     finished_at: datetime | None
 
 
-class ScheduledFeedItem(BaseModel):
-    id: uuid.UUID
-    project_id: uuid.UUID
+class ScheduledFeedItem(ScheduledRunOut):
+    # Full ScheduledRunOut shape (not just a summary) plus project_name — the home feed's
+    # Расписание list opens this schedule's edit dialog directly on tap, which needs the
+    # complete record, not a trimmed-down feed row.
     project_name: str
-    run_type: str
-    mode: str
-    days_of_week: list[int]
-    active: bool
-    created_at: datetime
 
 
 async def _check_run_quota(session: AsyncSession, user_id: uuid.UUID) -> None:
@@ -306,15 +303,6 @@ async def get_scheduled_run_feed(user: CurrentUser, session: SessionDep) -> list
         .limit(200)
     )
     return [
-        ScheduledFeedItem(
-            id=sr.id,
-            project_id=sr.project_id,
-            project_name=project_name,
-            run_type=sr.run_type,
-            mode=sr.mode.value,
-            days_of_week=sorted(sr.days_of_week),
-            active=sr.active,
-            created_at=sr.created_at,
-        )
+        ScheduledFeedItem(**ScheduledRunOut.from_model(sr).model_dump(), project_name=project_name)
         for sr, project_name in rows.all()
     ]
