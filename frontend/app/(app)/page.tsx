@@ -253,45 +253,55 @@ export default function RunFeedPage() {
           {filteredRuns.length > 0 && (
             <div className="flex flex-col gap-2">
               {filteredRuns.map((run) => (
-                <button
+                <div
                   key={run.id}
-                  onClick={() => router.push(`/projects/${run.project_id}/runs/${run.id}`)}
-                  className="flex flex-col gap-2 rounded-card border border-border bg-card px-4 py-3.5 text-left transition-all active:scale-[0.99] hover:bg-bg"
+                  className="flex overflow-hidden rounded-card border border-border bg-card"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-chip bg-bg px-2 py-0.5 text-[11px] font-medium text-secondary border border-border">
+                  <div
+                    className={`flex w-[5%] min-w-[22px] shrink-0 items-center justify-center ${
+                      run.run_type === "deep_analysis" ? "bg-ink text-lime" : "bg-lime text-ink"
+                    }`}
+                  >
+                    <span className="[writing-mode:vertical-rl] text-[10px] font-semibold tracking-wide">
                       {run.run_type === "deep_analysis" ? t("runTypeDeep") : t("runTypeStat")}
                     </span>
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11.5px] font-medium ${
-                        RUN_STATUS_PILL[run.status]
-                      }`}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full ${RUN_STATUS_DOT[run.status]}`} />
-                      {statusLabel[run.status]}
-                    </span>
                   </div>
-                  <p className="font-mono text-sm font-medium text-ink">{formatDate(run.created_at)}</p>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
-                      <Users className="h-3.5 w-3.5" />
-                      {t("kpiCompetitors")}{" "}
-                      <span className="font-mono font-semibold text-ink">{run.progress_accounts}</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
-                      <FileText className="h-3.5 w-3.5" />
-                      {t("kpiPublications")}{" "}
-                      <span className="font-mono font-semibold text-ink">{run.progress_items}</span>
-                    </span>
-                    {run.run_type === "deep_analysis" && run.comments_count !== null && (
-                      <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
-                        <MessageCircle className="h-3.5 w-3.5" />
-                        {t("kpiComments")}{" "}
-                        <span className="font-mono font-semibold text-ink">{run.comments_count}</span>
+                  <button
+                    onClick={() => router.push(`/projects/${run.project_id}/runs/${run.id}`)}
+                    className="flex flex-1 flex-col gap-2 px-4 py-3.5 text-left transition-all active:scale-[0.99] hover:bg-bg"
+                  >
+                    <div className="flex items-center justify-end gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11.5px] font-medium ${
+                          RUN_STATUS_PILL[run.status]
+                        }`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${RUN_STATUS_DOT[run.status]}`} />
+                        {statusLabel[run.status]}
                       </span>
-                    )}
-                  </div>
-                </button>
+                    </div>
+                    <p className="font-mono text-sm font-medium text-ink">{formatDate(run.created_at)}</p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
+                        <Users className="h-3.5 w-3.5" />
+                        {t("kpiCompetitors")}{" "}
+                        <span className="font-mono font-semibold text-ink">{run.progress_accounts}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
+                        <FileText className="h-3.5 w-3.5" />
+                        {t("kpiPublications")}{" "}
+                        <span className="font-mono font-semibold text-ink">{run.progress_items}</span>
+                      </span>
+                      {run.run_type === "deep_analysis" && run.comments_count !== null && (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-secondary">
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          {t("kpiComments")}{" "}
+                          <span className="font-mono font-semibold text-ink">{run.comments_count}</span>
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                </div>
               ))}
             </div>
           )}
