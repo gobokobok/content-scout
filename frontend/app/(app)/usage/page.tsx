@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, CalendarRange, Copy, Check, ListFilter, Plus } from "lucide-react";
+import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, Copy, Check, Funnel, Plus } from "lucide-react";
 import { api, ApiError, type RunSummaryResponse, type UserResponse } from "@/lib/api";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useToast } from "@/components/ui/toast";
@@ -57,6 +57,10 @@ function monthNames(): string[] {
   return Array.from({ length: 12 }, (_, i) =>
     new Date(2000, i, 1).toLocaleDateString("ru-RU", { month: "long" }).replace(/^./, (c) => c.toUpperCase()),
   );
+}
+
+function monthShortNames(): string[] {
+  return monthNames().map((name) => name.slice(0, 3).toUpperCase());
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +198,8 @@ export default function UsagePage() {
   const [me, setMe] = useState<UserResponse | null>(null);
   const [lineFilter, setLineFilter] = useState<LineFilter>("all");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(now.getFullYear());
+  const [pickerPhase, setPickerPhase] = useState<"start" | "end">("start");
 
   useEffect(() => {
     api.me().then(setMe).catch(() => null);
@@ -214,6 +220,41 @@ export default function UsagePage() {
         : `${shortMonthLabel(fy, fm - 1)} ${fy} — ${monthLabel(ty, tm - 1)}`;
     return { ...range, label };
   })();
+
+  const draftLabel = (() => {
+    const [fy, fm] = draftFrom.split("-").map(Number);
+    const [ty, tm] = draftTo.split("-").map(Number);
+    return fy === ty && fm === tm
+      ? monthLabel(fy, fm - 1)
+      : `${shortMonthLabel(fy, fm - 1)} ${fy} — ${monthLabel(ty, tm - 1)}`;
+  })();
+
+  function openCustomSheet() {
+    const initFrom = selection.kind === "custom" ? selection.from : toMonthInputValue(now);
+    const initTo = selection.kind === "custom" ? selection.to : toMonthInputValue(now);
+    setDraftFrom(initFrom);
+    setDraftTo(initTo);
+    setPickerYear(Number(initFrom.split("-")[0]));
+    setPickerPhase("start");
+    setCustomSheetOpen(true);
+  }
+
+  function pickMonth(month: number) {
+    const value = `${pickerYear}-${String(month).padStart(2, "0")}`;
+    if (pickerPhase === "start") {
+      setDraftFrom(value);
+      setDraftTo(value);
+      setPickerPhase("end");
+    } else {
+      if (value < draftFrom) {
+        setDraftTo(draftFrom);
+        setDraftFrom(value);
+      } else {
+        setDraftTo(value);
+      }
+      setPickerPhase("start");
+    }
+  }
 
   const load = useCallback(async () => {
     setRuns(null);
@@ -256,14 +297,12 @@ export default function UsagePage() {
         {t("back")}
       </button>
 
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("title")}</h1>
-
       {/* Balance — hero card */}
       {me !== null && (
         <div className="flex flex-col gap-3.5 rounded-card bg-ink px-5 py-4 text-white">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9BA1AB]">
-              {t("balanceLabel")}
+            <span className="text-sm font-semibold uppercase tracking-[0.06em] text-[#9BA1AB]">
+              {t("title")}
             </span>
             <button
               onClick={() => addToast(t("buyTokensComingSoon"), "info")}
@@ -273,9 +312,12 @@ export default function UsagePage() {
               <Plus className="h-4 w-4" />
             </button>
           </div>
-          <span className="font-mono text-[40px] font-semibold leading-none tracking-tight text-lime">
-            {new Intl.NumberFormat("ru-RU").format(me.token_balance)}
-          </span>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-[40px] font-semibold leading-none tracking-tight text-lime">
+              {new Intl.NumberFormat("ru-RU").format(me.token_balance)}
+            </span>
+            <span className="text-sm font-medium text-[#9BA1AB]">{t("balanceLabel")}</span>
+          </div>
           <div className="flex items-center justify-between border-t border-[#2A2E36] pt-3">
             <span className="text-sm text-[#9BA1AB]">{t("spentThisPeriod")}</span>
             <span className="font-mono text-sm font-semibold text-white">
@@ -290,11 +332,7 @@ export default function UsagePage() {
       {/* Period + filter selector */}
       <div className="flex items-center justify-between gap-1.5">
         <button
-          onClick={() => {
-            setDraftFrom(selection.kind === "custom" ? selection.from : toMonthInputValue(now));
-            setDraftTo(selection.kind === "custom" ? selection.to : toMonthInputValue(now));
-            setCustomSheetOpen(true);
-          }}
+          onClick={openCustomSheet}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-chip bg-ink px-3.5 py-2 text-sm font-semibold text-lime transition-all active:scale-[0.98]"
         >
           <CalendarRange className="h-3.5 w-3.5" />
@@ -307,7 +345,7 @@ export default function UsagePage() {
             lineFilter !== "all" ? "border-accent/30 bg-accent-soft text-accent" : "border-border text-secondary hover:bg-bg"
           }`}
         >
-          <ListFilter className="h-4 w-4" />
+          <Funnel className="h-4 w-4" />
         </button>
       </div>
 
@@ -335,49 +373,62 @@ export default function UsagePage() {
         </div>
       </BottomSheet>
 
-      <BottomSheet open={customSheetOpen} onClose={() => setCustomSheetOpen(false)} title={t("customPeriodTitle")}>
-        <div className="flex flex-col gap-4 px-4 pb-4">
-          {[
-            { key: "from", label: t("fromLabel"), value: draftFrom, onChange: setDraftFrom },
-            { key: "to", label: t("toLabel"), value: draftTo, onChange: setDraftTo },
-          ].map(({ key, label, value, onChange }) => {
-            const [y, m] = value.split("-").map(Number);
+      <BottomSheet open={customSheetOpen} onClose={() => setCustomSheetOpen(false)}>
+        <div className="-mt-3 flex flex-col items-center gap-1.5 bg-ink px-4 py-5 text-white">
+          <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[#9BA1AB]">
+            {t("customPeriodTitle")}
+          </span>
+          <span className="text-xl font-semibold tracking-tight">{draftLabel}</span>
+          <div className="flex items-center gap-4 pt-1">
+            <button
+              onClick={() => setPickerYear((y) => y - 1)}
+              aria-label={t("prevYear")}
+              className="text-[#9BA1AB] transition-colors hover:text-white"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <span className="font-mono text-lg font-semibold text-lime">{pickerYear}</span>
+            <button
+              onClick={() => setPickerYear((y) => y + 1)}
+              aria-label={t("nextYear")}
+              className="text-[#9BA1AB] transition-colors hover:text-white"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 px-4 py-4">
+          {monthShortNames().map((name, idx) => {
+            const monthNum = idx + 1;
+            const key = `${pickerYear}-${String(monthNum).padStart(2, "0")}`;
+            const isEndpoint = key === draftFrom || key === draftTo;
+            const inRange = key >= draftFrom && key <= draftTo;
             return (
-              <div key={key} className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-secondary">{label}</span>
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-                  {Array.from({ length: 5 }, (_, i) => now.getFullYear() - i).map((yr) => (
-                    <button
-                      key={yr}
-                      onClick={() => onChange(`${yr}-${String(m).padStart(2, "0")}`)}
-                      className={`shrink-0 rounded-chip px-3.5 py-1.5 text-sm transition-all active:scale-[0.98] ${
-                        yr === y ? "bg-ink font-semibold text-lime" : "border border-border bg-card font-medium text-secondary hover:text-ink"
-                      }`}
-                    >
-                      {yr}
-                    </button>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {monthNames().map((name, idx) => {
-                    const monthNum = idx + 1;
-                    const active = monthNum === m;
-                    return (
-                      <button
-                        key={name}
-                        onClick={() => onChange(`${y}-${String(monthNum).padStart(2, "0")}`)}
-                        className={`rounded-chip px-2 py-2 text-xs transition-all active:scale-[0.98] ${
-                          active ? "bg-ink font-semibold text-lime" : "border border-border bg-card font-medium text-secondary hover:text-ink"
-                        }`}
-                      >
-                        {name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <button
+                key={name}
+                onClick={() => pickMonth(monthNum)}
+                className={`flex items-center justify-center rounded-chip py-3 text-sm font-semibold transition-all active:scale-[0.98] ${
+                  isEndpoint
+                    ? "bg-ink text-lime"
+                    : inRange
+                      ? "bg-accent-soft text-accent"
+                      : "text-ink hover:bg-bg"
+                }`}
+              >
+                {name}
+              </button>
             );
           })}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-4 pb-4 pt-1">
+          <button
+            onClick={() => setCustomSheetOpen(false)}
+            className="rounded-chip px-4 py-2.5 text-sm font-semibold text-secondary transition-colors hover:text-ink"
+          >
+            {t("cancel")}
+          </button>
           <button
             onClick={() => {
               const orderedFrom = draftFrom <= draftTo ? draftFrom : draftTo;
@@ -385,7 +436,7 @@ export default function UsagePage() {
               setSelection({ kind: "custom", from: orderedFrom, to: orderedTo });
               setCustomSheetOpen(false);
             }}
-            className="rounded-chip bg-lime px-4 py-3 text-sm font-semibold text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] transition-all active:scale-[0.98]"
+            className="rounded-chip bg-lime px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] transition-all active:scale-[0.98]"
           >
             {t("apply")}
           </button>
