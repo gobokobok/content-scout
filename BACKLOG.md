@@ -1163,9 +1163,9 @@ Users buy tokens with Telegram Stars inside the Mini App. The Mini App shell its
 ### Definition of Done
 - [x] All AC checked
 - [x] Tests written and passing (17 new backend tests; full suite 318 passed)
-- [ ] CI green, deployed to DEV
+- [x] CI green, deployed to DEV (run 30399662334, `api-dev` healthy post-deploy)
 - [ ] Smoke test passed
-- [ ] DONE.md updated
+- [x] DONE.md updated
 - [x] BACKLOG.md updated
 ### Smoke test
 Open the Mini App from the bot on DEV, buy tokens with test Stars (try a quick-pick amount and a custom amount below/above the 300 minimum), confirm `token_balance` increases by the right amount and a previously blocked run unblocks after payment. Also confirms D37's open question: Telegram's real per-invoice Stars ceiling (couldn't be checked from this sandbox).
