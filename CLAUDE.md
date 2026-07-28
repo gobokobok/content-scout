@@ -42,7 +42,13 @@ Railway project: https://railway.com/project/a5fbb916-354f-47db-ab91-c3bdc5c236f
 
 ## Current sprint and active story
 
-- **Sprint:** 9 complete (E14 scheduled runs — schema/migration, CRUD API + arq cron dispatcher, Scheduled Runs page, Run-now/Schedule choice, Telegram notification — all shipped 2026-07-22, see SPRINT.md). Sprints 1–8 also complete. **E17 (Run Deep Analysis, all 9 stories) shipped 2026-07-25, out of order, per direct user request** — comment scraping (dual-vendor, D32), Haiku extraction + Sonnet synthesis (D33), the Разбор запуска history/report UI, thin-coverage degrade + partial refund. **Sprint 10 (E8-S3 monetization, D30) is still next up and no longer blocked.** DEV smoke tests across Sprints 6–9 and E17 are still deferred pending a real-device/live-vendor pass (consider a dedicated integration/smoke-test story before Sprint 10 ships to production).
+- **Sprint:** 9 complete (E14 scheduled runs — schema/migration, CRUD API + arq cron dispatcher, Scheduled Runs page, Run-now/Schedule choice, Telegram notification — all shipped 2026-07-22, see SPRINT.md). Sprints 1–8 also complete. **E17 (Run Deep Analysis, all 9 stories) shipped 2026-07-25, out of order, per direct user request** — comment scraping (dual-vendor, D32), Haiku extraction + Sonnet synthesis (D33), the Разбор запуска history/report UI, thin-coverage degrade + partial refund. **E18 (Run-Centric Navigation & Redesign, 5 stories) shipped 2026-07-26→28, also out of order and backfilled into BACKLOG.md/DONE.md only at the 2026-07-28 `/sprint-review`** — unified cross-project run feed + FAB (supersedes E13's tab bar), rebuilt run-creation/schedule cards, deep-analysis auto-chain failure visibility, Usage page reworked around Balance. **Active: Sprint 10 — E19-S1 (mandatory DEV smoke-test sweep, do first) then E8-S3 (monetization, D30).** 39+ DEV smoke tests remain deferred across Sprints 6–9, E17, and E18 — that's what E19-S1 exists to close out before E8-S3 ships to production.
+
+## Story-tracking discipline (added 2026-07-28 `/sprint-review`)
+
+Before implementing a non-trivial UI/backend change requested directly in chat (not via `/start-story`), check whether it maps to an existing BACKLOG.md story. If it doesn't:
+- Open one via `/add-story` first, **or**
+- If the user wants to proceed immediately without that ceremony, that's fine — but explicitly flag at the end of that session that the work is untracked and needs a `/sprint-review` backfill, so it gets documented within days, not after a whole redesign has piled up undocumented (see E18's backfill note in SPRINT.md/DONE.md for what happens when this doesn't happen — 26 commits, 3 days, zero story IDs, discovered only at the next review).
 
 ## Hard constraints
 

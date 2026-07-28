@@ -2,6 +2,59 @@
 
 Completed stories land here, newest first. Format:
 
+## [E18-S5] Usage page rework around Balance
+**Completed:** 2026-07-28
+**Handover:**
+- **Backfilled at `/sprint-review` time (2026-07-28)** — this story and E18-S1..S4 were implemented 2026-07-26 through 2026-07-28 with no story IDs, no BACKLOG.md entries, and no DONE.md handovers at the time; the sprint review's untracked-fix scan found the whole IA had changed underneath the docs. See BACKLOG.md's `[E18-S5]` entry for full AC/DoD and `git log c2e0861..HEAD` for the source commits (`1c66184`, `c077dd4`, `5d3ba82`, `ab26147`, `500a700`).
+- Renamed Usage → Balance/Tokens, folded the standalone header into the black balance card itself, added a buy-tokens CTA stub (links to a payment page that doesn't exist yet — **this is Sprint 10/E8-S3's real entry point**, built speculatively ahead of that story).
+- Ledger lines/detail sheet now show task type (Review/Analysis) instead of project name, matching E18-S1's home-feed naming and dropping the "project" concept from the ledger. Analysis detail view surfaces comments-analyzed count via a new `/me/runs` aggregation; publications-analyzed added for Analysis tasks too.
+- Custom-period picker rebuilt as a single dark-header month-grid range picker (string-comparison range highlighting on zero-padded `YYYY-MM` keys, no date-math library) replacing the native two-`<select>` picker.
+**Smoke test:** DEFERRED — needs a real DEV pass at 375px (Balance card, buy-tokens stub, month-range picker, Review/Analysis ledger detail fields). Part of this review's mandatory smoke-sweep story.
+**Promoted to backlog:** none — the buy-tokens CTA's real wiring is exactly E8-S3's scope, already tracked in Sprint 10.
+
+## [E18-S4] Deep-analysis auto-chain visibility and report styling parity
+**Completed:** 2026-07-27
+**Handover:**
+- **Backfilled at `/sprint-review` time** — see E18-S5's note above and BACKLOG.md's `[E18-S4]` entry for full AC/DoD. Source commits: `762c38f`, `bcd2a89`, `59337ec`, `2deb1e9`.
+- New `AnalysisRun.deep_analysis_skip_reason` (migration `f7a8b9c0d1e2`, `insufficient_tokens`/`error`) mirrors `ScheduledRun.last_skip_reason`'s established pattern — root cause of the triggering user report was a genuine `InsufficientTokenBalanceError` (16 items × the D35 15x placeholder multiplier exceeded the user's balance) that simply left no trace anywhere once hit.
+- Run feed cards for `deep_analysis` runs now show the chained analysis's own status, not the base run's — a card no longer reads "done" while the analysis behind it hard-failed.
+- Separately confirmed via live DEV worker logs: this DEV account's Apify plan tier rejects the `apidojo` comments actor and no `BRIGHTDATA_*` vars are set at all, so every comment fetch currently degrades to zero coverage — an environment/vendor gap, not a code bug, and the reason deep-analysis reports on DEV look content-only today.
+- Both the comment-scraper and the worker's auto-chain now log on failure instead of failing silently (same class of fix as the E17 hotfixes below). Report page tabs switched to `TabChip` (matching Review), first tab renamed Статистика→Резюме, gained a 5-line summary card.
+**Smoke test:** DEFERRED — part of this review's mandatory smoke-sweep story; needs a real low-balance account and a forced chain failure to confirm both surfacing paths.
+**Promoted to backlog:** none new.
+
+## [E18-S3] Scheduled-task cards and dialog parity on the home feed
+**Completed:** 2026-07-27
+**Handover:**
+- **Backfilled at `/sprint-review` time** — see E18-S5's note above and BACKLOG.md's `[E18-S3]` entry for full AC/DoD. Source commits: `f247bbf`, `fd2f9e2`, `1033bc9`, `cb918ad`, `afe1d4e`, `02becd6`, `c8023c1`.
+- Home-feed schedule cards brought to full parity with the per-project design (scope/count summary, day/time, last-run date, status, notify badge, 3-dot menu); tapping one now opens `ScheduledRunDialog` (moved into `components/` so home feed and per-project page share it) instead of navigating away.
+- `ScheduledRunDialog` brought in line with E18-S2's `RunDialog` redesign (collapsed competitors button + add-new action, toggle-switch once/recurring).
+- A once-mode schedule that fired successfully now disappears from both lists (`SCHEDULE_LIST_VISIBLE` shared predicate); a skipped one stays visible with its reason.
+- Recurring theme across this whole commit cluster: several back buttons (competitors, run-detail, usage, deep-analysis report) still pointed at pre-E18-S1 project-shell routes with no path leading in — fixed to point at `/`. Any future page still linking to `/projects/[id]/details` or `/results` is the same bug class.
+**Smoke test:** DEFERRED — part of this review's mandatory smoke-sweep story.
+**Promoted to backlog:** none new.
+
+## [E18-S2] Run-creation flow rebuild (FAB shape, competitors step, recurring toggle)
+**Completed:** 2026-07-27
+**Handover:**
+- **Backfilled at `/sprint-review` time** — see E18-S5's note above and BACKLOG.md's `[E18-S2]` entry for full AC/DoD. Source commits: `b330e8a`, `19c4875`, `a45dc69`, `72ebd1a`, `500a700`.
+- FAB back to a circle; competitors step collapses to one button (all selected by default) leading into the picker, which now also lets the user add a brand-new competitor inline (real backend account, auto-selected for this run, also visible on the Competitors page afterward).
+- Once/recurring became a single toggle switch. Run cards dropped the project-name line in favor of live KPI figures (competitors/publications always, comments once known) via new fields on `GET /me/run-feed`.
+- `500a700` (2026-07-28) restored hairline dividers between the dialog's three step blocks that an earlier commit in this same cluster had removed — direct user-review feedback.
+**Smoke test:** DEFERRED — part of this review's mandatory smoke-sweep story.
+**Promoted to backlog:** none new.
+
+## [E18-S1] Run-centric navigation overhaul (unified run feed + FAB)
+**Completed:** 2026-07-27
+**Handover:**
+- **Backfilled at `/sprint-review` time (2026-07-28)** — this story and E18-S2..S5 above were implemented 2026-07-26 through 2026-07-28 with no story IDs, no BACKLOG.md entries, and no DONE.md handovers at the time. Found only because this sprint review's mandatory untracked-fix scan (`git log <since-last-review>..HEAD`) turned up 26 commits changing the app's entire navigation shape. Backfilled per direct user request rather than left undocumented — see BACKLOG.md's 2026-07-28 note and `[E18-S1]` entry for full AC/DoD. Source commits: `1820251`, `3435bb0`, `647812d`, `0168d53`, `9c01c0b`, `0cb0722`.
+- Home screen (`/`) became a unified cross-project run feed (`GET /me/run-feed`) with a FAB opening a run-type picker (Ревью/Анализ launchable; Разбор конкурента/публикации stay inactive teasers). New `run_type` column on `analysis_runs`/`scheduled_runs` (migration `e3f4a5b6c7d8`).
+- Picking Анализ now auto-chains: the worker detects `run_type="deep_analysis"` on completion and immediately starts + enqueues the E17 deep-analysis pipeline, no separate user step.
+- **This supersedes E13's entire bottom-nav/tab-bar IA** — Детали/Результаты/Анализ tabs are gone; Competitors moved to the burger menu, Runs to the home feed. Any future work referencing the old tab bar is working from a stale mental model.
+- `9c01c0b` (same day) fixed a real regression: the initial nav-overhaul commit shipped with an unlinted E501 failure that silently blocked `deploy-dev` (CI-gated) for every push until caught — a reminder that a large nav-shaped commit is exactly where a fast, unlinted push slips through.
+**Smoke test:** DEFERRED — part of this review's mandatory smoke-sweep story; needs a real DEV pass confirming the feed, FAB, and Анализ auto-chain end to end.
+**Promoted to backlog:** none new — E8-S3 (Sprint 10) already covers wiring E18-S5's buy-tokens CTA stub to a real payment flow.
+
 ## [E17 hotfix 3] Hard-failed deep analyses now refund in full
 **Completed:** 2026-07-25
 **Handover:**
