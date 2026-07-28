@@ -91,21 +91,20 @@ export default function CompetitorsTabPage() {
         {t("backToDetails")}
       </Link>
 
-      <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
-
-      {/* Info + action buttons */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5">
+        <h1 className="text-2xl font-semibold text-ink">{t("title")}</h1>
         <CompetitorsInfoButton />
-        {!isArchived && count < MAX_ACCOUNTS && (
-          <button
-            onClick={() => setAddSheetOpen(true)}
-            className="flex items-center gap-1.5 rounded-control border border-border px-3 py-2 text-sm font-medium text-ink hover:bg-bg transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            {t("addCompetitorButton")}
-          </button>
-        )}
       </div>
+
+      {!isArchived && count < MAX_ACCOUNTS && (
+        <button
+          onClick={() => setAddSheetOpen(true)}
+          className="flex w-full items-center justify-center gap-1.5 rounded-control border border-border px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-bg active:scale-[0.99]"
+        >
+          <Plus className="h-4 w-4" />
+          {t("addCompetitorButton")}
+        </button>
+      )}
 
       {/* Loading skeleton */}
       {accounts === null && <SkeletonList count={4} />}

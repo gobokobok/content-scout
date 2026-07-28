@@ -402,18 +402,13 @@ export default function UsagePage() {
           {monthShortNames().map((name, idx) => {
             const monthNum = idx + 1;
             const key = `${pickerYear}-${String(monthNum).padStart(2, "0")}`;
-            const isEndpoint = key === draftFrom || key === draftTo;
-            const inRange = key >= draftFrom && key <= draftTo;
+            const selected = key >= draftFrom && key <= draftTo;
             return (
               <button
                 key={name}
                 onClick={() => pickMonth(monthNum)}
                 className={`flex items-center justify-center rounded-chip py-3 text-sm font-semibold transition-all active:scale-[0.98] ${
-                  isEndpoint
-                    ? "bg-ink text-lime"
-                    : inRange
-                      ? "bg-accent-soft text-accent"
-                      : "text-ink hover:bg-bg"
+                  selected ? "bg-ink text-lime" : "text-ink hover:bg-bg"
                 }`}
               >
                 {name}
@@ -456,7 +451,7 @@ export default function UsagePage() {
       {/* Empty */}
       {filteredRuns !== null && filteredRuns.length === 0 && (
         <p className="rounded-card border border-border bg-card px-4 py-6 text-center text-sm text-secondary">
-          {t("empty")}
+          {lineFilter === "topup" ? t("emptyTopup") : t("empty")}
         </p>
       )}
 

@@ -257,10 +257,10 @@ export function RunDialog({
           >
             <button
               onClick={() => setView("addCompetitor")}
-              className="flex items-center gap-3 rounded-card border border-dashed border-accent/40 bg-accent-soft px-4 py-3 text-left text-accent transition-colors active:scale-[0.99] hover:bg-accent-soft/80"
+              className="flex w-full items-center justify-center gap-1.5 rounded-control border border-border px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-bg active:scale-[0.99]"
             >
               <Plus className="h-4 w-4 shrink-0" />
-              <span className="text-sm font-semibold">{tCompetitors("addCompetitorButton")}</span>
+              {tCompetitors("addCompetitorButton")}
             </button>
             <div className="flex flex-col overflow-hidden rounded-card border border-border">
               {localAccounts.length === 0 && (
