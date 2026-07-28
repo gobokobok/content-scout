@@ -154,15 +154,17 @@ Full story definitions live in `BACKLOG.md`.
 
 **Untracked addition, 2026-07-26 to 2026-07-28 (new epic E18, backfilled at `/sprint-review` time):** between E17's close and this review, 26 commits shipped a full navigation/redesign overhaul with **no story IDs, no BACKLOG.md entries, and no DONE.md handovers at the time** — this file's "Current sprint" note kept saying "Sprint 10 is next" the whole time. The `/sprint-review` skill's mandatory untracked-fix scan (`git log` since the last documented story) is what surfaced it. Backfilled as **E18 Run-Centric Navigation & Redesign** (5 stories, E18-S1..S5, all `Status: done`, real dates from commit history) per direct user request rather than left undocumented. Summary: home screen became a unified cross-project run feed with a FAB (E18-S1, **supersedes E13's whole tab-bar IA**), the run-creation dialog and scheduled-task cards were rebuilt to match (E18-S2/S3), the deep-analysis auto-chain gained failure visibility (E18-S4), and the Usage page was reworked around Balance with a buy-tokens CTA stub that anticipates Sprint 10's real entry point (E18-S5). See DONE.md's `[E18-S1]` through `[E18-S5]` entries and BACKLOG.md for full details. **Methodology gap this exposes:** nothing in the current workflow catches a multi-day, multi-commit redesign landing without a story ID — see this review's proposed methodology change below. Sprint 10 (E8-S3) is still next, and now has a real UI entry point waiting for it (E18-S5's stub CTA).
 
-## Sprint 10 — Verification sweep + monetization (re-planned 2026-07-28 `/sprint-review`)
+## Sprint 10 — Verification sweep + monetization (re-planned 2026-07-28 `/sprint-review`, trimmed same day)
 
-**Goal:** first, close the growing deferred-smoke-test gap (39+ entries, now including three unverified days of E18 redesign) with one real DEV pass; then ship the first paid tier — 1990₽/month for 2000 tokens via Telegram Stars (D19), credited onto the existing `User.token_balance` column. E18-S5 already built a buy-tokens CTA stub as this story's real UI entry point.
+**Goal:** first, close the remaining deferred-smoke-test gap with one real pass; then ship the first paid tier — 1990₽/month for 2000 tokens via Telegram Stars (D19), credited onto the existing `User.token_balance` column. E18-S5 already built a buy-tokens CTA stub as this story's real UI entry point.
+
+**Scope note (same day, 2026-07-28):** the smoke sweep was originally scoped to all 39+ deferred entries, but the user confirmed they'd already manually clicked through the entire live app while building E18 — that covers every general UI/navigation/rendering flow, now marked `PASSED` in DONE.md. E19-S1 is trimmed to ~13 remaining items that a normal click-through can't hit: forced faults (insufficient balance, malformed API response, cross-user isolation), cron-timing (scheduled runs actually firing + Telegram DM), security-guardrail edge cases (invite code, rate limits, XLSX injection), and a couple of direct-DB checks. One item is flagged priority: the Apify `apidojo`/Bright Data comment-scraping fallback is a **known real gap**, not just untested — this DEV account's Apify plan already rejects the actor and no Bright Data credentials are set.
 
 **Stories (in order):**
 
 | # | Story | Title | Status |
 |---|---|---|---|
-| 0 | E19-S1 | DEV smoke-test sweep (mandatory — do first) | backlog |
+| 0 | E19-S1 | DEV smoke-test sweep, trimmed (mandatory — do first) | backlog |
 | 1 | E8-S3 | Telegram Stars subscriptions (re-scoped per D30 — single tier) | backlog |
 
 ## Sprint plan (projection, adjust at each /sprint-review)

@@ -35,34 +35,42 @@ Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS 
 
 ---
 
-## [E19-S1] DEV smoke-test sweep
+## [E19-S1] DEV smoke-test sweep (trimmed)
 **Epic:** Pilot Verification Sweep
 **Sprint:** 10 (locked 2026-07-28 `/sprint-review` — mandatory per ≥3-deferred-smoke-test rule, do first)
 **Status:** backlog
 **Priority:** critical
 **Depends on:** none (verification-only, no new code expected)
 ### Goal
-Walk every `Smoke test: DEFERRED` entry in DONE.md against real DEV in one continuous user-driven session, closing the growing gap between what's been shipped and what's actually been seen working — 39+ entries deferred since Sprint 6, now including three full days of unverified E18 redesign work.
+Originally scoped to all 39+ deferred smoke tests; trimmed the same day after the user confirmed they'd already manually clicked through the entire live app while building the E18 redesign — that covers every general UI/navigation/rendering flow (marked `PASSED` in DONE.md, 2026-07-28). What's left is specifically the items a normal click-through **can't** hit: things needing a forced fault, a deliberately underfunded/multi-account state, a wait for a cron tick, or a direct DB/psql check.
 ### Acceptance Criteria
-- [ ] Every `Smoke test: DEFERRED` entry in DONE.md (Sprint 6 onward, including E17 and E18) is either confirmed working on DEV or logged as a real bug with a new BACKLOG.md story
-- [ ] **E18 verified first** (freshest, largest, totally unverified surface): unified run feed + FAB launches both run types, deep-analysis auto-chain completes and surfaces skip/failure reasons correctly, scheduled-task cards/dialog parity, Usage/Balance page (month-range picker, ledger task-type lines, buy-tokens CTA stub)
-- [ ] E17 (Run Deep Analysis) end-to-end: create → extract → synthesize → report renders correctly for at least one real run, including the thin-coverage degrade path if comments are unavailable in this DEV account's current Apify/Bright Data configuration
-- [ ] E14 scheduled runs: a schedule actually fires within its window and (if notify is on) a Telegram DM arrives
+- [ ] **Priority — known real gap, not just untested:** confirm whether the Apify `apidojo` comments actor still rejects calls on this DEV account's plan tier and whether Bright Data credentials exist yet (E17-S2's handover and E18-S4's investigation both found this broken as of 2026-07-27 — every deep-analysis comment fetch was degrading to zero coverage). Either fix the vendor access or explicitly accept the gap for now.
+- [ ] E17-S9: run a deep analysis against a project with comments disabled/restricted on most posts — confirm the thin-coverage degrade banner + reduced token charge
+- [ ] E17-S5: confirm a second user's project/deep-analysis 404s (cross-user isolation)
+- [ ] E17-S4: force a malformed synthesis response and confirm it lands in `failed`, not stuck
+- [ ] E17-S1 / E18-S4: with a deliberately low/zero token balance, confirm the insufficient-balance rejection, the deep-analysis auto-chain skip-reason banner, and a forced chain failure showing correctly on its run card
+- [ ] E14-S1/S2/S5/S6: confirm a schedule actually fires within its 5-minute cron window, the Telegram DM arrives, `notify_enabled=false` sends nothing, and an Once-mode schedule deactivates itself after firing
+- [ ] E14-S6 follow-up: with a zero-balance account and an active schedule due soon, confirm the skip-reason badge/bell notification appear within one cron tick, and clear after topping up + re-saving
+- [ ] E14-S6 follow-up 2: confirm the Telegram completion DM's results link opens correctly on **PROD**, not just DEV
+- [ ] E4-S3: run the same project twice back-to-back; confirm the second run's Claude token usage is a small fraction of the first (cross-run summary reuse)
+- [ ] E7-S4: confirm register-without-invite-code fails, an 11th run in a day 429s, login hammering 429s, and an XLSX cell starting with `=` exports as text
+- [ ] E3-S6: run 8+ accounts and confirm wall time is well under the sequential sum; re-enqueue a finished run and confirm no duplicate `content_items`
+- [ ] E14-S1 / E7-S2 (low priority): `\d scheduled_runs` shows the expected constraints; `is_admin=true` set directly in Postgres correctly unlocks `/admin`
 - [ ] Any confirmed bug gets its own new BACKLOG.md story (not patched ad hoc mid-sweep) unless trivial enough for an immediate one-line fix, logged in this story's Changelog
-- [ ] DONE.md entries updated from `DEFERRED` to `PASSED` (or left `DEFERRED` with a more specific blocking reason, e.g. "needs Bright Data credentials") as each item is actually confirmed
+- [ ] DONE.md's remaining `DEFERRED` lines updated to `PASSED` (or left `DEFERRED` with a more specific blocking reason) as each item is actually confirmed
 ### Definition of Done
 - [ ] All AC checked
 - [ ] Any real bugs found have their own backlog stories
 - [ ] DONE.md smoke-test lines updated to reflect actual verified state
 - [ ] BACKLOG.md updated
 ### Smoke test
-This story *is* the smoke test — user-executed on real DEV, not agent-verified (per CLAUDE.md's no-agent-UI-testing constraint).
+This story *is* the smoke test — user-executed on real DEV/PROD, not agent-verified (per CLAUDE.md's no-agent-UI-testing constraint).
 ### Files to read
-CLAUDE.md, DONE.md (every `DEFERRED` line), SPRINT.md
+CLAUDE.md, DONE.md (remaining `DEFERRED` lines), SPRINT.md
 ### Files to create or modify
 DONE.md (smoke-test status updates), BACKLOG.md (new stories for any real bugs found)
 ### Handover
-—
+- Trimmed 2026-07-28 from a full 39-item sweep down to ~13 timing/fault/DB-dependent items after the user confirmed general app use already covers every UI-visible flow — see DONE.md's individual entries for exactly which half of each split story (PASSED vs. DEFERRED) applies.
 
 ## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
 **Epic:** Foundation & Auth

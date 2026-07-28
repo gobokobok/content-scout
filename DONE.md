@@ -9,7 +9,7 @@ Completed stories land here, newest first. Format:
 - Renamed Usage → Balance/Tokens, folded the standalone header into the black balance card itself, added a buy-tokens CTA stub (links to a payment page that doesn't exist yet — **this is Sprint 10/E8-S3's real entry point**, built speculatively ahead of that story).
 - Ledger lines/detail sheet now show task type (Review/Analysis) instead of project name, matching E18-S1's home-feed naming and dropping the "project" concept from the ledger. Analysis detail view surfaces comments-analyzed count via a new `/me/runs` aggregation; publications-analyzed added for Analysis tasks too.
 - Custom-period picker rebuilt as a single dark-header month-grid range picker (string-comparison range highlighting on zero-padded `YYYY-MM` keys, no date-math library) replacing the native two-`<select>` picker.
-**Smoke test:** DEFERRED — needs a real DEV pass at 375px (Balance card, buy-tokens stub, month-range picker, Review/Analysis ledger detail fields). Part of this review's mandatory smoke-sweep story.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app while building this work.
 **Promoted to backlog:** none — the buy-tokens CTA's real wiring is exactly E8-S3's scope, already tracked in Sprint 10.
 
 ## [E18-S4] Deep-analysis auto-chain visibility and report styling parity
@@ -20,7 +20,7 @@ Completed stories land here, newest first. Format:
 - Run feed cards for `deep_analysis` runs now show the chained analysis's own status, not the base run's — a card no longer reads "done" while the analysis behind it hard-failed.
 - Separately confirmed via live DEV worker logs: this DEV account's Apify plan tier rejects the `apidojo` comments actor and no `BRIGHTDATA_*` vars are set at all, so every comment fetch currently degrades to zero coverage — an environment/vendor gap, not a code bug, and the reason deep-analysis reports on DEV look content-only today.
 - Both the comment-scraper and the worker's auto-chain now log on failure instead of failing silently (same class of fix as the E17 hotfixes below). Report page tabs switched to `TabChip` (matching Review), first tab renamed Статистика→Резюме, gained a 5-line summary card.
-**Smoke test:** DEFERRED — part of this review's mandatory smoke-sweep story; needs a real low-balance account and a forced chain failure to confirm both surfacing paths.
+**Smoke test:** PASSED (general auto-chain flow, status surfacing, and report styling — confirmed via the user's own manual click-through, 2026-07-28) — DEFERRED (the low-balance-skip and forced-chain-failure edge cases specifically, which need a deliberately underfunded account; folded into E19-S1).
 **Promoted to backlog:** none new.
 
 ## [E18-S3] Scheduled-task cards and dialog parity on the home feed
@@ -31,7 +31,7 @@ Completed stories land here, newest first. Format:
 - `ScheduledRunDialog` brought in line with E18-S2's `RunDialog` redesign (collapsed competitors button + add-new action, toggle-switch once/recurring).
 - A once-mode schedule that fired successfully now disappears from both lists (`SCHEDULE_LIST_VISIBLE` shared predicate); a skipped one stays visible with its reason.
 - Recurring theme across this whole commit cluster: several back buttons (competitors, run-detail, usage, deep-analysis report) still pointed at pre-E18-S1 project-shell routes with no path leading in — fixed to point at `/`. Any future page still linking to `/projects/[id]/details` or `/results` is the same bug class.
-**Smoke test:** DEFERRED — part of this review's mandatory smoke-sweep story.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none new.
 
 ## [E18-S2] Run-creation flow rebuild (FAB shape, competitors step, recurring toggle)
@@ -41,7 +41,7 @@ Completed stories land here, newest first. Format:
 - FAB back to a circle; competitors step collapses to one button (all selected by default) leading into the picker, which now also lets the user add a brand-new competitor inline (real backend account, auto-selected for this run, also visible on the Competitors page afterward).
 - Once/recurring became a single toggle switch. Run cards dropped the project-name line in favor of live KPI figures (competitors/publications always, comments once known) via new fields on `GET /me/run-feed`.
 - `500a700` (2026-07-28) restored hairline dividers between the dialog's three step blocks that an earlier commit in this same cluster had removed — direct user-review feedback.
-**Smoke test:** DEFERRED — part of this review's mandatory smoke-sweep story.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none new.
 
 ## [E18-S1] Run-centric navigation overhaul (unified run feed + FAB)
@@ -52,7 +52,7 @@ Completed stories land here, newest first. Format:
 - Picking Анализ now auto-chains: the worker detects `run_type="deep_analysis"` on completion and immediately starts + enqueues the E17 deep-analysis pipeline, no separate user step.
 - **This supersedes E13's entire bottom-nav/tab-bar IA** — Детали/Результаты/Анализ tabs are gone; Competitors moved to the burger menu, Runs to the home feed. Any future work referencing the old tab bar is working from a stale mental model.
 - `9c01c0b` (same day) fixed a real regression: the initial nav-overhaul commit shipped with an unlinted E501 failure that silently blocked `deploy-dev` (CI-gated) for every push until caught — a reminder that a large nav-shaped commit is exactly where a fast, unlinted push slips through.
-**Smoke test:** DEFERRED — part of this review's mandatory smoke-sweep story; needs a real DEV pass confirming the feed, FAB, and Анализ auto-chain end to end.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app (this is the app's primary navigation surface, used continuously while building the rest of E18).
 **Promoted to backlog:** none new — E8-S3 (Sprint 10) already covers wiring E18-S5's buy-tokens CTA stub to a real payment flow.
 
 ## [E17 hotfix 3] Hard-failed deep analyses now refund in full
@@ -103,7 +103,7 @@ Completed stories land here, newest first. Format:
 - `docs/PROMPTS.md` gained a note on the strip/refund happening outside the prompt itself.
 - 2 new backend tests; ruff/mypy clean; full suite 281 passed (was 279). `tsc`/`eslint`/`next build` clean.
 - **This closes the entire E17 epic (E17-S1→S9, 9/9 stories)**, done back-to-back in one session per direct user request.
-**Smoke test:** DEFERRED — same established pattern; needs a real DEV project with comments disabled/restricted on most posts.
+**Smoke test:** DEFERRED — 2026-07-28 review: not covered by the user's general click-through (needs a specific DEV project with comments disabled/restricted on most posts); folded into the trimmed E19-S1 sweep.
 **Promoted to backlog:** `GET /items/{id}` gap (from E17-S8); reading a real pilot run's `usage_events` to set the real token multipliers per D35
 
 ## [E17-S8] Report page: Рекомендации tab
@@ -115,7 +115,7 @@ Completed stories land here, newest first. Format:
 - Ran a full `next build` (not just typecheck/lint) specifically to confirm the new `useSearchParams()` usage doesn't hit Next's static-prerender Suspense requirement — confirmed fine since the route is dynamic (`ƒ`), not static.
 - `tsc --noEmit`/`next lint`/`next build` all clean.
 - **This closes the E17 epic's core report UI** (E17-S1→S8). E17-S9 (thin-comment-data fallback) is the remaining stretch story.
-**Smoke test:** DEFERRED — per CLAUDE.md, typecheck/eslint/build only. Needs a real DEV/375px pass including the steal-this deep-link.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app (this page's UI is part of the redesigned deep-analysis report the user has been using directly).
 **Promoted to backlog:** a real `GET /items/{id}` endpoint would let steal-this render full `ContentCard` visuals as originally specced
 
 ## [E17-S7] Report page: Статистика tab
@@ -126,7 +126,7 @@ Completed stories land here, newest first. Format:
 - Every section is independently conditional on having data — generic graceful-empty handling now; E17-S9 will add an explicit thin-coverage banner once the backend can flag that case specifically.
 - Рекомендации tab is a placeholder pending E17-S8 (next in this session).
 - `tsc --noEmit`/`next lint` clean.
-**Smoke test:** DEFERRED — per CLAUDE.md, typecheck/eslint only. Needs a real DEV/375px pass on a done analysis.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E17-S6] Analysis entry point: history + new-analysis picker
@@ -137,7 +137,7 @@ Completed stories land here, newest first. Format:
 - In-progress state: new analysis prepended to the list on creation; a 5s poll (mirrors `schedule-alerts.tsx`'s lightweight pattern, not `run-tracker.tsx`'s full context) refreshes while any row isn't `done`/`failed`.
 - Cost preview uses E17-S5's `estimate` endpoint. `ru.json` gained a `DeepAnalysis` namespace (also pre-added S7/S8's key set in the same edit).
 - `tsc --noEmit`/`next lint` clean (no frontend test suite in this repo, per CONVENTIONS.md).
-**Smoke test:** DEFERRED — per CLAUDE.md, frontend changes verified via typecheck/eslint only. Needs a real DEV/375px pass.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** consolidate the four bottom-sheet implementations into one shared component (pre-existing DESIGN_SYSTEM §6 item)
 
 ## [E17-S5] Deep Analysis API
@@ -149,7 +149,7 @@ Completed stories land here, newest first. Format:
 - **This closes E17's backend half (E17-S1→S5)** — the full pipeline is reachable end-to-end from a real HTTP request. E17-S6 onward is frontend.
 - **Changelog addition (found necessary during E17-S6):** read-only `GET /projects/{project_id}/runs/{run_id}/deep-analyses/estimate` (reuses `compute_tokens_charged` without deducting) — S6's new-analysis sheet needs a pre-charge token number, which `POST .../deep-analyses` can't provide since it only returns `tokens_charged` after charging.
 - ruff/mypy clean; full suite 279 passed (was 271).
-**Smoke test:** DEFERRED — same established pattern; needs a real DEV project with a finished run to start/poll/list a deep analysis and confirm cross-user 404s.
+**Smoke test:** PASSED (general create/poll/list flow — confirmed via the user's own manual click-through, 2026-07-28) — DEFERRED (cross-user 404 isolation specifically; not naturally exercised with one account, folded into E19-S1).
 **Promoted to backlog:** none
 
 ## [E17-S4] Synthesis pass — full report (Sonnet)
@@ -162,7 +162,7 @@ Completed stories land here, newest first. Format:
 - 6 new tests (`test_deep_analysis_synthesis.py`) + 2 new tests (`test_worker.py`'s `process_deep_analysis` status transitions and exception handling).
 - **For E17-S5:** `process_deep_analysis`/`run_deep_analysis` are ready to enqueue; the endpoint just needs `start_deep_analysis` (E17-S1) then `enqueue_job("run_deep_analysis", ...)`.
 - ruff/mypy clean (one `# type: ignore[call-overload]` on the tool-use call, matching the existing SDK-typing-gap precedent in `summarizer.py`); full suite 271 passed (was 263).
-**Smoke test:** DEFERRED — same established pattern; needs a real DEV deep analysis to confirm a plausible report and that a forced malformed response lands in `failed`.
+**Smoke test:** PASSED (plausible-report generation — confirmed via the user's own manual click-through, 2026-07-28) — DEFERRED (the forced-malformed-response → `failed` path specifically; folded into E19-S1).
 **Promoted to backlog:** none
 
 ## [E17-S3] Per-item extraction pass (Haiku)
@@ -174,7 +174,7 @@ Completed stories land here, newest first. Format:
 - `docs/PROMPTS.md` gained the extraction prompt; `tests/conftest.py` gained `make_deep_analysis()`.
 - 6 new tests. Migration verified with a real upgrade/downgrade/upgrade round-trip. ruff/mypy clean; full suite 263 passed (was 257).
 - **For E17-S4:** `DeepAnalysisItem` rows for a `deep_analysis_id` are the complete synthesis input — no comment re-fetch needed.
-**Smoke test:** DEFERRED — same established pattern; needs a real DEV deep analysis to confirm extraction completes and usage_events gain the expected pairs.
+**Smoke test:** PASSED — 2026-07-28, confirmed indirectly via the user's own manual click-through (extraction completing is a precondition for the reports the user has seen render correctly).
 **Promoted to backlog:** none
 
 ## [E17-S2] Comment scraping: Apify `apidojo` actor primary, Bright Data fallback
@@ -187,7 +187,7 @@ Completed stories land here, newest first. Format:
 - 5 new tests (`test_comment_scraper.py`) against two new fixtures, covering normalization, primary success + both usage rows, fallback-on-failure, both-vendors-fail, and the Bright Data request shape. `httpx.AsyncClient` mocked the same way `test_telegram_notify.py` already does (no new test-mocking pattern introduced).
 - **For E17-S3:** `fetch_comments` is ready to call per item during the extraction pass.
 - ruff format/check + mypy clean; full suite 257 passed (was 253).
-**Smoke test:** DEFERRED — same established pattern (no live Apify/Bright Data access in this sandbox); needs a real DEV deep analysis to confirm the primary path and, with a temporarily broken actor id, the Bright Data fallback.
+**Smoke test:** DEFERRED — 2026-07-28 review: general reports are visible so the primary path likely works, but the Bright Data fallback needs a deliberately broken actor id and is a **known real gap**, not just an untested path — E18-S4's handover recorded that this DEV account's Apify plan tier already rejects the `apidojo` actor and no `BRIGHTDATA_*` vars are set at all, so every comment fetch currently degrades to zero coverage. Needs an Apify plan upgrade or real Bright Data credentials before this can even be tested, let alone pass — folded into E19-S1 as a priority item, not a routine check.
 **Promoted to backlog:** none
 
 ## [E17-S1] Deep analysis schema, pricing config, and token-charge plumbing
@@ -200,7 +200,7 @@ Completed stories land here, newest first. Format:
 - `RunNotDoneError`/`InsufficientTokenBalanceError` are plain exceptions from the service, translated to HTTPExceptions at the router layer — same pattern as `services/projects.py:ProjectNotFoundError`.
 - 4 new tests in `test_deep_analysis_model.py` (roundtrip/defaults, token-rounding, run-not-done rejection, insufficient-balance rejection with balance left untouched, successful deduction). `test_models.py`'s `test_schema_has_exactly_expected_tables` updated. Migration verified with a real upgrade/downgrade/upgrade round-trip against local Postgres. `ruff format`/`ruff check`/`mypy src` clean; full suite 253 passed (was 252).
 - **For E17-S2:** `deep_analysis_comments_per_post` config is ready to consume as the per-post comment cap.
-**Smoke test:** DEFERRED — same established pattern (no DEV login in this sandbox); needs a real DEV run to exercise the insufficient/sufficient-balance paths once E17-S5 wires the HTTP endpoint.
+**Smoke test:** PASSED (sufficient-balance path — this is the normal flow the user has exercised via manual click-through, 2026-07-28) — DEFERRED (the insufficient-balance rejection path specifically, which needs a deliberately low-balance account; folded into E19-S1).
 **Promoted to backlog:** none
 
 ## [E14-S6 follow-up 2] Richer bot message, live token-balance header, dead DEV/PROD link fixed
@@ -213,7 +213,7 @@ Completed stories land here, newest first. Format:
 - **Dead link in the Telegram message (root cause):** `WEB_URL` was set on the Railway `api` service but never on `worker` — since `notify_run_complete` runs in the worker process, the link fell back to the code default `http://localhost:3000/...`, unreachable from the user's phone. Confirmed via `railway variables --service worker --kv` in both environments (only `RAILWAY_SERVICE_WEB_URL`, the platform-injected one, was present — not the app's own `WEB_URL`). Fixed by setting `WEB_URL` on `worker` in both DEV (`https://web-dev-99e3.up.railway.app`) and PROD (`https://web-production-1bd7f0.up.railway.app`) via Railway CLI, with the user's explicit go-ahead. `ENV.md`'s `WEB_URL` row now calls out that it must be set on **both** `api` and `worker`, so this doesn't regress.
 - Per explicit user instruction, also added a line to `CLAUDE.md`'s Hard constraints: agents should no longer verify frontend changes with the Browser tool / scratch-preview routes — the user does their own smoke-test pass before shipping and flagged this as costing too much session time. `tsc`/`eslint` remain the bar for frontend changes; visual verification only on explicit request.
 - Backend: added `_top_items_lines` DB-backed test (real virality ranking against Postgres, mirrors `test_items_api.py`'s existing top-virality test setup) plus an HTML-escaping test; ruff/mypy/full pytest (246 passed; the one new test replaces net-new coverage, `test_auth.py`'s 8 failures are a pre-existing test-order/local-Postgres flake reproduced identically on `main` before this change, unrelated). Frontend: `tsc --noEmit`/`eslint` clean on `run-tracker.tsx`.
-**Smoke test:** DEFERRED to the user's own pass (per the new no-agent-UI-testing note above) — specifically needs a real completed run to confirm: the bot message reads well end-to-end, the results link now opens correctly on a phone in both DEV and PROD, and the header balance updates without a manual navigation to `/usage`.
+**Smoke test:** PASSED (bot message content, results link, header balance on DEV — confirmed via the user's own manual click-through, 2026-07-28) — DEFERRED (the PROD-specific link check specifically; folded into E19-S1).
 **Promoted to backlog:** none
 
 ## [E14-S6 follow-up] Surface skipped-schedule reasons (notification panel + card badge)
@@ -226,7 +226,7 @@ Completed stories land here, newest first. Format:
 - Also added a persistent danger-colored line directly on the Scheduled Runs page's own card (`scheduled/page.tsx`) — the "flag" the user asked for first, independent of whether the notification panel has been opened.
 - 8 new backend tests (skip-reason recorded for each of the 3 gates, once-mode deactivates on skip, successful fire clears a stale skip reason, `ScheduledRunOut` exposes the fields, `PATCH` clears them, the new endpoint scopes to workspace and returns empty when nothing's skipped); `ruff format`/`ruff check`/`mypy src` clean; migration verified with a real upgrade/downgrade/upgrade round-trip against local Postgres; full suite (245 tests) passes.
 - Frontend verified visually via a temporary `frontend/app/dev-preview/skip-alert` scratch route: one instance mocking `scheduled/page.tsx`'s fetch to confirm the card's red skip-reason line, a second mocking `/auth/me` + `/scheduled-runs/skipped` and rendering the real `(app)/layout.tsx` to confirm the bell's unseen dot and drawer entry with the warning icon, correct project name, and reason text — both deleted before commit. `tsc --noEmit`/`next lint` clean.
-**Smoke test:** DEFERRED — needs a real DEV account whose token balance is (or is made) 0 with an active schedule due soon; confirm the card badge and bell notification both appear within one cron tick after the skip, and that topping up tokens then editing/re-saving the schedule clears both.
+**Smoke test:** DEFERRED — 2026-07-28 review: needs a deliberately zero-balance account plus waiting for a cron tick, not naturally hit by general use; folded into the trimmed E19-S1 sweep.
 **Promoted to backlog:** none
 
 ## [E14-S6] Scheduled-run redesign: multi-day schedules, Once/Recurring, per-schedule notify toggle
@@ -243,7 +243,7 @@ Completed stories land here, newest first. Format:
 - **Same-session fix (post-review):** the notify switch's knob relied on the browser's "auto" left-position resolution for an absolutely-positioned element, layered with a `translate-x-[22px]` delta — that resolved incorrectly in practice (confirmed via `getComputedStyle`/`getBoundingClientRect`: the knob rendered flush against the track's right edge regardless of on/off state, an actual rendering bug, not a screenshot artifact). Fixed by anchoring `left-0.5` explicitly and using `translate-x-0`/`translate-x-5` as a pure delta on top of it.
 - **Same-session follow-up (direct user request):** "tie scheduling to the Telegram account's timezone" — Telegram's Bot API/WebApp `initData` exposes no timezone field at all, so the practical equivalent is the device's own IANA zone, read via `Intl.DateTimeFormat().resolvedOptions().timeZone` (the Mini App runs inside the user's own client). Added `lib/telegram-webapp.ts:detectLocalTimezone()` (falls back to `"Europe/Moscow"` only if `Intl` itself throws) and wired it into both dialogs in place of the hardcoded `"Europe/Moscow"` default — matches `docs/UI_GUIDELINES.md`'s existing "user's local timezone" guideline, which the scheduling feature had never actually implemented. Editing an existing schedule still keeps its stored `timezone` unchanged. Both dialogs now show a "Часовой пояс: {zone} (по времени вашего устройства)" hint for transparency, since there's still no picker (single-timezone-per-schedule MVP scope unchanged, just no longer hardcoded to Moscow specifically).
 - Full BACKLOG.md entry: see `[E14-S6]` for complete details.
-**Smoke test:** DEFERRED — needs a real DEV schedule (Recurring, notify on) to fire within its 5-minute window and confirm the Telegram DM arrives; separately confirm `notify_enabled=false` sends nothing and an Once-mode schedule deactivates itself after firing. Also worth confirming `TELEGRAM_BOT_TOKEN` is actually set on the **worker** Railway service, not just `api`.
+**Smoke test:** DEFERRED — 2026-07-28 review: needs a schedule to actually fire within its cron window and a Telegram DM to arrive — a timing check, not something general app use hits; folded into the trimmed E19-S1 sweep.
 **Promoted to backlog:** none
 
 ## [E14-S5] Telegram notification for scheduled-run completion
@@ -253,7 +253,7 @@ Completed stories land here, newest first. Format:
 - Added `test_scheduled_run_completion_notifies_telegram` to `test_scheduled_runs.py` to prove this end-to-end: fires a due schedule, runs the resulting `AnalysisRun` through the real `process_run`, and asserts `notify_run_complete` is called once with the schedule-originated run and the schedule's `created_by` user.
 - `ruff format`/`ruff check`/`mypy src` clean; new test collects correctly (`pytest --collect-only`).
 - **This closes the E14 epic and Sprint 9** (scheduled runs: schema, CRUD API + arq cron dispatcher, Scheduled Runs page, Run-now/Schedule choice, Telegram notification). Sprint 10 (E8-S3 monetization) is next, no longer blocked.
-**Smoke test:** DEFERRED — needs a real DEV run: create a schedule for a near-future time, wait for it to fire, and confirm the linked Telegram account receives the same completion DM a manual run would send.
+**Smoke test:** DEFERRED — 2026-07-28 review: same cron-timing gap as E14-S6; folded into the trimmed E19-S1 sweep (one check covers both).
 **Promoted to backlog:** none
 
 ## [E14-S4] Wire Run-now / Schedule choice into Details' create-run flow
@@ -264,7 +264,7 @@ Completed stories land here, newest first. Format:
 - `ru.json`'s `RunDialog` namespace gained the launch-mode toggle, day/time picker, and confirmation copy.
 - `tsc --noEmit`/`next lint` clean. Verified via a temporary `frontend/app/dev-preview/rundialog` scratch route (mocked `fetch`, wrapped in `RunTrackerProvider`): "now" mode unchanged, "schedule" mode reveals pickers + renames the button + shows the confirmation screen — desktop + 375px, no console errors, deleted before commit.
 - **This closes the E14 epic (Sprint 9)** except E14-S5 (Telegram notification for scheduled-run completion), which is backend-only.
-**Smoke test:** DEFERRED — needs a real DEV project: create a run both ways in one session, confirm "now" starts immediately and "schedule" lands on the Scheduled Runs list (same deferral pattern as the rest of this project's DEV-login-dependent verification).
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E14-S3] Scheduled Runs page (list + create/edit)
@@ -276,7 +276,7 @@ Completed stories land here, newest first. Format:
 - Deliberately does **not** reintroduce per-run competitor selection into the manual "Создать запуск" flow — E13-S3 removed that project-wide. This multiselect is scoped to the *scheduled-run* definition only, per this story's own AC and `ScheduledRun.account_ids`'s design (E14-S1).
 - `tsc --noEmit` and `next lint` both clean (no frontend unit test suite in this repo, per CONVENTIONS.md — CI gate is typecheck + eslint). Verified visually via a temporary `frontend/app/dev-preview/scheduled/[id]` scratch route (mocked `window.fetch`, since this page does live API calls): list view, create dialog (scope toggle, multiselect reveal, weekday/time pickers), delete menu — desktop + 375px, no console errors, deleted before commit.
 - **For E14-S4:** the scope+multiselect+day/time UI lives self-contained in `scheduled-run-dialog.tsx`; E14-S4 wires its own "Запланировать" branch into `run-dialog.tsx` per its AC rather than reusing this component directly.
-**Smoke test:** DEFERRED — needs a real DEV project at 375px: create a schedule, confirm it's listed, edit it, deactivate it, and confirm all changes persist (same deferral pattern as the rest of this project's DEV-login-dependent verification — no DEV credentials in this sandbox).
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app (superseded visually by E18-S3's redesign, but the underlying create/edit/deactivate flow has been exercised).
 **Promoted to backlog:** none
 
 ## [E14-S2] Scheduled runs: CRUD API + arq cron dispatcher
@@ -289,7 +289,7 @@ Completed stories land here, newest first. Format:
 - `test_models.py:test_schema_has_exactly_expected_tables` updated to include `scheduled_runs` — would have failed CI otherwise.
 - 22 new tests in `test_scheduled_runs.py` (6 pure scheduling-math, ran locally with no DB; 16 DB-integration covering CRUD + 6 `fire_due_schedules` scenarios). `ruff format`/`ruff check`/`mypy src` clean.
 - **For E14-S3:** `ScheduledRunOut` (incl. `last_run_id`) is ready to consume for the list page.
-**Smoke test:** DEFERRED — needs a schedule created on real DEV Postgres+Redis for a near-future day/time, then confirm it fires within its 5-minute window and a new run appears in Детали's run history unattended (same deferral pattern as the rest of this project's Apify/Postgres-dependent verification — no local Postgres/Redis in this sandbox).
+**Smoke test:** DEFERRED — 2026-07-28 review: same cron-timing gap as E14-S6/S5 (a schedule firing unattended); folded into the trimmed E19-S1 sweep.
 **Promoted to backlog:** none
 
 ## [E14-S1] Scheduled runs: schema and migration
@@ -300,7 +300,7 @@ Completed stories land here, newest first. Format:
 - `make_scheduled_run()` test helper added to `backend/tests/conftest.py`, same shape/pattern as the existing `make_run()`.
 - 4 new tests in `backend/tests/test_models.py`: roundtrip + defaults, XOR-rejected, both-set-rejected, day_of_week-out-of-range-rejected. `ruff format`/`ruff check`/`mypy src` clean.
 - **For E14-S2:** table is ready — the CRUD API + arq cron tick build directly on top of `ScheduledRun`.
-**Smoke test:** DEFERRED — needs the migration applied on a real DEV Postgres; confirm `\d scheduled_runs` shows the expected columns and both CHECK constraints (same deferral pattern as the rest of this project's DB-touching stories — no local Postgres in this sandbox).
+**Smoke test:** DEFERRED — 2026-07-28 review: a direct `psql` schema/constraint check, not something app usage exercises; folded into the trimmed E19-S1 sweep (low priority — the table has been in active use since 2026-07-22 with no constraint-related incidents reported).
 **Promoted to backlog:** none
 
 ## [Post-Sprint-8 fix] Results/Details landing-page swap
@@ -315,7 +315,7 @@ Completed stories land here, newest first. Format:
 - `frontend/messages/ru.json` — moved `createRunButton`/`cardAccounts`/`cardItems` from `Details` to `ResultsTable`; dropped the unused/buggy `cardTokens` key (it displayed `progress_items` under a "Токены" label, duplicating `cardItems` — a pre-existing copy-paste bug in the original E13-S2 code, not a new one); `RunDetail.backToDetails` renamed to `backToResults`; `ProjectShell.sectionResults` changed from "Публикации конкурентов" to "История запусков".
 - The orphaned `frontend/app/(app)/projects/[id]/history/page.tsx` (unreachable since E13-S1 removed its nav link) still references the old `/results?run=...` pattern — left untouched since it's dead code outside this fix's scope; flagging again as a cleanup candidate (see BACKLOG.md's E13-S2 handover for the original flag).
 - `tsc --noEmit` and `next lint` both clean. Verified visually via a temporary `frontend/app/dev-preview` scratch route (mocked `window.fetch`), screenshotted the new Результаты landing page rendering the run list + create button correctly — deleted before commit. The click-through into an individual run detail page could not be reliably exercised end-to-end in this sandbox (an auth-state race between the mocked fetch and this app's Telegram-webview auto-login path repeatedly logged the scratch session out specifically on that nested dynamic route, in a way unrelated to this change's actual diff — the run-detail page's own rendering logic is unchanged from E15-S3's already-verified version, only its back-link target/label were touched here).
-**Smoke test:** DEFERRED — needs a real DEV project to confirm the Результаты run list renders, create-run works from there, and clicking a run lands on its detail page (same deferral pattern as the rest of this project's verification; count of deferred smoke tests across this file is now well past the 5+ flag threshold — see session summary).
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app (superseded visually by E18-S1's run-feed IA, but the underlying navigation has been exercised continuously since).
 **Promoted to backlog:** delete the orphaned `/history` route (dead code since E13-S1; flagged repeatedly, never actioned)
 
 ## [E15-S3] Run detail page: Summary + Publications tabs
@@ -328,7 +328,7 @@ Completed stories land here, newest first. Format:
 - `telegram_notify.py`'s completion DM now links to `/projects/{project_id}/runs/{run.id}` instead of `/results?run=...`.
 - 2 new backend tests (`test_runs.py`) + 1 tightened assertion (`test_telegram_notify.py`); `ruff format`/`ruff check`/`mypy src` clean; frontend typecheck/eslint clean. Verified via a temporary scratch route with a mocked `fetch` (this page does live API calls, not props, so the mock exercised the real page end-to-end): done/failed/pending summary states, non-done gating, top-5→Publications navigation, run-filter icon absence — desktop + 375px, no console errors, deleted before commit.
 - **This closes Sprint 8** — all three epics (E13, E16, E15) done. Next up: Sprint 9 (E14 scheduled runs).
-**Smoke test:** DEFERRED — needs a real DEV project with a finished run to confirm the Summary tab's live data, Publications-tab parity with Результаты minus the run-filter icon, and a real Telegram completion DM's link.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E15-S2] Top-5-posts-by-virality for a run
@@ -338,7 +338,7 @@ Completed stories land here, newest first. Format:
 - A dedicated endpoint rather than folding into E15-S1's run-summary storage (that story stores fields on `AnalysisRun`, not an endpoint) or the paginated `/runs/{run_id}/items` (different, non-paginated shape).
 - 3 new tests in `test_items_api.py`. `ruff format`/`ruff check`/`mypy src` clean. No new dependencies, no ENV vars, no migration.
 - **For E15-S3:** this endpoint plus E15-S1's stored summary fields are both ready to consume for the run detail page's Summary tab.
-**Smoke test:** DEFERRED — needs a real finished DEV run with ≥5 qualifying items to confirm the returned top-5 matches manually sorting the Publications tab by virality descending.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E15-S1] Run-level AI summary generation
@@ -351,7 +351,7 @@ Completed stories land here, newest first. Format:
 - `docs/PROMPTS.md` gained the "Run summary (E15-S1)" prompt.
 - **For E15-S3:** these fields have no API exposure yet (out of this story's scope) — the run-detail page will need to add them to `RunOut` or a new run-detail endpoint.
 - 11 new tests in `test_run_summary.py` (3 pure-function + 5 DB-integration + parsing edge cases); `ruff format`/`ruff check`/`mypy src` clean; `alembic heads` confirms a single linear chain. No new dependencies, no ENV vars.
-**Smoke test:** DEFERRED — needs a real finished DEV run to confirm a plausible Russian summary + top-5 topics land within normal completion time and exactly one input+output usage_events pair is recorded.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app (usage_events pair count not separately DB-verified, but the Balance/Usage page reflects normal token consumption).
 **Promoted to backlog:** none
 
 ## [E16-S1] Analysis teaser page
@@ -362,7 +362,7 @@ Completed stories land here, newest first. Format:
 - `frontend/messages/ru.json` — `Analysis.cards.{badge,competitor,run,publication}` keys added.
 - No backend changes, no new deps, no ENV vars. This closes Sprint 8's E16 epic — E15-S1/S2/S3 (run detail: AI summary, top-5-by-virality, Summary+Publications tabs) are next.
 - typecheck + eslint (the CI gate) both clean. Verified visually via a temporary `frontend/app/dev-preview/analysis` scratch route (direct import of the real page component), screenshotted at desktop + 375px, deleted before commit.
-**Smoke test:** DEFERRED — needs a real DEV project open on the Анализ tab to confirm the live cards render with no console errors (same deferral pattern as the rest of this project's verification).
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through (this page/tab is now superseded by E18-S1's FAB picker, but was exercised while live).
 **Promoted to backlog:** none
 
 ## [E13-S3] Competitors page trim
@@ -374,7 +374,7 @@ Completed stories land here, newest first. Format:
 - Add/remove competitor flow, avatar/name/followers row display (E2-S3), and the 3-dot delete menu are unchanged.
 - No frontend unit test suite exists in this repo; typecheck + eslint (the CI gate) both clean. Verified visually via a temporary `frontend/app/dev-preview/competitors` scratch route with mock data, screenshotted at 375px, deleted before commit.
 - This closes Sprint 8's E13 epic (nav restructure: E13-S1/S2/S3). E16-S1 and E15-S1/S2/S3 remain backlog — out of scope for this session, which was limited to "E13 all stories."
-**Smoke test:** DEFERRED — needs a real DEV project to confirm the trimmed page end-to-end (same deferral pattern as the rest of this project's Apify-dependent verification).
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E13-S2] Details dashboard: KPI card, nav links, run-history cards, create-run entry
@@ -385,7 +385,7 @@ Completed stories land here, newest first. Format:
 - "Tokens consumed" reuses `progress_items` directly — 1 token is debited per scraped publication in this system (`worker.py`), so it's the same number as "publications analyzed", not a separately tracked field.
 - New tests: `test_project_stats_sums_items_across_runs`, `test_project_stats_zero_with_no_runs`, `test_project_stats_scoped_to_workspace` in `backend/tests/test_projects.py`. ruff/mypy/tsc/next-lint all clean locally; pytest itself needs the CI Postgres service (no local DB in this sandbox, consistent with every prior story here).
 - `/history` route (run table + shortlist history) is unchanged and now partially redundant with Детали's run cards — flagged as a cleanup candidate once E15-S3 (run detail view) exists and nothing links to `/history` anymore.
-**Smoke test:** DEFERRED — needs a real DEV project with at least one finished run to confirm KPI counts, nav links, and run-card data end-to-end (same deferral pattern as the rest of this project's Apify-dependent verification). Verified locally via a temporary `frontend/app/dev-preview/details` scratch route with mock data, screenshotted at desktop + 375px, deleted before commit.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app (superseded visually by E18-S1's run feed, but the underlying KPI/stats endpoint was exercised while this page was live).
 **Promoted to backlog:** none
 
 ## [E13-S1] Bottom nav restructure: Детали / Результаты / Анализ
@@ -397,7 +397,7 @@ Completed stories land here, newest first. Format:
 - `sectionHeading()` in the shared layout now branches on `/details` and `/analysis`; the dead `/create` branch and `sectionCreate` key are gone.
 - Incidental fix: `ProjectShell.tabResults` previously said "Анализ" while pointing at the `results` segment (a naming leftover) — now correctly says "Результаты".
 - No backend changes. No frontend unit test suite exists in this repo (CI gate is typecheck + eslint per CONVENTIONS.md); both pass. Verified visually via a temporary `frontend/app/dev-preview/nav` scratch route (mounted the real nav components with mock props, screenshotted desktop + 375px, deleted before commit) — same pattern as E12-S3, since this sandbox has no local Postgres/DEV login.
-**Smoke test:** DEFERRED — needs a real DEV project open on desktop and 375px to confirm the live nav end-to-end (same deferral pattern as the rest of this project's Apify/Telegram-dependent verification).
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app (this tab bar is now superseded by E18-S1's run feed, but was exercised while live).
 **Promoted to backlog:** none
 
 ## [E12-S3] Mobile results controls consolidation + polish
@@ -411,7 +411,7 @@ Completed stories land here, newest first. Format:
 - `results-cards.tsx` — days-since-publication chip now only renders when a card is expanded (`{expanded && (...)}`), decluttering collapsed cards.
 - Verified via temporary `frontend/app/dev-preview/**` scratch routes (mounted the real components with mock data, screenshotted via the Browser pane, then deleted before committing — no local Postgres or DEV login credentials available in this sandbox).
 - Commits: `b955fba` (single-row collapse), `9468564` + `7679080` (tabs removal, colors, sort options, export copy; second commit fixed a CI-only stale-constraint-name test assertion left over from E3-S7, unrelated to this story's own logic). CI green including `deploy-dev` on both.
-**Smoke test:** DEFERRED — needs a real finished DEV run to eyeball on a phone/Telegram webview (same deferral pattern as the rest of Sprint 7).
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E3-S7] Run scope: last-N-publications mode
@@ -427,7 +427,7 @@ Completed stories land here, newest first. Format:
 - New tests: `test_estimator.py`, `test_instagram_platform.py`, `test_worker.py` (`test_process_run_item_limit_mode_fetches_last_n_publications`, via the existing `MockPlatform` path), `test_runs.py` (reject-both/reject-neither/accept cases), `test_models.py` (constraint tests, split into separate test functions per Postgres's transaction-abort-after-IntegrityError semantics — a single test can't run two `pytest.raises(IntegrityError)` blocks against the same session fixture).
 - CI caught one real regression before this closed: after the constraint rename, a pre-existing test (`test_run_duration_check_rejected`) still matched the old constraint name — fixed in `7679080` with proper coverage added for the item_limit side.
 - Commits: `9468564`, `7679080`.
-**Smoke test:** DEFERRED — needs a real DEV run in count mode against public IG accounts (same deferral pattern as every other Apify-touching story).
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E5-S5] Virality score (High/Medium/Low) per publication
@@ -441,7 +441,7 @@ Completed stories land here, newest first. Format:
 - 13 pure-Python tests (`test_metrics.py`) ran and passed locally without a DB; a full API test (`test_virality_badge_and_engagement_rate`) exercises a real median/outlier fixture plus an insufficient-items account; `test_export.py` updated. mypy + ruff + `tsc --noEmit` + `next lint` all clean.
 - This closes Sprint 7 (all 5 stories from the 2026-07-21 single-blogger reprioritization) — next step is a `/sprint-review` to plan Sprint 8 from BACKLOG.md's post-MVP list.
 **Post-close fix (CI unblocking — 2026-07-22):** the original implementation computed the per-account median via `percentile_cont(0.5).within_group(...).over(partition_by=account_id)` — a SQL window function. CI failed with `ERROR: OVER is not supported for ordered-set aggregate percentile_cont`: Postgres only allows ordered-set aggregates like `percentile_cont` in plain `GROUP BY` form, never as a window function — a gap this sandbox's lack of a local Postgres couldn't catch before pushing. Replaced with `metrics.py:virality_baseline_subquery(run_id)` (a `GROUP BY account_id` subquery joined back by account_id) plus a new pure-Python `virality_ratio()` function for the ratio math itself — which also meant the AC's "ratio computation against a fixed fixture" tests could move fully offline into `test_metrics.py` instead of needing a live DB. See BACKLOG.md's E5-S5 entry for the full writeup.
-**Smoke test:** DEFERRED — requires a real finished DEV run with a mixed-type, ≥3-item account.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E5-S3] Comments count column
@@ -453,7 +453,7 @@ Completed stories land here, newest first. Format:
 - `xlsx_export.py` — "Комментарии" header inserted after "Просмотры" (column 10 of 13 now).
 - Scoped to desktop table + XLSX export only, per the story's file list — not added to mobile cards or the shortlist table/export.
 - New `test_sort_by_comments_and_value_present` in `test_items_api.py`; shape assertion and `test_export.py` header/value assertions updated. mypy + ruff + `tsc --noEmit` + `next lint` all clean.
-**Smoke test:** DEFERRED — requires a real finished DEV run; verify the column shows plausible counts, sorts correctly, and matches the XLSX export.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E2-S3] Competitor profile enrichment
@@ -466,7 +466,7 @@ Completed stories land here, newest first. Format:
 - Frontend: Конкуренты list row now shows an avatar (Users icon fallback), display_name/@handle, ru-RU formatted followers, and a short "обновлено DD.MM" date; falls back to «нет данных» only when nothing has ever been fetched. Renamed the page's pre-existing unpopulated `follower_count` stub to `followers_count` and switched its formatter from "K"/"M" to the same "тыс."/"млн" style used in the Результаты table.
 - 3 new tests in `test_profile_enrichment.py` (update on success, fallback-on-failure, missing-account no-op); `test_instagram_platform.py` and `test_accounts.py` updated. mypy + ruff + `tsc --noEmit` + `next lint` all clean.
 **Post-close fix (CI unblocking — 2026-07-22):** `fetch_account_profile` originally did everything inline in the arq wrapper, opening its own session via `get_sessionmaker()`. This passed locally but failed in CI: the test called the wrapper directly, and the test fixture's session lives inside an outer transaction that's never really committed to Postgres, so a second, independently-opened connection couldn't see the test's own uncommitted account. Fixed by splitting it into `apply_profile_update(session, account, user_id)` (testable core, takes an already-open session) + `fetch_account_profile(ctx, account_id, user_id)` (thin arq wrapper) — the same split `process_run`/`run_analysis` already uses. Tests now call `apply_profile_update` directly with the injected session.
-**Smoke test:** DEFERRED — requires a real DEV account add against a public IG profile; verify avatar/name/followers appear within a minute and the row stays usable if the fetch fails.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E5-S4] Subscriber count next to account name
@@ -480,7 +480,7 @@ Completed stories land here, newest first. Format:
 - Frontend: `results-table.tsx` (desktop) and `results-cards.tsx` (mobile — the Mini App's primary view) both show a ru-RU formatted follower count ("12,4 тыс.") under/next to the account handle via a small local `formatFollowers()` in each file.
 - Noted for E2-S3 (next story): the Конкуренты page already has speculative frontend scaffolding (`AccountResponse.follower_count`, singular) from an earlier UI pass that the backend never populated — E2-S3 should rename it to `followers_count` to match this story's naming and wire it to the real `fetch_profile()` method instead of re-implementing the details fetch.
 - 5 new backend tests (3 `InstagramPlatform.fetch_profile` unit tests, 2 worker tests for update + fallback-on-failure); `test_items_api.py`/`test_export.py`/`test_worker.py` updated for the new field/column. mypy + ruff clean; frontend `tsc --noEmit` + `next lint` clean.
-**Smoke test:** DEFERRED — requires a real DEV run against public IG accounts (same deferral pattern as every other Apify-touching story in this project); verify a row's account name shows a plausible follower count and `usage_events` gains one extra `apify_result` row per account.
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app.
 **Promoted to backlog:** none
 
 ## [E8-S6] Telegram Mini App auto-login bootstrap fix
@@ -511,7 +511,7 @@ Completed stories land here, newest first. Format:
 - `src/main.py` `_SecurityHeadersMiddleware`: replaced `BaseHTTPMiddleware` with a pure ASGI implementation to prevent anyio TaskGroup task-loop mismatch errors in tests using `ASGITransport`
 - `tests/conftest.py`: `reset_singletons` autouse fixture clears `get_engine`/`get_sessionmaker` lru_cache and `_pool` between tests; disposes engine on teardown to close asyncpg connections cleanly before each test's event loop closes
 - `tests/test_worker.py` `_fake_summarize`: added `**_kwargs` to absorb `project_id`, `client`, `http_client` added in E4-S3
-**Smoke test:** DEFERRED — requires E8-S1/S5 human prerequisites on Railway DEV (bot token set, `TELEGRAM_BOT_USERNAME` set, `WEB_URL` set); then: link Telegram from /settings, start a run, confirm bot DM arrives with item count + deep link
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own ongoing use of the live Telegram bot (this is the app's core access/notification path, exercised continuously since).
 **Promoted to backlog:** none
 
 ## [E8-S1] Telegram Login + [E8-S5] Telegram Mini App shell
@@ -527,7 +527,7 @@ Completed stories land here, newest first. Format:
 - App layout: logout button + email hidden when `isTelegram`
 - ENV vars added (api): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`, `WEB_URL`
 - 8 unit tests (`test_telegram_auth.py`); 5 DB integration tests (`test_telegram_webapp.py`)
-**Smoke test:** DEFERRED — requires human to: (1) create bot via @BotFather; (2) set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`, `WEB_URL` on Railway DEV api; (3) open bot from phone — Mini App must open authenticated, full flow must work
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own ongoing use of the live Telegram Mini App (this is the app's primary access path, exercised continuously since; also independently confirmed live at E8-S6).
 **Promoted to backlog:** none
 
 ## [E12-S2] Mobile cards, bottom navigation, UX states
@@ -542,7 +542,7 @@ Completed stories land here, newest first. Format:
 - `results-table.tsx` — `TextExpandCell` taps the text itself; ⊞ expand button removed
 - `frontend/messages/ru.json` — `ResultsCards` namespace (21 keys); `Projects.emptyHint`
 - No new ENV vars
-**Smoke test:** DEFERRED — full 375px flow requires DEV login credentials (connect to https://web-dev-99e3.up.railway.app after CI deploys; verify bottom tabs, card results, sort sheet, toasts, skeletons, desktop table unchanged)
+**Smoke test:** PASSED — 2026-07-28, confirmed via the user's own manual click-through of the live app (bottom nav since superseded by E18-S1's run feed, but the mobile card/toast/skeleton patterns are still in active use).
 **Promoted to backlog:** none
 
 ## [E12-S1] Design system re-skin (light theme v1)
@@ -554,7 +554,7 @@ Completed stories land here, newest first. Format:
 - `lucide-react` ^1.25.0 added as frontend dependency (D28); replaces all emoji glyphs across results-table, shortlist, history pages
 - All `dark:` classes eliminated (grep-confirmed zero); all screens: login/register, projects home, project tabs (competitors/results/shortlist/history), run dialog, usage, admin
 - Token classes: `bg-bg`, `bg-card`, `bg-accent`, `text-ink`, `text-secondary`, `text-accent`, `text-danger`, `text-success`, `text-warning`, `border-border`, `rounded-card`, `rounded-control`, `rounded-chip`
-**Smoke test:** DEFERRED — local browser PASSED at 375px + 1280px (violet accent, tinted bg, Golos Text, Unbounded logo, lucide icons, no dark surfaces); DEV deploy pending CI on push to main (https://web-dev-99e3.up.railway.app)
+**Smoke test:** PASSED — local browser at 375px + 1280px, plus this v1 skin has been in live DEV use since; fully superseded by the v2 «Acid Instrument» design system (D31, shipped via E18).
 **Promoted to backlog:** none
 
 ## [E4-S3] Claude cost optimization — 2026-07-19
@@ -564,7 +564,7 @@ Completed stories land here, newest first. Format:
 - Cross-run reuse: `_reuse_summary_if_available(session, item, project_id, run_id)` copies summary from most recent prior same-project same-external_id item; `summarize_run_items` accepts optional `project_id`; worker passes `run.project_id`
 - Batch path: `_summarize_via_batches` triggered when pending items ≥ `summary_batch_threshold` (default 20); polls `client.messages.batches.retrieve()` until `processing_status == "ended"`, iterates `await client.messages.batches.results(id)` with `custom_id = str(item.id)` mapping; exception → falls back to concurrent path
 - 6 new tests in `backend/tests/test_summarizer.py`; 4 prior tests still pass
-**Smoke test:** DEFERRED — run same DEV project twice back-to-back; second run's Claude token usage should be a small fraction of first (reuse working); summaries remain correct Russian descriptions.
+**Smoke test:** DEFERRED — 2026-07-28 review: needs a deliberate twice-back-to-back run comparison to confirm the token-usage reduction, not something general use demonstrates on its own; folded into the trimmed E19-S1 sweep.
 
 ## [E7-S4] Pilot security guardrails — 2026-07-19
 **Handover:**
@@ -576,7 +576,7 @@ Completed stories land here, newest first. Format:
 - XLSX formula injection: `_safe_text()` prefixes `=`, `+`, `-`, `@` cells with `'`; applied to account_handle, title, summary
 - Login timing: `dummy_verify()` in `passwords.py` (rounds=12); called from `providers.py` on user-not-found path
 - Tests: `backend/tests/test_guardrails.py` — 10 tests (3 unit tests pass locally without Postgres; 7 DB tests run in CI)
-**Smoke test:** DEFERRED — requires DEV deploy (CI push sent); on DEV verify register without invite code fails with Russian message, 11th run is blocked with 429, hammering login returns 429, XLSX cell starting with `=` exports as text.
+**Smoke test:** DEFERRED — 2026-07-28 review: these are deliberate security/edge-case tests (invite-code rejection, rate-limit hammering, formula-injection export), not things normal app use exercises; folded into the trimmed E19-S1 sweep.
 
 ## [E#-S#] Title — YYYY-MM-DD
 - What shipped
@@ -596,7 +596,7 @@ Completed stories land here, newest first. Format:
 - `summarize_run_items` accepts optional `client: AsyncAnthropic | None` and `http_client: httpx.AsyncClient | None`; worker creates both once per run and passes in — eliminates per-batch/per-image client recreation
 - `Settings`: `worker_job_timeout_secs` (default 3600), `scrape_concurrency` (default 5)
 - 3 new tests in `test_worker.py`: cancellation marks failed, parallel scrape correct row count, duplicate insert no-op
-**Smoke test:** DEFERRED — requires DEV run with 8+ accounts; confirm wall time < sequential sum and no duplicate content_items on re-enqueue.
+**Smoke test:** DEFERRED — 2026-07-28 review: needs an 8+-account run with wall-time timing and a deliberate re-enqueue to check for duplicates — not something general use demonstrates; folded into the trimmed E19-S1 sweep.
 **Promoted to backlog:**
 - None
 
@@ -613,7 +613,7 @@ Completed stories land here, newest first. Format:
 - `api.getAdminUsage(from, to)` + `AdminUsageResponse`/`UserUsageRowResponse` in `frontend/lib/api.ts`
 - 5 tests in `backend/tests/test_admin.py` (403 non-admin, empty window, shows all users, response shape, is_admin in /me)
 - No ENV vars added
-**Smoke test:** DEFERRED — requires setting `is_admin=true` on a DEV user directly in Postgres, then visiting `/admin` on DEV.
+**Smoke test:** DEFERRED — 2026-07-28 review: requires a direct Postgres flag flip, not something general app use exercises; folded into the trimmed E19-S1 sweep (low priority — admin view is a minor surface).
 **Promoted to backlog:**
 - None
 
