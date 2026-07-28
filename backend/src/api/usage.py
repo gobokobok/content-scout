@@ -109,11 +109,18 @@ async def get_my_runs(
 
     # E17: deep-analysis token charges must appear in the same ledger view — they're deducted
     # from the same token_balance but weren't previously surfaced anywhere in this list.
+    # progress_items comes from the underlying review run: a deep analysis re-analyzes the
+    # same publications it was chained from, it does not scrape its own set.
     deep_analysis_rows = (
         await session.execute(
-            select(DeepAnalysis, Project.name.label("project_name"))
+            select(
+                DeepAnalysis,
+                Project.name.label("project_name"),
+                AnalysisRun.progress_items.label("run_progress_items"),
+            )
             .join(Project, DeepAnalysis.project_id == Project.id)
             .join(WorkspaceMember, WorkspaceMember.workspace_id == Project.workspace_id)
+            .join(AnalysisRun, AnalysisRun.id == DeepAnalysis.run_id)
             .where(WorkspaceMember.user_id == user.id)
             .where(DeepAnalysis.created_at >= from_)
             .where(DeepAnalysis.created_at < to)
@@ -121,7 +128,7 @@ async def get_my_runs(
     ).all()
 
     comments_by_analysis: dict[uuid.UUID, int] = {}
-    analysis_ids = [analysis.id for analysis, _ in deep_analysis_rows]
+    analysis_ids = [analysis.id for analysis, _, _ in deep_analysis_rows]
     if analysis_ids:
         comment_rows = await session.execute(
             select(
@@ -142,7 +149,7 @@ async def get_my_runs(
             status=analysis.status,
             duration_days=None,
             item_limit=None,
-            progress_items=0,
+            progress_items=run_progress_items,
             tokens_charged=analysis.tokens_charged,
             total_input_tokens=0,
             total_output_tokens=0,
@@ -150,7 +157,7 @@ async def get_my_runs(
             created_at=analysis.created_at,
             finished_at=analysis.completed_at,
         )
-        for analysis, project_name in deep_analysis_rows
+        for analysis, project_name, run_progress_items in deep_analysis_rows
     )
 
     entries.sort(key=lambda e: e.created_at, reverse=True)

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, CalendarRange, Copy, Check, Plus, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, CalendarRange, Copy, Check, ListFilter, Plus } from "lucide-react";
 import { api, ApiError, type RunSummaryResponse, type UserResponse } from "@/lib/api";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useToast } from "@/components/ui/toast";
@@ -144,12 +144,10 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
             <dt className="text-sm text-secondary">{t("detailStatus")}</dt>
             <dd className="text-sm text-ink">{statusLabel[run.status] ?? run.status}</dd>
           </div>
-          {run.kind === "run" && (
-            <div className="flex items-center justify-between py-3">
-              <dt className="text-sm text-secondary">{t("detailPublications")}</dt>
-              <dd className="font-mono text-sm font-medium text-ink">{run.progress_items}</dd>
-            </div>
-          )}
+          <div className="flex items-center justify-between py-3">
+            <dt className="text-sm text-secondary">{t("detailPublications")}</dt>
+            <dd className="font-mono text-sm font-medium text-ink">{run.progress_items}</dd>
+          </div>
           {run.kind === "deep_analysis" && (
             <div className="flex items-center justify-between py-3">
               <dt className="text-sm text-secondary">{t("detailCommentsAnalyzed")}</dt>
@@ -287,6 +285,8 @@ export default function UsagePage() {
         </div>
       )}
 
+      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{t("usageHeader")}</h2>
+
       {/* Period + filter selector */}
       <div className="flex items-center justify-between gap-1.5">
         <button
@@ -303,11 +303,11 @@ export default function UsagePage() {
         <button
           onClick={() => setFilterSheetOpen(true)}
           aria-label={t("filterLabel")}
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-chip border transition-all active:scale-[0.98] ${
-            lineFilter !== "all" ? "border-ink bg-ink text-lime" : "border-border bg-card text-secondary hover:text-ink"
+          className={`inline-flex items-center justify-center rounded-control border p-2 transition-colors ${
+            lineFilter !== "all" ? "border-accent/30 bg-accent-soft text-accent" : "border-border text-secondary hover:bg-bg"
           }`}
         >
-          <SlidersHorizontal className="h-4 w-4" />
+          <ListFilter className="h-4 w-4" />
         </button>
       </div>
 
@@ -336,34 +336,44 @@ export default function UsagePage() {
       </BottomSheet>
 
       <BottomSheet open={customSheetOpen} onClose={() => setCustomSheetOpen(false)} title={t("customPeriodTitle")}>
-        <div className="flex flex-col gap-3 px-4 pb-4">
+        <div className="flex flex-col gap-4 px-4 pb-4">
           {[
-            { label: t("fromLabel"), value: draftFrom, onChange: setDraftFrom },
-            { label: t("toLabel"), value: draftTo, onChange: setDraftTo },
-          ].map(({ label, value, onChange }) => {
+            { key: "from", label: t("fromLabel"), value: draftFrom, onChange: setDraftFrom },
+            { key: "to", label: t("toLabel"), value: draftTo, onChange: setDraftTo },
+          ].map(({ key, label, value, onChange }) => {
             const [y, m] = value.split("-").map(Number);
             return (
-              <div key={label} className="flex flex-col gap-1.5">
+              <div key={key} className="flex flex-col gap-2">
                 <span className="text-sm font-medium text-secondary">{label}</span>
-                <div className="flex gap-2">
-                  <select
-                    value={m}
-                    onChange={(e) => onChange(`${y}-${String(Number(e.target.value)).padStart(2, "0")}`)}
-                    className="w-0 flex-[2] rounded-control border border-border bg-card px-3 py-2.5 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  >
-                    {monthNames().map((name, idx) => (
-                      <option key={name} value={idx + 1}>{name}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={y}
-                    onChange={(e) => onChange(`${e.target.value}-${String(m).padStart(2, "0")}`)}
-                    className="w-0 flex-1 rounded-control border border-border bg-card px-3 py-2.5 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  >
-                    {Array.from({ length: 5 }, (_, i) => now.getFullYear() - i).map((yr) => (
-                      <option key={yr} value={yr}>{yr}</option>
-                    ))}
-                  </select>
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                  {Array.from({ length: 5 }, (_, i) => now.getFullYear() - i).map((yr) => (
+                    <button
+                      key={yr}
+                      onClick={() => onChange(`${yr}-${String(m).padStart(2, "0")}`)}
+                      className={`shrink-0 rounded-chip px-3.5 py-1.5 text-sm transition-all active:scale-[0.98] ${
+                        yr === y ? "bg-ink font-semibold text-lime" : "border border-border bg-card font-medium text-secondary hover:text-ink"
+                      }`}
+                    >
+                      {yr}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {monthNames().map((name, idx) => {
+                    const monthNum = idx + 1;
+                    const active = monthNum === m;
+                    return (
+                      <button
+                        key={name}
+                        onClick={() => onChange(`${y}-${String(monthNum).padStart(2, "0")}`)}
+                        className={`rounded-chip px-2 py-2 text-xs transition-all active:scale-[0.98] ${
+                          active ? "bg-ink font-semibold text-lime" : "border border-border bg-card font-medium text-secondary hover:text-ink"
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             );

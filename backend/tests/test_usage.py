@@ -338,7 +338,9 @@ async def test_my_runs_sums_comments_analyzed_count_for_deep_analysis(
     project = await make_project(session, workspace=ws)
     now = datetime.now(UTC)
 
-    run = await make_run(session, project=project, requested_by=user, status="done")
+    run = await make_run(
+        session, project=project, requested_by=user, status="done", progress_items=2
+    )
     item_a = await make_content_item(session, run=run)
     item_b = await make_content_item(session, run=run)
     analysis = await make_deep_analysis(session, run=run, requested_by=user, created_at=now)
@@ -370,4 +372,5 @@ async def test_my_runs_sums_comments_analyzed_count_for_deep_analysis(
 
     by_id = {e["id"]: e for e in body}
     assert by_id[str(analysis.id)]["comments_analyzed_count"] == 7
+    assert by_id[str(analysis.id)]["progress_items"] == 2
     assert by_id[str(run.id)]["comments_analyzed_count"] is None
