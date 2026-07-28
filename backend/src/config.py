@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     telegram_webhook_secret: str = ""
     web_url: str = "http://localhost:3000"  # public frontend URL for bot deep links
 
+    # E8-S3/D37: pay-as-you-go token top-ups via a one-time Telegram Stars invoice.
+    # stars_per_token converts a token amount to a Stars invoice amount — placeholder pending
+    # a real FX check (Stars can't invoice in RUB directly), same pattern as D35's multiplier.
+    stars_per_token: float = 1.0
+    min_token_purchase: int = 300
+
     use_mock_platform: bool = True
     apify_api_token: str = ""
     apify_ig_actor_id: str = ""

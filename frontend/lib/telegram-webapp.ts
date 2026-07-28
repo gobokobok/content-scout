@@ -12,6 +12,11 @@ declare global {
           params: { url: string; file_name: string },
           callback?: (accepted: boolean) => void,
         ) => void;
+        // Opens Telegram's native invoice sheet for a link from createInvoiceLink (E8-S3).
+        openInvoice?: (
+          url: string,
+          callback?: (status: "paid" | "cancelled" | "failed" | "pending") => void,
+        ) => void;
       };
     };
   }
@@ -40,6 +45,17 @@ export function canDownloadViaTelegram(): boolean {
 
 export function downloadFileViaTelegram(url: string, fileName: string): void {
   window.Telegram!.WebApp!.downloadFile!({ url, file_name: fileName });
+}
+
+export type TelegramInvoiceStatus = "paid" | "cancelled" | "failed" | "pending";
+
+/** Opens a Stars invoice link (from POST /billing/purchase-invoice, E8-S3) in Telegram's
+ * native sheet and resolves with the payment outcome. Only callable inside a real Mini App —
+ * callers must check isTelegramContext() first. */
+export function openTelegramInvoice(url: string): Promise<TelegramInvoiceStatus> {
+  return new Promise((resolve) => {
+    window.Telegram!.WebApp!.openInvoice!(url, (status) => resolve(status));
+  });
 }
 
 // Telegram's Bot API / WebApp initData exposes no timezone field for the account — this

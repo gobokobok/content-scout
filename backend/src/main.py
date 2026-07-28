@@ -8,6 +8,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from src.api.accounts import router as accounts_router
 from src.api.admin import router as admin_router
 from src.api.auth import router as auth_router
+from src.api.billing import router as billing_router
 from src.api.deep_analyses import router as deep_analyses_router
 from src.api.export import router as export_router
 from src.api.history import router as history_router
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="content-scout api", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(billing_router)
 app.include_router(projects_router)
 app.include_router(accounts_router)
 app.include_router(runs_router)

@@ -2,6 +2,21 @@
 
 Completed stories land here, newest first. Format:
 
+## [E8-S3] Telegram Stars token top-ups
+**Completed:** 2026-07-29
+**Handover:**
+- Re-scoped mid-story per **D37** (supersedes D30): pay-as-you-go top-ups (quick picks 1000/2000/5000 + custom, minimum 300 tokens, 1 токен = 1 ₽) via a **one-time** Telegram Stars invoice — not the recurring subscription originally planned. User redirected this directly in chat before any code was written.
+- `backend/src/services/billing.py`: `create_stars_invoice(user_id, tokens)` (Bot API `createInvoiceLink`, no `subscription_period`), `parse_topup_payload`, `credit_purchase` (idempotent on `telegram_charge_id` — dedupes a retried `successful_payment` webhook). `backend/src/api/billing.py`: `POST /billing/purchase-invoice`.
+- `backend/src/api/telegram_webhook.py` now handles `pre_checkout_query` (always accepted) and `message.successful_payment`. Fixed a real bug found while wiring this: `setup_webhook_and_menu`'s `allowed_updates` only listed `"message"`, which would have silently dropped every `pre_checkout_query` update — Telegram doesn't deliver update types that aren't explicitly requested.
+- New table `token_purchases` (migration `d4e5f6a7b8c9`), one row per credited charge, unique on `telegram_charge_id`. Verified with a real local-Postgres upgrade/downgrade/upgrade round-trip.
+- Frontend: purchase picker (quick chips + custom field) added to `usage/page.tsx`'s buy-tokens button (previously a "coming soon" toast, built speculatively in E18-S5); `lib/telegram-webapp.ts` gained `openInvoice`/`openTelegramInvoice`. The `insufficient_token_balance` run-creation error now links to `/usage` from the shared `components/run-dialog.tsx` (a clickable link, not an auto-redirect, so a failed submit doesn't yank the user out of an in-progress dialog).
+- New config: `stars_per_token` (1.0, D37 placeholder pending real FX — Stars can't invoice in RUB directly) and `min_token_purchase` (300). No ENV vars added.
+- New DECISIONS.md entry **D37** records the re-scope and flags one unresolved question: Telegram's real per-invoice Stars amount ceiling couldn't be confirmed from docs available this session (no live Bot API access in this sandbox) — `billing.py` surfaces `createInvoiceLink` failures as a clean error rather than assuming a specific cap, but the real limit should be confirmed on the first live DEV smoke test.
+- 17 new backend tests; full suite 318 passed (up from 301), ruff/mypy clean. Frontend `tsc --noEmit`/`next lint`/`next build` all clean.
+- This story ran **out of the sprint's declared order** — SPRINT.md/CLAUDE.md mark E19-S1 (the mandatory smoke sweep) as "do first" in Sprint 10, but the user explicitly chose to proceed with E8-S3 first when asked. E19-S1 is still outstanding.
+**Smoke test:** DEFERRED — needs a real DEV pass with actual Telegram Stars (test mode): buy tokens via a quick-pick and a custom amount, confirm `token_balance` increases correctly and a previously blocked run unblocks; also the first opportunity to confirm D37's open question about Telegram's real per-invoice Stars ceiling.
+**Promoted to backlog:** E8-S7 (surface `token_purchases` rows in the Balance ledger's «Пополнения» filter, which has been an empty state since E18-S5 with nothing real to show until now)
+
 ## [E18-S5] Usage page rework around Balance
 **Completed:** 2026-07-28
 **Handover:**

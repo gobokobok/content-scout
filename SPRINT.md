@@ -156,16 +156,20 @@ Full story definitions live in `BACKLOG.md`.
 
 ## Sprint 10 — Verification sweep + monetization (re-planned 2026-07-28 `/sprint-review`, trimmed same day)
 
-**Goal:** first, close the remaining deferred-smoke-test gap with one real pass; then ship the first paid tier — 1990₽/month for 2000 tokens via Telegram Stars (D19), credited onto the existing `User.token_balance` column. E18-S5 already built a buy-tokens CTA stub as this story's real UI entry point.
+**Goal:** first, close the remaining deferred-smoke-test gap with one real pass; then ship token monetization via Telegram Stars (D19). E18-S5 already built a buy-tokens CTA stub as this story's real UI entry point.
 
 **Scope note (same day, 2026-07-28):** the smoke sweep was originally scoped to all 39+ deferred entries, but the user confirmed they'd already manually clicked through the entire live app while building E18 — that covers every general UI/navigation/rendering flow, now marked `PASSED` in DONE.md. E19-S1 is trimmed to ~13 remaining items that a normal click-through can't hit: forced faults (insufficient balance, malformed API response, cross-user isolation), cron-timing (scheduled runs actually firing + Telegram DM), security-guardrail edge cases (invite code, rate limits, XLSX injection), and a couple of direct-DB checks. One item is flagged priority: the Apify `apidojo`/Bright Data comment-scraping fallback is a **known real gap**, not just untested — this DEV account's Apify plan already rejects the actor and no Bright Data credentials are set.
+
+**Note (2026-07-29): E8-S3 ran before E19-S1, out of this table's declared order.** The user invoked `/start-story E8-S3` directly; asked explicitly whether to proceed out of order or do E19-S1 first, they chose to proceed. E19-S1 (still `backlog`) remains the mandatory-first item for whoever picks up this sprint next.
+
+**E8-S3 re-scoped again 2026-07-29 per D37 (supersedes D30):** ships as **pay-as-you-go token top-ups** (quick picks 1000/2000/5000 + custom, minimum 300, 1 токен = 1 ₽), not the recurring 1990₽/month subscription D30 had planned — a direct user redirect mid-story, before any code was written for the subscription version. See D37 and BACKLOG.md's `[E8-S3]` entry.
 
 **Stories (in order):**
 
 | # | Story | Title | Status |
 |---|---|---|---|
 | 0 | E19-S1 | DEV smoke-test sweep, trimmed (mandatory — do first) | backlog |
-| 1 | E8-S3 | Telegram Stars subscriptions (re-scoped per D30 — single tier) | backlog |
+| 1 | E8-S3 | Telegram Stars token top-ups (re-scoped per D37 — pay-as-you-go, not subscription) | done |
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 

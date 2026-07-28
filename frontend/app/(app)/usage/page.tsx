@@ -7,6 +7,10 @@ import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, Copy, Check, Funne
 import { api, ApiError, type RunSummaryResponse, type UserResponse } from "@/lib/api";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useToast } from "@/components/ui/toast";
+import { isTelegramContext, openTelegramInvoice } from "@/lib/telegram-webapp";
+
+const QUICK_PURCHASE_AMOUNTS = [1000, 2000, 5000];
+const MIN_PURCHASE_TOKENS = 300;
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
@@ -200,6 +204,10 @@ export default function UsagePage() {
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [pickerYear, setPickerYear] = useState(now.getFullYear());
   const [pickerPhase, setPickerPhase] = useState<"start" | "end">("start");
+  const [purchaseSheetOpen, setPurchaseSheetOpen] = useState(false);
+  const [purchaseAmount, setPurchaseAmount] = useState<number | null>(QUICK_PURCHASE_AMOUNTS[0]);
+  const [purchaseCustomText, setPurchaseCustomText] = useState("");
+  const [purchasing, setPurchasing] = useState(false);
 
   useEffect(() => {
     api.me().then(setMe).catch(() => null);
@@ -228,6 +236,53 @@ export default function UsagePage() {
       ? monthLabel(fy, fm - 1)
       : `${shortMonthLabel(fy, fm - 1)} ${fy} — ${monthLabel(ty, tm - 1)}`;
   })();
+
+  function openPurchaseSheet() {
+    setPurchaseAmount(QUICK_PURCHASE_AMOUNTS[0]);
+    setPurchaseCustomText("");
+    setPurchaseSheetOpen(true);
+  }
+
+  function pickQuickPurchaseAmount(value: number) {
+    setPurchaseAmount(value);
+    setPurchaseCustomText("");
+  }
+
+  function onPurchaseCustomTextChange(value: string) {
+    setPurchaseCustomText(value);
+    const n = Number(value);
+    setPurchaseAmount(value !== "" && Number.isFinite(n) ? Math.floor(n) : null);
+  }
+
+  const purchaseValid = purchaseAmount !== null && purchaseAmount >= MIN_PURCHASE_TOKENS;
+
+  async function handlePurchase() {
+    if (!purchaseValid || purchaseAmount === null) return;
+    if (!isTelegramContext()) {
+      addToast(t("purchaseRequiresTelegram"));
+      return;
+    }
+    setPurchasing(true);
+    try {
+      const invoice = await api.createPurchaseInvoice(purchaseAmount);
+      const outcome = await openTelegramInvoice(invoice.invoice_url);
+      if (outcome === "paid") {
+        addToast(t("purchaseSuccess"), "success");
+        setPurchaseSheetOpen(false);
+        const freshMe = await api.me().catch(() => null);
+        if (freshMe) setMe(freshMe);
+        void load();
+      } else if (outcome === "failed") {
+        addToast(t("purchaseFailed"));
+      }
+      // "cancelled"/"pending": user backed out of the sheet, or Telegram is still processing —
+      // neither is an error worth a toast.
+    } catch (err) {
+      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
+    } finally {
+      setPurchasing(false);
+    }
+  }
 
   function openCustomSheet() {
     const initFrom = selection.kind === "custom" ? selection.from : toMonthInputValue(now);
@@ -305,7 +360,7 @@ export default function UsagePage() {
               {t("title")}
             </span>
             <button
-              onClick={() => addToast(t("buyTokensComingSoon"), "info")}
+              onClick={openPurchaseSheet}
               aria-label={t("buyTokensLabel")}
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-lime text-ink transition-all active:scale-[0.95]"
             >
@@ -434,6 +489,66 @@ export default function UsagePage() {
             className="rounded-chip bg-lime px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] transition-all active:scale-[0.98]"
           >
             {t("apply")}
+          </button>
+        </div>
+      </BottomSheet>
+
+      <BottomSheet
+        open={purchaseSheetOpen}
+        onClose={() => setPurchaseSheetOpen(false)}
+        title={t("buyTokensLabel")}
+      >
+        <div className="flex flex-col gap-4 px-4 pb-4">
+          <div className="flex gap-2">
+            {QUICK_PURCHASE_AMOUNTS.map((amount) => (
+              <button
+                key={amount}
+                onClick={() => pickQuickPurchaseAmount(amount)}
+                className={`flex-1 rounded-chip border px-3 py-2.5 text-center font-mono text-sm font-semibold transition-colors ${
+                  purchaseCustomText === "" && purchaseAmount === amount
+                    ? "border-ink bg-ink text-lime"
+                    : "border-border text-ink hover:bg-bg"
+                }`}
+              >
+                {new Intl.NumberFormat("ru-RU").format(amount)}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="purchase-custom-amount" className="text-sm text-secondary">
+              {t("purchaseCustomLabel")}
+            </label>
+            <input
+              id="purchase-custom-amount"
+              type="number"
+              inputMode="numeric"
+              min={MIN_PURCHASE_TOKENS}
+              step={1}
+              placeholder={String(MIN_PURCHASE_TOKENS)}
+              value={purchaseCustomText}
+              onChange={(e) => onPurchaseCustomTextChange(e.target.value)}
+              className="rounded-control border border-border bg-card px-3.5 py-2.5 font-mono text-sm text-ink outline-none focus:border-ink"
+            />
+            {purchaseCustomText !== "" && !purchaseValid && (
+              <p className="text-xs text-danger">
+                {t("purchaseBelowMinimum", { min: MIN_PURCHASE_TOKENS })}
+              </p>
+            )}
+          </div>
+
+          {purchaseValid && purchaseAmount !== null && (
+            <p className="text-sm text-secondary">
+              {t("purchasePrice", { amount: new Intl.NumberFormat("ru-RU").format(purchaseAmount) })}
+            </p>
+          )}
+
+          <button
+            onClick={() => void handlePurchase()}
+            disabled={!purchaseValid || purchasing}
+            className="rounded-chip bg-lime px-4 py-3 text-center text-sm font-semibold text-ink shadow-[0_8px_20px_rgba(140,170,20,0.30)] transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {purchasing ? t("loading") : t("purchaseConfirm")}
           </button>
         </div>
       </BottomSheet>

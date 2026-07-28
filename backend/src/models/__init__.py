@@ -12,6 +12,7 @@ from src.models.deep_analysis import (
 from src.models.project import Project
 from src.models.scheduled_run import ScheduledRun, ScheduledRunSkipReason, ScheduleMode
 from src.models.shortlist_item import ShortlistItem
+from src.models.token_purchase import TokenPurchase
 from src.models.usage_event import (
     KIND_APIFY_COMMENT_RESULT,
     KIND_APIFY_RESULT,
@@ -44,6 +45,7 @@ __all__ = [
     "ScheduledRunSkipReason",
     "ScheduleMode",
     "ShortlistItem",
+    "TokenPurchase",
     "KIND_APIFY_COMMENT_RESULT",
     "KIND_APIFY_RESULT",
     "KIND_BRIGHTDATA_COMMENT_RESULT",

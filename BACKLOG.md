@@ -1142,38 +1142,49 @@ backend/src/services/telegram_notify.py, backend/src/worker.py, backend/tests/te
 - App header: «Настройки» link added
 - 5 unit tests in `test_telegram_notify.py` (mocked httpx; no DB required)
 
-## [E8-S3] Telegram Stars subscriptions
+## [E8-S3] Telegram Stars token top-ups
 **Epic:** Telegram Integration & Monetization
-**Sprint:** 10 (locked 2026-07-22 execution plan — after E13/E14/E15/E16 land so the subscription entry point has a UI home)
-**Status:** backlog
+**Sprint:** 10 (locked 2026-07-22 execution plan — after E13/E14/E15/E16 land so the purchase entry point has a UI home)
+**Status:** done
+**Completed:** 2026-07-29
 **Priority:** high
-**Depends on:** E8-S5, E7-S1, E13-S1 (nav restructure — subscription screen is reached from a profile/settings entry point, not the 3-tab bottom nav)
+**Depends on:** E8-S5, E7-S1, E13-S1 (nav restructure — purchase screen is reached from a profile/settings entry point, not the 3-tab bottom nav)
 ### Goal
-Users subscribe to a usage plan paid in Telegram Stars inside the Mini App. The Mini App shell itself (initData auth, bot entry point) ships earlier in E8-S5 — this story is billing only.
+Users buy tokens with Telegram Stars inside the Mini App. The Mini App shell itself (initData auth, bot entry point) ships earlier in E8-S5 — this story is billing only.
 
-**Re-scoped 2026-07-22 per D30:** launch is a **single tier** — 1990 ₽/month → 2000 tokens, credited onto the existing `User.token_balance` int column (already live and already gating runs, see `backend/src/api/runs.py`'s `NO_BALANCE` check and `backend/src/worker.py`'s balance debit) — not D26's full multi-tier X-factor pricing config, which remains a later extension.
+**Re-scoped 2026-07-22 per D30, then again 2026-07-28 per D37 (supersedes D30):** launch is **pay-as-you-go top-ups**, not a subscription — user picks a token amount (quick picks 1000/2000/5000, or free choice, minimum 300) at **1 токен = 1 ₽**, credited onto the existing `User.token_balance` int column (already live and already gating runs, see `backend/src/api/runs.py`'s `NO_BALANCE` check and `backend/src/worker.py`'s balance debit) via a one-time Stars invoice. D26's full multi-tier X-factor pricing config and D30's recurring-subscription model both remain later extensions, not this story.
 ### Acceptance Criteria
-- [ ] Recurring Telegram Stars subscription invoice (Bot API subscription support) for the single 1990₽-equivalent/2000-token plan; `POST` flow creates the invoice, confirmed via Bot API successful-payment webhook; new `subscriptions` table (user_id, status, current_period_end, telegram_charge_id)
-- [ ] Each successful billing cycle credits `token_balance += 2000` (reuses the existing column — no new ledger)
-- [ ] «Использование»/subscription screen shows current balance, price ("≈1990 ₽/мес"), and a subscribe button opening Telegram's native invoice sheet
-- [ ] The existing `insufficient_token_balance` run-creation error links to this subscription screen instead of a dead end
-- [ ] Mini App respects D16 (usable at Telegram's in-app viewport sizes) and D20 (loads whatever domain/proxy stage is currently active — no Mini-App-specific network path)
-- [ ] D26's internal `usage_events` cost ledger is untouched by this story — it stays layer-1 only; no X-factor/internal-cost value is introduced or exposed
+- [x] One-time Telegram Stars invoice (`createInvoiceLink`, no `subscription_period`) for a user-chosen token amount; confirmed via Bot API successful-payment webhook; new `token_purchases` table (user_id, tokens, amount_stars, telegram_charge_id, created_at) for idempotent crediting
+- [x] Successful payment credits `token_balance += tokens` (reuses the existing column)
+- [x] «Баланс» screen's buy button opens a picker: quick amounts 1000 / 2000 / 5000 tokens plus a free-choice numeric field (minimum 300), price shown as N ₽ before confirming, then opens Telegram's native invoice sheet
+- [x] The existing `insufficient_token_balance` run-creation error links to this purchase screen instead of a dead end
+- [x] Mini App respects D16 (usable at Telegram's in-app viewport sizes) and D20 (loads whatever domain/proxy stage is currently active — no Mini-App-specific network path)
+- [x] D26's internal `usage_events` cost ledger is untouched by this story — it stays layer-1 only; no X-factor/internal-cost value is introduced or exposed
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
+- [x] All AC checked
+- [x] Tests written and passing (17 new backend tests; full suite 318 passed)
 - [ ] CI green, deployed to DEV
 - [ ] Smoke test passed
 - [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
-Open the Mini App from the bot on DEV, subscribe with test Stars, confirm `token_balance` increases by 2000 and a previously blocked run unblocks after payment.
+Open the Mini App from the bot on DEV, buy tokens with test Stars (try a quick-pick amount and a custom amount below/above the 300 minimum), confirm `token_balance` increases by the right amount and a previously blocked run unblocks after payment. Also confirms D37's open question: Telegram's real per-invoice Stars ceiling (couldn't be checked from this sandbox).
 ### Files to read
-CLAUDE.md, DECISIONS.md (D19, D26, D30), docs/ARCHITECTURE.md (Telegram Mini App, Usage Metering sections), backend/src/api/usage.py, backend/src/api/runs.py, backend/src/auth/telegram.py
+CLAUDE.md, DECISIONS.md (D19, D22, D26, D30, D37), docs/ARCHITECTURE.md (Telegram Mini App, Usage Metering sections), backend/src/api/usage.py, backend/src/api/runs.py, backend/src/auth/telegram.py, backend/src/api/telegram_webhook.py
 ### Files to create or modify
-backend/src/api/billing.py, backend/src/models/subscription.py, backend/tests/test_billing.py, frontend/app/(app)/**, frontend/lib/telegram-webapp.ts, frontend/messages/ru.json
+backend/src/api/billing.py, backend/src/services/billing.py, backend/src/models/token_purchase.py, backend/alembic/versions/d4e5f6a7b8c9_add_token_purchases.py, backend/src/api/telegram_webhook.py, backend/src/config.py, backend/src/main.py, backend/tests/test_billing.py, backend/tests/test_models.py, frontend/app/(app)/usage/page.tsx, frontend/components/run-dialog.tsx, frontend/lib/telegram-webapp.ts, frontend/lib/api.ts, frontend/messages/ru.json
+### Changelog
+- 2026-07-29: implemented per D37's re-scope (pay-as-you-go, not subscription). `services/billing.py` holds the `createInvoiceLink` call + idempotent `credit_purchase` (keyed on `telegram_charge_id`, since Telegram can resend `successful_payment` updates); `api/billing.py` is a thin `POST /billing/purchase-invoice` router per CONVENTIONS.md. `telegram_webhook.py` extended to answer `pre_checkout_query` and handle `successful_payment` — also fixed a real bug found while wiring this: the startup `setWebhook` call's `allowed_updates` only listed `"message"`, which would have silently dropped every `pre_checkout_query` update (Telegram never delivers update types not explicitly requested). The `insufficient_token_balance` link (AC 4) lives as a `Link` to `/usage` under the error message in the shared `components/run-dialog.tsx` (not `app/(app)/page.tsx` as originally planned — the dialog owns the error state and creation call; `page.tsx` doesn't), and is a clickable link rather than an auto-redirect, so a failed submit doesn't yank the user out of an in-progress dialog. Migration verified with a real local-Postgres upgrade/downgrade/upgrade round-trip (`content_scout` db) per this project's established practice; full backend suite green against `content_scout_test`. Frontend: `tsc --noEmit`, `next lint`, `next build` all clean. No DEV deploy or live-Telegram smoke test performed this session (no live Bot API/DEV access in this sandbox, same standing constraint as every other Telegram-dependent story) — see D37 for the specific open question (Telegram's real per-invoice Stars ceiling) that a live test should confirm.
 ### Handover
-—
+- `backend/src/services/billing.py`: `create_stars_invoice(user_id, tokens) -> (invoice_url, amount_stars)` (calls Bot API `createInvoiceLink`, raises `InvoiceCreationError` on failure), `parse_topup_payload(invoice_payload) -> (user_id, tokens) | None`, `credit_purchase(session, user_id, tokens, amount_stars, telegram_charge_id) -> bool` (idempotent — `False` if the charge was already credited or the user is gone). Reuse these for any future one-time Stars purchase (e.g. a deep-analysis-specific top-up), not just this flow.
+- `backend/src/api/billing.py`: `POST /billing/purchase-invoice` — 400 `telegram_not_linked` if the user has no `telegram_id`, 400 `purchase_below_minimum` under `settings.min_token_purchase` (300), 502 `invoice_creation_failed` on a Bot API failure, else `{invoice_url, tokens, amount_stars}`.
+- `backend/src/api/telegram_webhook.py`: webhook now branches on `pre_checkout_query` (always accepted — validation already happened at invoice creation) and `message.successful_payment` before falling through to the `/start` handler. **`setup_webhook_and_menu`'s `allowed_updates` now includes `"pre_checkout_query"`** — this was a real gap (Telegram drops unlisted update types), keep it in mind if another update type is ever needed.
+- New table `token_purchases` (`backend/src/models/token_purchase.py`, migration `d4e5f6a7b8c9`) — one row per credited Stars charge, unique on `telegram_charge_id`. Not yet surfaced in the Balance page's ledger (the "Пополнения" filter still shows empty) — promoted to backlog as **E8-S7**.
+- New config: `settings.stars_per_token` (default 1.0, D37 placeholder pending real FX) and `settings.min_token_purchase` (300).
+- Frontend: `lib/telegram-webapp.ts` gained `openInvoice` on the `Window.Telegram.WebApp` type and `openTelegramInvoice(url) -> Promise<"paid"|"cancelled"|"failed"|"pending">`; `lib/api.ts` gained `createPurchaseInvoice(tokens)`. The purchase picker lives inline in `usage/page.tsx` (quick chips + custom field + `handlePurchase`); the `insufficient_token_balance` deep-link lives in `components/run-dialog.tsx` (shared by both the home-feed and per-project run dialogs per E18-S3's consolidation) as a `Link` to `/usage`, not an auto-redirect.
+- ENV vars added: none (both new config values have working defaults; not required for deploy, same as D35/D34's tunable constants).
+- **Not covered by the E19-S1-adjacent manual click-through** (this story shipped after that pass) — needs its own real DEV smoke test with actual Stars, see Smoke test above.
+**Promoted to backlog:** E8-S7 (surface `token_purchases` rows in the Balance ledger's "Пополнения" filter, which has shown an empty state since E18-S5 with no real data to back it until now)
 
 ## [E8-S4] Add competitor by sharing a link to the bot
 **Epic:** Telegram Integration & Monetization
@@ -2624,3 +2635,31 @@ frontend/app/(app)/usage/page.tsx, backend/src/api/runs.py, frontend/messages/ru
 - The month-range picker's "everything between highlights" logic is pure string comparison on zero-padded `YYYY-MM` keys — no date-math library involved; reuse this approach if another range-picker is ever needed rather than reaching for a date library.
 - The buy-tokens CTA is a stub link to a payment page that doesn't exist yet — **this is Sprint 10's entry point** (E8-S3, Telegram Stars subscriptions). Confirm this stub's route when E8-S3 finally builds the real payment page, since the link target was guessed ahead of that story.
 - **Promoted to backlog:** wiring the buy-tokens CTA to a real payment flow is exactly E8-S3's scope — no new backlog item needed, just noting the dependency explicitly here since it was built speculatively ahead of that story.
+
+## [E8-S7] Surface token purchases in the Balance ledger
+**Epic:** Telegram Integration & Monetization
+**Sprint:** unassigned (promoted from E8-S3, 2026-07-29)
+**Status:** backlog
+**Priority:** low
+**Depends on:** E8-S3 (token_purchases table + purchase flow)
+### Goal
+The Balance page's «Пополнения» ledger filter has shown an empty state since E18-S5, with a code comment noting top-ups "are not tracked yet." E8-S3 made that real (`token_purchases` rows now exist), but didn't wire them into the ledger — a user who buys tokens sees their balance jump with no line item explaining why.
+### Acceptance Criteria
+- [ ] `GET /me/runs` (or a new endpoint) includes `token_purchases` rows alongside runs/deep-analyses, or the frontend queries them separately — either way, the «Пополнения» filter on `/usage` shows real rows instead of always being empty
+- [ ] Each row shows the credited amount (positive, distinct styling from the negative spend rows) and purchase date; tapping one can show amount_stars in a detail sheet if useful, but isn't required
+- [ ] The "all" filter view interleaves purchases with spend rows in the same chronological grouping the page already uses for runs/deep-analyses
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Buy tokens on DEV, open the Balance page's «Пополнения» filter, confirm the purchase appears as a line item with the right amount and date.
+### Files to read
+CLAUDE.md, backend/src/api/usage.py, backend/src/models/token_purchase.py, frontend/app/(app)/usage/page.tsx
+### Files to create or modify
+backend/src/api/usage.py, frontend/app/(app)/usage/page.tsx, frontend/lib/api.ts
+### Handover
+—

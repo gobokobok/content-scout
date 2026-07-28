@@ -277,6 +277,12 @@ export interface RunSummaryResponse {
   finished_at: string | null;
 }
 
+export interface PurchaseInvoiceResponse {
+  invoice_url: string;
+  tokens: number;
+  amount_stars: number;
+}
+
 export interface ShortlistHistoryItemResponse {
   id: string;
   content_item_id: string;
@@ -534,6 +540,11 @@ export const api = {
     request<UsageResponse>(
       `/me/usage?from=${from.toISOString()}&to=${to.toISOString()}`,
     ),
+  createPurchaseInvoice: (tokens: number) =>
+    request<PurchaseInvoiceResponse>("/billing/purchase-invoice", {
+      method: "POST",
+      body: JSON.stringify({ tokens }),
+    }),
   getMyRuns: (from: Date, to: Date) =>
     request<RunSummaryResponse[]>(
       `/me/runs?from=${from.toISOString()}&to=${to.toISOString()}`,

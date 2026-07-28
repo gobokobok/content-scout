@@ -102,6 +102,7 @@ export function RunDialog({
   const [timezone] = useState(() => detectLocalTimezone());
   const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [scheduled, setScheduled] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -195,6 +196,7 @@ export function RunDialog({
     }
     setStarting(true);
     setError(null);
+    setErrorCode(null);
     try {
       if (launchMode === "schedule") {
         await api.createScheduledRun(projectId, {
@@ -222,6 +224,7 @@ export function RunDialog({
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      setErrorCode(err instanceof ApiError ? err.code : null);
     } finally {
       setStarting(false);
     }
@@ -517,7 +520,16 @@ export function RunDialog({
                 </span>
               </div>
 
-              {error && <p className="text-sm text-danger">{error}</p>}
+              {error && (
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm text-danger">{error}</p>
+                  {errorCode === "insufficient_token_balance" && (
+                    <Link href="/usage" className="text-sm font-semibold text-accent underline">
+                      {t("topUpBalanceLink")}
+                    </Link>
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={() => void onConfirm()}
