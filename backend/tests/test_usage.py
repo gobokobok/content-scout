@@ -12,10 +12,19 @@ from src.models import (
     KIND_APIFY_RESULT,
     KIND_CLAUDE_INPUT_TOKENS,
     KIND_CLAUDE_OUTPUT_TOKENS,
+    DeepAnalysisItem,
+    DeepAnalysisItemStatus,
     UsageEvent,
 )
 from src.services.usage import rollup_run_totals
-from tests.conftest import make_deep_analysis, make_project, make_run, make_user, make_workspace
+from tests.conftest import (
+    make_content_item,
+    make_deep_analysis,
+    make_project,
+    make_run,
+    make_user,
+    make_workspace,
+)
 
 
 class _TestClient(AsyncClient):
@@ -319,3 +328,46 @@ async def test_my_runs_includes_both_runs_and_deep_analyses(session: AsyncSessio
     assert by_id[str(analysis.id)]["status"] == "failed"
     # most recent first
     assert [e["id"] for e in body] == [str(analysis.id), str(run.id)]
+
+
+async def test_my_runs_sums_comments_analyzed_count_for_deep_analysis(
+    session: AsyncSession,
+) -> None:
+    user = await make_user(session)
+    ws = await make_workspace(session, owner=user)
+    project = await make_project(session, workspace=ws)
+    now = datetime.now(UTC)
+
+    run = await make_run(session, project=project, requested_by=user, status="done")
+    item_a = await make_content_item(session, run=run)
+    item_b = await make_content_item(session, run=run)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, created_at=now)
+    session.add_all(
+        [
+            DeepAnalysisItem(
+                deep_analysis_id=analysis.id,
+                content_item_id=item_a.id,
+                status=DeepAnalysisItemStatus.done,
+                comments_analyzed_count=5,
+            ),
+            DeepAnalysisItem(
+                deep_analysis_id=analysis.id,
+                content_item_id=item_b.id,
+                status=DeepAnalysisItemStatus.done,
+                comments_analyzed_count=2,
+            ),
+        ]
+    )
+    await session.commit()
+
+    async with await _client(session) as c:
+        resp = await c.get(
+            _runs_url(now - timedelta(days=1), now + timedelta(days=1)),
+            headers=auth_headers(user.id),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+
+    by_id = {e["id"]: e for e in body}
+    assert by_id[str(analysis.id)]["comments_analyzed_count"] == 7
+    assert by_id[str(run.id)]["comments_analyzed_count"] is None

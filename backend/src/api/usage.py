@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.db import get_session
-from src.models import AnalysisRun, DeepAnalysis, Project, UsageEvent
+from src.models import AnalysisRun, DeepAnalysis, DeepAnalysisItem, Project, UsageEvent
 from src.models.workspace import WorkspaceMember
 
 router = APIRouter(tags=["usage"])
@@ -42,6 +42,7 @@ class RunSummaryOut(BaseModel):
     tokens_charged: int
     total_input_tokens: int
     total_output_tokens: int
+    comments_analyzed_count: int | None = None
     created_at: datetime
     finished_at: datetime | None
 
@@ -108,14 +109,30 @@ async def get_my_runs(
 
     # E17: deep-analysis token charges must appear in the same ledger view — they're deducted
     # from the same token_balance but weren't previously surfaced anywhere in this list.
-    deep_analysis_rows = await session.execute(
-        select(DeepAnalysis, Project.name.label("project_name"))
-        .join(Project, DeepAnalysis.project_id == Project.id)
-        .join(WorkspaceMember, WorkspaceMember.workspace_id == Project.workspace_id)
-        .where(WorkspaceMember.user_id == user.id)
-        .where(DeepAnalysis.created_at >= from_)
-        .where(DeepAnalysis.created_at < to)
-    )
+    deep_analysis_rows = (
+        await session.execute(
+            select(DeepAnalysis, Project.name.label("project_name"))
+            .join(Project, DeepAnalysis.project_id == Project.id)
+            .join(WorkspaceMember, WorkspaceMember.workspace_id == Project.workspace_id)
+            .where(WorkspaceMember.user_id == user.id)
+            .where(DeepAnalysis.created_at >= from_)
+            .where(DeepAnalysis.created_at < to)
+        )
+    ).all()
+
+    comments_by_analysis: dict[uuid.UUID, int] = {}
+    analysis_ids = [analysis.id for analysis, _ in deep_analysis_rows]
+    if analysis_ids:
+        comment_rows = await session.execute(
+            select(
+                DeepAnalysisItem.deep_analysis_id,
+                func.coalesce(func.sum(DeepAnalysisItem.comments_analyzed_count), 0),
+            )
+            .where(DeepAnalysisItem.deep_analysis_id.in_(analysis_ids))
+            .group_by(DeepAnalysisItem.deep_analysis_id)
+        )
+        comments_by_analysis = {aid: int(total) for aid, total in comment_rows}
+
     entries.extend(
         RunSummaryOut(
             id=analysis.id,
@@ -129,6 +146,7 @@ async def get_my_runs(
             tokens_charged=analysis.tokens_charged,
             total_input_tokens=0,
             total_output_tokens=0,
+            comments_analyzed_count=comments_by_analysis.get(analysis.id, 0),
             created_at=analysis.created_at,
             finished_at=analysis.completed_at,
         )

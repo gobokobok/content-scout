@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, CalendarRange, Copy, Check } from "lucide-react";
+import { ArrowLeft, CalendarRange, Copy, Check, Plus, SlidersHorizontal } from "lucide-react";
 import { api, ApiError, type RunSummaryResponse, type UserResponse } from "@/lib/api";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useToast } from "@/components/ui/toast";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
@@ -119,13 +120,13 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
           <div className="h-1 w-10 rounded-full bg-border" />
         </div>
         <div className="border-b border-border px-4 pb-3">
-          <p className="text-sm font-semibold text-ink">{run.project_name}</p>
+          <p className="text-sm font-semibold text-ink">{t("detailsHeader")}</p>
         </div>
         <dl className="flex flex-col gap-0 divide-y divide-border px-4" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailType")}</dt>
             <dd className="text-sm font-medium text-ink">
-              {run.kind === "deep_analysis" ? t("runTypeDeepAnalysis") : t("runTypeAnalysis")}
+              {run.kind === "deep_analysis" ? t("taskTypeAnalysis") : t("taskTypeReview")}
             </dd>
           </div>
           <div className="flex items-center justify-between py-3">
@@ -149,6 +150,14 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
               <dd className="font-mono text-sm font-medium text-ink">{run.progress_items}</dd>
             </div>
           )}
+          {run.kind === "deep_analysis" && (
+            <div className="flex items-center justify-between py-3">
+              <dt className="text-sm text-secondary">{t("detailCommentsAnalyzed")}</dt>
+              <dd className="font-mono text-sm font-medium text-ink">
+                {run.comments_analyzed_count ?? 0}
+              </dd>
+            </div>
+          )}
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailTokens")}</dt>
             <dd className="font-mono text-sm font-medium text-ink tabular-nums">
@@ -169,9 +178,12 @@ type PeriodSelection =
   | { kind: "quick"; monthsBack: 0 | 1 | 2 }
   | { kind: "custom"; from: string; to: string }; // "YYYY-MM"
 
+type LineFilter = "all" | "usage" | "topup";
+
 export default function UsagePage() {
   const t = useTranslations("Usage");
   const router = useRouter();
+  const { addToast } = useToast();
   const now = new Date();
 
   const [selection, setSelection] = useState<PeriodSelection>({ kind: "quick", monthsBack: 0 });
@@ -182,6 +194,8 @@ export default function UsagePage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedRun, setSelectedRun] = useState<RunSummaryResponse | null>(null);
   const [me, setMe] = useState<UserResponse | null>(null);
+  const [lineFilter, setLineFilter] = useState<LineFilter>("all");
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   useEffect(() => {
     api.me().then(setMe).catch(() => null);
@@ -218,9 +232,13 @@ export default function UsagePage() {
 
   const totalTokens = runs?.reduce((sum, r) => sum + r.tokens_charged, 0) ?? 0;
 
+  // Every existing ledger line is a spend ("usage") — top-ups are not tracked yet, so that
+  // filter option always yields an empty list until a real top-up flow lands.
+  const filteredRuns = runs === null ? null : lineFilter === "topup" ? [] : runs;
+
   const groups = (() => {
-    if (!runs) return [];
-    const sorted = [...runs].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (!filteredRuns) return [];
+    const sorted = [...filteredRuns].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const map = new Map<string, { label: string; items: RunSummaryResponse[] }>();
     for (const r of sorted) {
       const key = dayKey(r.created_at);
@@ -229,8 +247,6 @@ export default function UsagePage() {
     }
     return [...map.values()];
   })();
-
-  const quickMonths: { monthsBack: 0 | 1 | 2 }[] = [{ monthsBack: 0 }, { monthsBack: 1 }, { monthsBack: 2 }];
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-4">
@@ -247,9 +263,18 @@ export default function UsagePage() {
       {/* Balance — hero card */}
       {me !== null && (
         <div className="flex flex-col gap-3.5 rounded-card bg-ink px-5 py-4 text-white">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9BA1AB]">
-            {t("balanceLabel")}
-          </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9BA1AB]">
+              {t("balanceLabel")}
+            </span>
+            <button
+              onClick={() => addToast(t("buyTokensComingSoon"), "info")}
+              aria-label={t("buyTokensLabel")}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-lime text-ink transition-all active:scale-[0.95]"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
           <span className="font-mono text-[40px] font-semibold leading-none tracking-tight text-lime">
             {new Intl.NumberFormat("ru-RU").format(me.token_balance)}
           </span>
@@ -262,37 +287,53 @@ export default function UsagePage() {
         </div>
       )}
 
-      {/* Period selector */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-        {quickMonths.map(({ monthsBack }) => {
-          const target = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
-          const active = selection.kind === "quick" && selection.monthsBack === monthsBack;
-          return (
-            <button
-              key={monthsBack}
-              onClick={() => setSelection({ kind: "quick", monthsBack })}
-              className={`shrink-0 rounded-chip px-3.5 py-2 text-sm transition-all active:scale-[0.98] ${
-                active ? "bg-ink font-semibold text-lime" : "border border-border bg-card font-medium text-secondary hover:text-ink"
-              }`}
-            >
-              {shortMonthLabel(target.getFullYear(), target.getMonth())}
-            </button>
-          );
-        })}
+      {/* Period + filter selector */}
+      <div className="flex items-center justify-between gap-1.5">
         <button
           onClick={() => {
             setDraftFrom(selection.kind === "custom" ? selection.from : toMonthInputValue(now));
             setDraftTo(selection.kind === "custom" ? selection.to : toMonthInputValue(now));
             setCustomSheetOpen(true);
           }}
-          className={`shrink-0 inline-flex items-center gap-1.5 rounded-chip px-3.5 py-2 text-sm transition-all active:scale-[0.98] ${
-            selection.kind === "custom" ? "bg-ink font-semibold text-lime" : "border border-border bg-card font-medium text-secondary hover:text-ink"
-          }`}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-chip bg-ink px-3.5 py-2 text-sm font-semibold text-lime transition-all active:scale-[0.98]"
         >
           <CalendarRange className="h-3.5 w-3.5" />
-          {selection.kind === "custom" ? label : t("customPeriod")}
+          {label}
+        </button>
+        <button
+          onClick={() => setFilterSheetOpen(true)}
+          aria-label={t("filterLabel")}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-chip border transition-all active:scale-[0.98] ${
+            lineFilter !== "all" ? "border-ink bg-ink text-lime" : "border-border bg-card text-secondary hover:text-ink"
+          }`}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
         </button>
       </div>
+
+      <BottomSheet open={filterSheetOpen} onClose={() => setFilterSheetOpen(false)} title={t("filterSheetTitle")}>
+        <div className="flex flex-col gap-1 px-4 pb-4">
+          {([
+            { value: "all", label: t("filterAll") },
+            { value: "usage", label: t("filterUsage") },
+            { value: "topup", label: t("filterTopup") },
+          ] as { value: LineFilter; label: string }[]).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => {
+                setLineFilter(opt.value);
+                setFilterSheetOpen(false);
+              }}
+              className={`flex items-center justify-between rounded-control px-3.5 py-3 text-left text-sm transition-colors ${
+                lineFilter === opt.value ? "bg-bg font-semibold text-ink" : "font-medium text-secondary hover:text-ink"
+              }`}
+            >
+              {opt.label}
+              {lineFilter === opt.value && <Check className="h-4 w-4 text-accent" />}
+            </button>
+          ))}
+        </div>
+      </BottomSheet>
 
       <BottomSheet open={customSheetOpen} onClose={() => setCustomSheetOpen(false)} title={t("customPeriodTitle")}>
         <div className="flex flex-col gap-3 px-4 pb-4">
@@ -352,14 +393,14 @@ export default function UsagePage() {
       )}
 
       {/* Empty */}
-      {runs !== null && runs.length === 0 && (
+      {filteredRuns !== null && filteredRuns.length === 0 && (
         <p className="rounded-card border border-border bg-card px-4 py-6 text-center text-sm text-secondary">
           {t("empty")}
         </p>
       )}
 
       {/* Grouped run list */}
-      {runs !== null && runs.length > 0 && (
+      {filteredRuns !== null && filteredRuns.length > 0 && (
         <div className="flex flex-col gap-4">
           {groups.map((g) => (
             <div key={g.label} className="flex flex-col gap-1.5">
@@ -379,12 +420,7 @@ export default function UsagePage() {
                       {formatTime(r.created_at)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-                      {r.project_name}
-                      {r.kind === "deep_analysis" && (
-                        <span className="ml-1.5 text-xs font-normal text-secondary">
-                          · {t("runTypeDeepAnalysis")}
-                        </span>
-                      )}
+                      {r.kind === "deep_analysis" ? t("taskTypeAnalysis") : t("taskTypeReview")}
                     </span>
                     <span className="shrink-0 font-mono text-sm font-semibold text-ink">
                       −{new Intl.NumberFormat("ru-RU").format(r.tokens_charged)}

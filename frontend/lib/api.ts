@@ -272,6 +272,7 @@ export interface RunSummaryResponse {
   tokens_charged: number;
   total_input_tokens: number;
   total_output_tokens: number;
+  comments_analyzed_count: number | null;
   created_at: string;
   finished_at: string | null;
 }
