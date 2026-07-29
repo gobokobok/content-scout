@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, Copy, Check, Funnel, Plus } from "lucide-react";
+import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, Copy, Check, Funnel, Plus, Star } from "lucide-react";
 import { api, ApiError, type RunSummaryResponse, type UserResponse } from "@/lib/api";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useToast } from "@/components/ui/toast";
@@ -525,7 +525,7 @@ export default function UsagePage() {
               inputMode="numeric"
               min={MIN_PURCHASE_TOKENS}
               step={1}
-              placeholder={String(MIN_PURCHASE_TOKENS)}
+              placeholder={String(purchaseAmount ?? MIN_PURCHASE_TOKENS)}
               value={purchaseCustomText}
               onChange={(e) => onPurchaseCustomTextChange(e.target.value)}
               className="rounded-control border border-border bg-card px-3.5 py-2.5 font-mono text-sm text-ink outline-none focus:border-ink"
@@ -538,10 +538,16 @@ export default function UsagePage() {
           </div>
 
           {purchaseValid && purchaseAmount !== null && (
-            <p className="text-sm text-secondary">
-              {t("purchasePrice", { amount: new Intl.NumberFormat("ru-RU").format(purchaseAmount) })}
-            </p>
+            <div className="flex items-center justify-between gap-2 rounded-[14px] bg-accent-soft px-3.5 py-3">
+              <span className="text-sm font-medium text-accent">{t("purchasePriceLabel")}</span>
+              <span className="flex items-center gap-1 font-mono text-sm font-semibold text-accent">
+                {new Intl.NumberFormat("ru-RU").format(purchaseAmount)}
+                <Star className="h-3.5 w-3.5 fill-accent text-accent" />
+              </span>
+            </div>
           )}
+
+          <p className="text-xs text-secondary">{t("purchaseStarsNote")}</p>
 
           <button
             onClick={() => void handlePurchase()}
