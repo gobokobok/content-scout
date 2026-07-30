@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.passwords import dummy_verify, hash_password, verify_password
-from src.models import User, Workspace, WorkspaceKind, WorkspaceMember
+from src.models import Project, User, Workspace, WorkspaceKind, WorkspaceMember
 
 
 class EmailTakenError(Exception):
@@ -28,7 +28,9 @@ def _random_display_name() -> str:
 async def create_user_with_workspace(
     session: AsyncSession, *, email: str, password_hash: str | None
 ) -> User:
-    """User + personal workspace + owner membership, one transaction (D6)."""
+    """User + personal workspace + owner membership + default project, one transaction (D6,
+    D38). "Project" isn't a user-facing concept (D38) — every user gets exactly one, invisibly,
+    so nothing ever needs to prompt them to create one."""
     user = User(
         email=email.lower(),
         password_hash=password_hash,
@@ -41,6 +43,7 @@ async def create_user_with_workspace(
     session.add(workspace)
     await session.flush()
     session.add(WorkspaceMember(workspace_id=workspace.id, user_id=user.id))
+    session.add(Project(workspace_id=workspace.id, name="Мой блог"))
     await session.flush()
     return user
 

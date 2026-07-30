@@ -30,7 +30,6 @@ import {
   RUN_STATUS_PILL,
 } from "@/lib/format";
 import { SkeletonList } from "@/components/ui/skeleton";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useToast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui";
 import { ContextMenu } from "@/components/ui/context-menu";
@@ -44,6 +43,9 @@ type RunType = "stat_collection" | "deep_analysis";
 
 const IN_PROGRESS_STATUSES = new Set(["pending", "scraping", "summarizing"]);
 const POLL_MS = 5000;
+// Matches the backend's default (create_user_with_workspace, D38) — used only as a fallback
+// for accounts created before every signup got a project automatically.
+const DEFAULT_PROJECT_NAME = "Мой блог";
 
 const SKIP_REASON_KEYS: Record<ScheduledRunSkipReason, string> = {
   no_accounts: "skipReasonNoAccounts",
@@ -60,7 +62,6 @@ function formatDate(iso: string): string {
 export default function RunFeedPage() {
   const t = useTranslations("RunFeed");
   const tSched = useTranslations("ScheduledRuns");
-  const tProjects = useTranslations("Projects");
   const router = useRouter();
   const { addToast } = useToast();
 
@@ -70,15 +71,11 @@ export default function RunFeedPage() {
   const [scheduled, setScheduled] = useState<ScheduledFeedItem[] | null>(null);
   const [lastRuns, setLastRuns] = useState<Record<string, RunResponse>>({});
 
-  // Default project + accounts — needed to open RunDialog
+  // Default project + accounts — needed to open RunDialog. "Project" isn't a user-facing
+  // concept (D38): every account gets exactly one, auto-created at signup. The fallback
+  // create-if-missing below only matters for accounts created before D38 shipped.
   const [defaultProject, setDefaultProject] = useState<ProjectResponse | null>(null);
   const [accounts, setAccounts] = useState<AccountResponse[]>([]);
-  // Distinguishes "still loading" from "confirmed zero projects" — a brand-new account has no
-  // project yet and nothing else in this app can create the first one, so this page must.
-  const [projectsChecked, setProjectsChecked] = useState(false);
-  const [createProjectOpen, setCreateProjectOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [creatingProject, setCreatingProject] = useState(false);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [dialogRunType, setDialogRunType] = useState<RunType | null>(null);
@@ -172,16 +169,13 @@ export default function RunFeedPage() {
     try {
       const projects = await api.listProjects();
       const active = projects.filter((p) => p.archived_at === null);
-      const proj = active[0] ?? projects[0] ?? null;
+      // Every account gets a project at signup (D38) — this only creates one for accounts
+      // that predate that change, invisibly, never as a user-facing prompt.
+      const proj = active[0] ?? projects[0] ?? (await api.createProject(DEFAULT_PROJECT_NAME));
       setDefaultProject(proj);
-      if (proj) {
-        setAccounts(await api.listAccounts(proj.id));
-      }
+      setAccounts(await api.listAccounts(proj.id));
     } catch {
-      // Loading state below just resolves to "no project" — a real error would already have
-      // surfaced via loadFeed's own toast, no need to duplicate it here.
-    } finally {
-      setProjectsChecked(true);
+      // A real error here already surfaces via loadFeed's own toast — no need to duplicate it.
     }
   }, []);
 
@@ -189,22 +183,6 @@ export default function RunFeedPage() {
   useEffect(() => {
     void loadDefaultProject();
   }, [loadDefaultProject]);
-
-  async function onCreateProject(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newProjectName.trim()) return;
-    setCreatingProject(true);
-    try {
-      await api.createProject(newProjectName.trim());
-      setNewProjectName("");
-      setCreateProjectOpen(false);
-      await loadDefaultProject();
-    } catch (err) {
-      addToast(err instanceof ApiError ? err.messageRu : t("genericError"));
-    } finally {
-      setCreatingProject(false);
-    }
-  }
 
   // Load feed on mount
   useEffect(() => {
@@ -322,24 +300,9 @@ export default function RunFeedPage() {
             </button>
           </div>
 
-          {/* No project yet — nothing else in the app can create the first one, so this is
-              the only path a brand-new account has to get started. */}
-          {projectsChecked && !defaultProject && (
-            <div className="flex flex-col items-center gap-3 rounded-card border border-border bg-card px-4 py-8 text-center">
-              <p className="text-sm text-secondary">{tProjects("emptyHint")}</p>
-              <button
-                onClick={() => setCreateProjectOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-chip bg-lime px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_6px_16px_rgba(140,170,20,0.28)] transition-all active:scale-[0.98] hover:opacity-90"
-              >
-                <Plus className="h-4 w-4" />
-                {tProjects("createButton")}
-              </button>
-            </div>
-          )}
-
           {/* Runs list */}
           {runs === null && <SkeletonList count={4} />}
-          {runs !== null && (defaultProject || !projectsChecked) && filteredRuns.length === 0 && (
+          {runs !== null && filteredRuns.length === 0 && (
             <p className="py-8 text-center text-sm text-secondary">{t("emptyRuns")}</p>
           )}
           {filteredRuns.length > 0 && (
@@ -505,11 +468,9 @@ export default function RunFeedPage() {
         </>
       )}
 
-      {/* FAB — available on both the feed and schedule views. A brand-new account has no
-          project yet, and every run-creation path needs one, so the FAB opens project creation
-          first instead of a picker that would silently go nowhere. */}
+      {/* FAB — available on both the feed and schedule views */}
       <button
-        onClick={() => (defaultProject ? setPickerOpen(true) : setCreateProjectOpen(true))}
+        onClick={() => setPickerOpen(true)}
         className="fixed bottom-6 right-6 z-40 flex h-16 w-16 items-center justify-center rounded-full bg-lime shadow-[0_8px_24px_rgba(140,170,20,0.40)] transition-all active:scale-[0.96] hover:opacity-90"
         style={{ bottom: "max(1.5rem, calc(env(safe-area-inset-bottom) + 1.5rem))" }}
         aria-label="Новый запуск"
@@ -524,40 +485,6 @@ export default function RunFeedPage() {
           onClose={() => setPickerOpen(false)}
         />
       )}
-
-      {/* First-project onboarding — shown once the initial project check resolves to zero
-          projects; opened from the empty-state card below or directly from the FAB. */}
-      <BottomSheet
-        open={createProjectOpen}
-        onClose={() => { setCreateProjectOpen(false); setNewProjectName(""); }}
-        title={tProjects("createSheetTitle")}
-      >
-        <form onSubmit={(e) => void onCreateProject(e)} className="flex flex-col gap-3 px-4 pb-4">
-          <input
-            autoFocus
-            value={newProjectName}
-            onChange={(e) => setNewProjectName(e.target.value)}
-            placeholder={tProjects("namePlaceholder")}
-            className="w-full rounded-control border border-border bg-bg px-3 py-3 text-base text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
-          />
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={creatingProject || !newProjectName.trim()}
-              className="flex-1 rounded-chip bg-lime py-3 text-sm font-semibold text-ink shadow-[0_6px_16px_rgba(140,170,20,0.28)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
-            >
-              {tProjects("createSubmit")}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setCreateProjectOpen(false); setNewProjectName(""); }}
-              className="flex-1 rounded-chip border border-border py-3 text-sm font-medium text-ink transition-all active:scale-[0.98] hover:bg-bg"
-            >
-              {tProjects("createCancel")}
-            </button>
-          </div>
-        </form>
-      </BottomSheet>
 
       {/* Run dialog */}
       {dialogRunType !== null && defaultProject && (

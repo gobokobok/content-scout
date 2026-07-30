@@ -40,26 +40,6 @@
   "skipReasonNoTokens": "Запуск по расписанию не состоялся: недостаточно токенов",
   "skipReasonQuotaExceeded": "Запуск по расписанию не состоялся: превышен дневной лимит запусков"
  },
- "Projects": {
-  "title": "Проекты",
-  "activeTab": "Активные",
-  "archivedTab": "Архив",
-  "empty": "У вас пока нет проектов.",
-  "emptyHint": "Нажмите «Создать проект», чтобы начать.",
-  "emptyArchived": "Нет архивированных проектов.",
-  "createButton": "Создать проект",
-  "createSheetTitle": "Новый проект",
-  "namePlaceholder": "Название проекта",
-  "createSubmit": "Создать",
-  "createCancel": "Отмена",
-  "renameSave": "Сохранить",
-  "rename": "Переименовать",
-  "archive": "Архивировать",
-  "unarchive": "Восстановить",
-  "loading": "Загрузка…",
-  "genericError": "Произошла ошибка. Попробуйте ещё раз.",
-  "competitorsCount": "{count, plural, =0{нет конкурентов} =1{# конкурент} few{# конкурента} other{# конкурентов}}"
- },
  "ProjectShell": {
   "back": "← Проекты",
   "breadcrumbProjects": "Проекты",

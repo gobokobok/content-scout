@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.tokens import create_access_token, decode_access_token
 from src.main import app
-from src.models import Workspace, WorkspaceMember, WorkspaceRole
+from src.models import Project, Workspace, WorkspaceMember, WorkspaceRole
 from tests.conftest import make_user
 
 
@@ -49,6 +49,13 @@ async def test_register_creates_user_and_personal_workspace(session: AsyncSessio
     assert membership.role == WorkspaceRole.owner
     workspace = await session.get(Workspace, membership.workspace_id)
     assert workspace is not None
+
+    # D38: "project" isn't a user-facing concept — every account gets exactly one, invisibly.
+    project = await session.scalar(
+        select(Project).where(Project.workspace_id == membership.workspace_id)
+    )
+    assert project is not None
+    assert project.name
 
 
 async def test_register_duplicate_email_rejected(session: AsyncSession) -> None:
