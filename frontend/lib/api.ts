@@ -1,4 +1,4 @@
-import { canDownloadViaTelegram, downloadFileViaTelegram } from "@/lib/telegram-webapp";
+import { getTelegramInitData, isTelegramContext, canDownloadViaTelegram, downloadFileViaTelegram } from "@/lib/telegram-webapp";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "content-scout-token";
@@ -26,13 +26,51 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// iOS's Telegram Mini App webview has been observed to lose a working session mid-visit (a
+// batch of requests suddenly 401 with no explicit logout, self-healing only once something
+// else happens to re-run the initData auto-login) — not reproduced on Android. Rather than
+// chase the exact webview mechanics, make any 401 while inside Telegram silently re-derive a
+// fresh token from initData (always available synchronously from Telegram, unlike whatever
+// state localStorage lost) and retry the request once, so the user never sees it.
+let telegramReauthPromise: Promise<string | null> | null = null;
+
+async function reauthenticateViaTelegram(): Promise<string | null> {
+  if (!isTelegramContext()) return null;
+  const initData = getTelegramInitData();
+  if (!initData) return null;
+
+  if (!telegramReauthPromise) {
+    telegramReauthPromise = fetch(`${API_URL}/auth/telegram/webapp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ init_data: initData }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const data = (await res.json()) as { access_token: string };
+        setToken(data.access_token);
+        return data.access_token;
+      })
+      .catch(() => null)
+      .finally(() => {
+        telegramReauthPromise = null;
+      });
+  }
+  return telegramReauthPromise;
+}
+
+async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const token = getToken();
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+
+  if (res.status === 401 && !isRetry && !path.startsWith("/auth/")) {
+    const newToken = await reauthenticateViaTelegram();
+    if (newToken) return request<T>(path, options, true);
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
