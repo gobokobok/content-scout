@@ -14,9 +14,9 @@ export default function CompetitorsRedirectPage() {
       .then((projects) => {
         const active = projects.filter((p) => p.archived_at === null);
         const target = active[0] ?? projects[0];
-        if (target) {
-          router.replace(`/projects/${target.id}/competitors`);
-        }
+        // No project yet — nothing to redirect to. Send back home, which now prompts a
+        // brand-new account to create its first project instead of hanging on this skeleton.
+        router.replace(target ? `/projects/${target.id}/competitors` : "/");
       })
       .catch((err: unknown) => {
         if (err instanceof ApiError) {
