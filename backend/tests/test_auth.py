@@ -1,5 +1,7 @@
 import uuid
+from unittest.mock import patch
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +10,20 @@ from src.auth.tokens import create_access_token, decode_access_token
 from src.main import app
 from src.models import Project, User, Workspace, WorkspaceMember, WorkspaceRole
 from tests.conftest import make_user
+
+
+async def _noop_rate_limit(*args, **kwargs) -> None:
+    pass
+
+
+@pytest.fixture(autouse=True)
+def _bypass_rate_limit():
+    """This file's tests aren't exercising rate-limiting (test_guardrails.py owns that);
+    every test hitting /auth/register or /auth/login shares one Redis-backed per-minute
+    counter (rate_limit.py), so enough of them in one run trips a real 429 unrelated to
+    what each test is actually checking."""
+    with patch("src.api.auth.check_rate_limit", _noop_rate_limit):
+        yield
 
 
 class _TestClient(AsyncClient):
