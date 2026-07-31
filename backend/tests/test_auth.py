@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.tokens import create_access_token, decode_access_token
 from src.main import app
-from src.models import Project, Workspace, WorkspaceMember, WorkspaceRole
+from src.models import Project, User, Workspace, WorkspaceMember, WorkspaceRole
 from tests.conftest import make_user
 
 
@@ -56,6 +56,20 @@ async def test_register_creates_user_and_personal_workspace(session: AsyncSessio
     )
     assert project is not None
     assert project.name
+
+
+async def test_register_succeeds_without_invite_code(session: AsyncSession) -> None:
+    """D39: registration has had no invite-code gate since 2026-07-19 (commit 053cbe3),
+    superseding E7-S4's guardrail same-day — confirms that's still true, not the reverse."""
+    async with await client(session) as c:
+        resp = await c.post(
+            "/auth/register", json={"email": "noinvite@example.com", "password": "correcthorse"}
+        )
+    assert resp.status_code == 201
+    user_id = decode_access_token(resp.json()["access_token"])
+    user = await session.get(User, user_id)
+    assert user is not None
+    assert user.token_balance == 50
 
 
 async def test_register_duplicate_email_rejected(session: AsyncSession) -> None:

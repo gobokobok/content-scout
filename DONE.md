@@ -2,6 +2,20 @@
 
 Completed stories land here, newest first. Format:
 
+## [E19-S1] DEV smoke-test sweep (trimmed)
+**Completed:** 2026-07-31
+**Handover:**
+- Closed the ~13-item DEV smoke-test gap carried over from Sprint 10, mandatory-first for two sprints running. User ran the live sweep on real DEV/PROD; this session cross-checked several items against the existing backend test suite before touching any DONE.md line, which closed 4 of the 12 AC items with **no live re-test needed** since they were already asserted on every CI run: cross-user 404 isolation (`test_create_deep_analysis_404_for_foreign_run`/`test_get_deep_analysis_404_for_missing_or_foreign`), forced-malformed-synthesis→`failed` (`test_synthesize_report_malformed_tool_input_marks_failed`/`test_synthesize_report_missing_tool_use_marks_failed`), rate-limit/quota 429s + XLSX formula-injection guard (`test_rate_limit_blocks_after_threshold`/`test_run_quota_blocks_on_limit`/`test_safe_text_prefixes_formula_triggers`), and duplicate-insert-is-noop on re-enqueue (`test_process_run_duplicate_insert_is_noop`).
+- 6 items confirmed live by the user: the Apify `apidojo` vendor gap is resolved, thin-comment-coverage token reduction, insufficient-balance rejection + auto-chain skip-reason/failure cards, scheduled-run cron firing + Telegram DM, the PROD completion-DM link, and a direct-DB `scheduled_runs` schema check + `is_admin=true` unlocking `/admin`.
+- 1 item explicitly deprioritized by direct user choice without live verification: the zero-balance-schedule skip-badge-within-one-cron-tick edge case.
+- **Real finding #1 — stale AC, not a bug:** the "register-without-invite-code fails" check turned out to assert behavior that stopped being true on 2026-07-19 (commit `053cbe3`, "open registration with 50-token starting balance") — it superseded E7-S4's invite-code guardrail the same day it shipped, but that removal was never logged as a decision. `git log -S registration_invite_code` confirmed zero enforcement call sites remain anywhere in `backend/src/`. Backfilled as **D39**; corrected E7-S4's DONE.md handover (struck the now-false invite-code bullet); replaced the AC's originally-planned test with `test_register_succeeds_without_invite_code` in `backend/tests/test_auth.py`, asserting the actual current behavior (open registration, `token_balance=50`) instead of the stale one. `ruff format`/`ruff check` clean; the file's pre-existing 3 mypy errors (`_TestClient.__aexit__` typing) and the local-Postgres test-order flake (8 failures when the file runs in full, reproduced identically on `main` before this change — same flake already documented in `[E14-S6 follow-up 2]`'s handover) are both unrelated to this addition, confirmed via `git stash`.
+- **Real finding #2 — Telegram DM opens the browser, not the Mini App:** `telegram_notify.py:notify_run_complete` sends a plain HTML `<a href>` anchor; Telegram opens that in the system browser rather than inside the Mini App (unlike the chat menu button, which already uses a `web_app`-type config). Opened new story **[E8-S9]** rather than fixing ad hoc — needs the Bot API's inline-keyboard `web_app` button instead, plus a check on whether that requires a BotFather-registered short name.
+- **Real finding #3 — product-direction change, bigger than this story:** the user's response to the cross-run-summary-reuse check turned into "Review and Analysis are two separate runs, we no longer trigger analysis from review, analysis is standalone" — confirmed scope is the full independent-pipeline version (Analysis gets its own Apify scraping, not just a detached trigger). Logged as **D40**; opened new epic **E21 (Standalone Analysis Pipeline)** starting with scoping-only story **[E21-S1]** (Apify usage audit + worker capacity), deliberately left unimplemented pending that discussion — not squeezed into this verification-only story.
+- Split the one item the user wants to do later (8+-account wall-time timing, E3-S6) into its own story **[E19-S2]** so this story could close without blocking on it.
+- Also found and left a specific, non-blocking deferral: E17-S10's real forced-timeout end-to-end test still hasn't been run live (regression-tested only) — noted in its own DONE.md line, not folded into a now-closed story.
+**Smoke test:** PASSED — this story *is* the smoke test; 11 of 12 original AC items confirmed one way or another (live, via existing CI, or explicitly closed by user choice), 1 split into [E19-S2].
+**Promoted to backlog:** [E8-S9] (Telegram DM Mini App deep link), [E21-S1] (Standalone Analysis Pipeline scoping, new epic E21), [E19-S2] (E3-S6 wall-time timing, split from this story)
+
 ## [E17-S10] Deep-analysis job-cancellation bug fix
 **Completed:** 2026-07-31
 **Handover:**
@@ -11,7 +25,7 @@ Completed stories land here, newest first. Format:
 - The specific orphaned DEV row (`88e50be4…`) was manually corrected via direct DB write (status → `failed`, tokens refunded) since the code fix only prevents future occurrences.
 - **Deploy hit real friction**: the GitHub Actions `railway up` deploy step failed 4 times in a row with 3 different transient Railway-side errors (upload 500, auth "Not signed in" ×2, upload timeout) — none of them our code (`backend`/`frontend` CI jobs passed clean every time). Deployed instead via direct local `railway up`, which then surfaced a second, real gotcha: a plain `railway up` from within `backend/` silently uploaded the whole monorepo root instead of just `backend/`, because this machine's Railway project link is rooted at the repo root (`~/.railway/config.json`), not the shell's cwd — nixpacks failed to detect a build plan against the mixed-directory tree. Fixed by using `railway up backend --path-as-root --service api` (and the same for `worker`/`web`), which uploads the given path as the archive root regardless of the local link. Worth remembering for any future manual/local Railway deploy in this monorepo.
 - Also surfaced **E20** (Performance & Scale, new backlog epic — see BACKLOG.md) from the same investigation, at direct user request: comment scraping is one-actor-call-per-post rather than batched, every Railway service runs at `numReplicas: 1` with arq's default `max_jobs=10` and an untuned default DB connection pool, and there's no rate limiting beyond D11's original MVP scope. A proposed (unapproved) 50→20 competitor-cap change was scoped separately and explicitly gated on product-decision confirmation, not bundled in as settled.
-**Smoke test:** DEFERRED — worker deploy confirmed healthy (`railway logs` clean startup + normal cron ticks, `/health` ok), but a real forced-timeout end-to-end test hasn't been run live. Folded into E19-S1.
+**Smoke test:** DEFERRED — worker deploy confirmed healthy (`railway logs` clean startup + normal cron ticks, `/health` ok), but a real forced-timeout end-to-end test (an actual arq `job_timeout` cancellation, live) hasn't been run. Surfaced during E19-S1's sweep (2026-07-31) but not addressed there — the fix already has dedicated regression coverage (`test_process_deep_analysis_cancellation_marks_failed`), so this is accepted as a low-priority, not-yet-forced-live gap rather than a blocking one. Pick up only if a real timeout recurs or on a deliberate low-`worker_job_timeout_secs` test.
 **Promoted to backlog:** E20-S1..S4 (Performance & Scale epic, drafted this session — see BACKLOG.md), E8-S8 backfilled (see below) from an unrelated but concurrently-discovered untracked-fix cluster.
 
 ## [E8-S8] Telegram Mini App: iOS 401 recovery + auto-project creation (D38)
@@ -61,7 +75,7 @@ Completed stories land here, newest first. Format:
 - Run feed cards for `deep_analysis` runs now show the chained analysis's own status, not the base run's — a card no longer reads "done" while the analysis behind it hard-failed.
 - Separately confirmed via live DEV worker logs: this DEV account's Apify plan tier rejects the `apidojo` comments actor and no `BRIGHTDATA_*` vars are set at all, so every comment fetch currently degrades to zero coverage — an environment/vendor gap, not a code bug, and the reason deep-analysis reports on DEV look content-only today.
 - Both the comment-scraper and the worker's auto-chain now log on failure instead of failing silently (same class of fix as the E17 hotfixes below). Report page tabs switched to `TabChip` (matching Review), first tab renamed Статистика→Резюме, gained a 5-line summary card.
-**Smoke test:** PASSED (general auto-chain flow, status surfacing, and report styling — confirmed via the user's own manual click-through, 2026-07-28) — DEFERRED (the low-balance-skip and forced-chain-failure edge cases specifically, which need a deliberately underfunded account; folded into E19-S1).
+**Smoke test:** PASSED — low-balance-skip and forced-chain-failure edge cases confirmed live 2026-07-31 (E19-S1 sweep) on a deliberately underfunded account, alongside the already-passed general auto-chain/status/styling flow (2026-07-28).
 **Promoted to backlog:** none new.
 
 ## [E18-S3] Scheduled-task cards and dialog parity on the home feed
@@ -144,7 +158,7 @@ Completed stories land here, newest first. Format:
 - `docs/PROMPTS.md` gained a note on the strip/refund happening outside the prompt itself.
 - 2 new backend tests; ruff/mypy clean; full suite 281 passed (was 279). `tsc`/`eslint`/`next build` clean.
 - **This closes the entire E17 epic (E17-S1→S9, 9/9 stories)**, done back-to-back in one session per direct user request.
-**Smoke test:** DEFERRED — 2026-07-28 review: not covered by the user's general click-through (needs a specific DEV project with comments disabled/restricted on most posts); folded into the trimmed E19-S1 sweep.
+**Smoke test:** PARTIALLY CONFIRMED, closed by user choice — 2026-07-31 (E19-S1 sweep): the reduced token charge on thin comment coverage is confirmed live. The degrade banner itself was not observed on the tested run; user explicitly said its absence doesn't bother them, so this is accepted as-is rather than investigated further.
 **Promoted to backlog:** `GET /items/{id}` gap (from E17-S8); reading a real pilot run's `usage_events` to set the real token multipliers per D35
 
 ## [E17-S8] Report page: Рекомендации tab
@@ -190,7 +204,7 @@ Completed stories land here, newest first. Format:
 - **This closes E17's backend half (E17-S1→S5)** — the full pipeline is reachable end-to-end from a real HTTP request. E17-S6 onward is frontend.
 - **Changelog addition (found necessary during E17-S6):** read-only `GET /projects/{project_id}/runs/{run_id}/deep-analyses/estimate` (reuses `compute_tokens_charged` without deducting) — S6's new-analysis sheet needs a pre-charge token number, which `POST .../deep-analyses` can't provide since it only returns `tokens_charged` after charging.
 - ruff/mypy clean; full suite 279 passed (was 271).
-**Smoke test:** PASSED (general create/poll/list flow — confirmed via the user's own manual click-through, 2026-07-28) — DEFERRED (cross-user 404 isolation specifically; not naturally exercised with one account, folded into E19-S1).
+**Smoke test:** PASSED (general create/poll/list flow — confirmed via the user's own manual click-through, 2026-07-28; cross-user 404 isolation confirmed 2026-07-31 via existing automated coverage — `test_create_deep_analysis_404_for_foreign_run` and `test_get_deep_analysis_404_for_missing_or_foreign` in `test_deep_analyses_api.py` already assert this on every CI run, so no live second-account click-through was needed).
 **Promoted to backlog:** none
 
 ## [E17-S4] Synthesis pass — full report (Sonnet)
@@ -203,7 +217,7 @@ Completed stories land here, newest first. Format:
 - 6 new tests (`test_deep_analysis_synthesis.py`) + 2 new tests (`test_worker.py`'s `process_deep_analysis` status transitions and exception handling).
 - **For E17-S5:** `process_deep_analysis`/`run_deep_analysis` are ready to enqueue; the endpoint just needs `start_deep_analysis` (E17-S1) then `enqueue_job("run_deep_analysis", ...)`.
 - ruff/mypy clean (one `# type: ignore[call-overload]` on the tool-use call, matching the existing SDK-typing-gap precedent in `summarizer.py`); full suite 271 passed (was 263).
-**Smoke test:** PASSED (plausible-report generation — confirmed via the user's own manual click-through, 2026-07-28) — DEFERRED (the forced-malformed-response → `failed` path specifically; folded into E19-S1).
+**Smoke test:** PASSED (plausible-report generation — confirmed via the user's own manual click-through, 2026-07-28; forced-malformed-response → `failed` path confirmed 2026-07-31 via existing automated coverage — `test_synthesize_report_malformed_tool_input_marks_failed` and `test_synthesize_report_missing_tool_use_marks_failed` in `test_deep_analysis_synthesis.py` already force both failure shapes on every CI run).
 **Promoted to backlog:** none
 
 ## [E17-S3] Per-item extraction pass (Haiku)
@@ -228,7 +242,7 @@ Completed stories land here, newest first. Format:
 - 5 new tests (`test_comment_scraper.py`) against two new fixtures, covering normalization, primary success + both usage rows, fallback-on-failure, both-vendors-fail, and the Bright Data request shape. `httpx.AsyncClient` mocked the same way `test_telegram_notify.py` already does (no new test-mocking pattern introduced).
 - **For E17-S3:** `fetch_comments` is ready to call per item during the extraction pass.
 - ruff format/check + mypy clean; full suite 257 passed (was 253).
-**Smoke test:** DEFERRED — 2026-07-28 review: general reports are visible so the primary path likely works, but the Bright Data fallback needs a deliberately broken actor id and is a **known real gap**, not just an untested path — E18-S4's handover recorded that this DEV account's Apify plan tier already rejects the `apidojo` actor and no `BRIGHTDATA_*` vars are set at all, so every comment fetch currently degrades to zero coverage. Needs an Apify plan upgrade or real Bright Data credentials before this can even be tested, let alone pass — folded into E19-S1 as a priority item, not a routine check.
+**Smoke test:** PASSED — 2026-07-31 (E19-S1 sweep): user confirmed the primary `apidojo` comment-fetch path now works on real DEV data — the previously-known gap (this DEV account's Apify plan tier rejecting the actor) is resolved. Bright Data fallback specifically not separately force-tested (would need a deliberately broken primary actor id to trigger it), but the priority blocking gap this line tracked is closed.
 **Promoted to backlog:** none
 
 ## [E17-S1] Deep analysis schema, pricing config, and token-charge plumbing
@@ -241,7 +255,7 @@ Completed stories land here, newest first. Format:
 - `RunNotDoneError`/`InsufficientTokenBalanceError` are plain exceptions from the service, translated to HTTPExceptions at the router layer — same pattern as `services/projects.py:ProjectNotFoundError`.
 - 4 new tests in `test_deep_analysis_model.py` (roundtrip/defaults, token-rounding, run-not-done rejection, insufficient-balance rejection with balance left untouched, successful deduction). `test_models.py`'s `test_schema_has_exactly_expected_tables` updated. Migration verified with a real upgrade/downgrade/upgrade round-trip against local Postgres. `ruff format`/`ruff check`/`mypy src` clean; full suite 253 passed (was 252).
 - **For E17-S2:** `deep_analysis_comments_per_post` config is ready to consume as the per-post comment cap.
-**Smoke test:** PASSED (sufficient-balance path — this is the normal flow the user has exercised via manual click-through, 2026-07-28) — DEFERRED (the insufficient-balance rejection path specifically, which needs a deliberately low-balance account; folded into E19-S1).
+**Smoke test:** PASSED — insufficient-balance rejection confirmed live 2026-07-31 (E19-S1 sweep) on a deliberately low-balance account, alongside the already-passed sufficient-balance path (2026-07-28).
 **Promoted to backlog:** none
 
 ## [E14-S6 follow-up 2] Richer bot message, live token-balance header, dead DEV/PROD link fixed
@@ -267,7 +281,7 @@ Completed stories land here, newest first. Format:
 - Also added a persistent danger-colored line directly on the Scheduled Runs page's own card (`scheduled/page.tsx`) — the "flag" the user asked for first, independent of whether the notification panel has been opened.
 - 8 new backend tests (skip-reason recorded for each of the 3 gates, once-mode deactivates on skip, successful fire clears a stale skip reason, `ScheduledRunOut` exposes the fields, `PATCH` clears them, the new endpoint scopes to workspace and returns empty when nothing's skipped); `ruff format`/`ruff check`/`mypy src` clean; migration verified with a real upgrade/downgrade/upgrade round-trip against local Postgres; full suite (245 tests) passes.
 - Frontend verified visually via a temporary `frontend/app/dev-preview/skip-alert` scratch route: one instance mocking `scheduled/page.tsx`'s fetch to confirm the card's red skip-reason line, a second mocking `/auth/me` + `/scheduled-runs/skipped` and rendering the real `(app)/layout.tsx` to confirm the bell's unseen dot and drawer entry with the warning icon, correct project name, and reason text — both deleted before commit. `tsc --noEmit`/`next lint` clean.
-**Smoke test:** DEFERRED — 2026-07-28 review: needs a deliberately zero-balance account plus waiting for a cron tick, not naturally hit by general use; folded into the trimmed E19-S1 sweep.
+**Smoke test:** DEFERRED, explicitly closed without live verification — 2026-07-31 (E19-S1 sweep): user chose to deprioritize this specific edge case (zero-balance schedule due soon showing the skip badge/bell within one cron tick, clearing after top-up) rather than force it live. Accepted as an open gap, not a blocking one.
 **Promoted to backlog:** none
 
 ## [E14-S6] Scheduled-run redesign: multi-day schedules, Once/Recurring, per-schedule notify toggle
@@ -284,7 +298,7 @@ Completed stories land here, newest first. Format:
 - **Same-session fix (post-review):** the notify switch's knob relied on the browser's "auto" left-position resolution for an absolutely-positioned element, layered with a `translate-x-[22px]` delta — that resolved incorrectly in practice (confirmed via `getComputedStyle`/`getBoundingClientRect`: the knob rendered flush against the track's right edge regardless of on/off state, an actual rendering bug, not a screenshot artifact). Fixed by anchoring `left-0.5` explicitly and using `translate-x-0`/`translate-x-5` as a pure delta on top of it.
 - **Same-session follow-up (direct user request):** "tie scheduling to the Telegram account's timezone" — Telegram's Bot API/WebApp `initData` exposes no timezone field at all, so the practical equivalent is the device's own IANA zone, read via `Intl.DateTimeFormat().resolvedOptions().timeZone` (the Mini App runs inside the user's own client). Added `lib/telegram-webapp.ts:detectLocalTimezone()` (falls back to `"Europe/Moscow"` only if `Intl` itself throws) and wired it into both dialogs in place of the hardcoded `"Europe/Moscow"` default — matches `docs/UI_GUIDELINES.md`'s existing "user's local timezone" guideline, which the scheduling feature had never actually implemented. Editing an existing schedule still keeps its stored `timezone` unchanged. Both dialogs now show a "Часовой пояс: {zone} (по времени вашего устройства)" hint for transparency, since there's still no picker (single-timezone-per-schedule MVP scope unchanged, just no longer hardcoded to Moscow specifically).
 - Full BACKLOG.md entry: see `[E14-S6]` for complete details.
-**Smoke test:** DEFERRED — 2026-07-28 review: needs a schedule to actually fire within its cron window and a Telegram DM to arrive — a timing check, not something general app use hits; folded into the trimmed E19-S1 sweep.
+**Smoke test:** PASSED — 2026-07-31 (E19-S1 sweep): user confirmed a schedule actually fires within its cron window and the Telegram DM arrives.
 **Promoted to backlog:** none
 
 ## [E14-S5] Telegram notification for scheduled-run completion
@@ -294,7 +308,7 @@ Completed stories land here, newest first. Format:
 - Added `test_scheduled_run_completion_notifies_telegram` to `test_scheduled_runs.py` to prove this end-to-end: fires a due schedule, runs the resulting `AnalysisRun` through the real `process_run`, and asserts `notify_run_complete` is called once with the schedule-originated run and the schedule's `created_by` user.
 - `ruff format`/`ruff check`/`mypy src` clean; new test collects correctly (`pytest --collect-only`).
 - **This closes the E14 epic and Sprint 9** (scheduled runs: schema, CRUD API + arq cron dispatcher, Scheduled Runs page, Run-now/Schedule choice, Telegram notification). Sprint 10 (E8-S3 monetization) is next, no longer blocked.
-**Smoke test:** DEFERRED — 2026-07-28 review: same cron-timing gap as E14-S6; folded into the trimmed E19-S1 sweep (one check covers both).
+**Smoke test:** PASSED — 2026-07-31 (E19-S1 sweep): confirmed alongside E14-S6 — schedule fires within its cron window, Telegram DM arrives.
 **Promoted to backlog:** none
 
 ## [E14-S4] Wire Run-now / Schedule choice into Details' create-run flow
@@ -330,7 +344,7 @@ Completed stories land here, newest first. Format:
 - `test_models.py:test_schema_has_exactly_expected_tables` updated to include `scheduled_runs` — would have failed CI otherwise.
 - 22 new tests in `test_scheduled_runs.py` (6 pure scheduling-math, ran locally with no DB; 16 DB-integration covering CRUD + 6 `fire_due_schedules` scenarios). `ruff format`/`ruff check`/`mypy src` clean.
 - **For E14-S3:** `ScheduledRunOut` (incl. `last_run_id`) is ready to consume for the list page.
-**Smoke test:** DEFERRED — 2026-07-28 review: same cron-timing gap as E14-S6/S5 (a schedule firing unattended); folded into the trimmed E19-S1 sweep.
+**Smoke test:** PASSED — 2026-07-31 (E19-S1 sweep): confirmed alongside E14-S6/S5 — the arq cron dispatcher fires a due schedule unattended.
 **Promoted to backlog:** none
 
 ## [E14-S1] Scheduled runs: schema and migration
@@ -341,7 +355,7 @@ Completed stories land here, newest first. Format:
 - `make_scheduled_run()` test helper added to `backend/tests/conftest.py`, same shape/pattern as the existing `make_run()`.
 - 4 new tests in `backend/tests/test_models.py`: roundtrip + defaults, XOR-rejected, both-set-rejected, day_of_week-out-of-range-rejected. `ruff format`/`ruff check`/`mypy src` clean.
 - **For E14-S2:** table is ready — the CRUD API + arq cron tick build directly on top of `ScheduledRun`.
-**Smoke test:** DEFERRED — 2026-07-28 review: a direct `psql` schema/constraint check, not something app usage exercises; folded into the trimmed E19-S1 sweep (low priority — the table has been in active use since 2026-07-22 with no constraint-related incidents reported).
+**Smoke test:** PASSED — 2026-07-31 (E19-S1 sweep): user confirmed via direct DB query, screenshots showing `scheduled_runs` rows with `days_of_week` arrays, `mode` (once/recurring), `notify_enabled`, and the XOR `duration_days`/`item_limit` shape all as expected.
 **Promoted to backlog:** none
 
 ## [Post-Sprint-8 fix] Results/Details landing-page swap
@@ -609,7 +623,8 @@ Completed stories land here, newest first. Format:
 
 ## [E7-S4] Pilot security guardrails — 2026-07-19
 **Handover:**
-- Invite code gate: `REGISTRATION_INVITE_CODE` env var; `GET /auth/register/config` returns `{require_invite: bool}`; register handler checks with `hmac.compare_digest`; frontend register page shows invite field conditionally
+- **SUPERSEDED same day (2026-07-19, commit `053cbe3`):** the invite-code gate described in the next bullet was removed hours after this story shipped — registration is open to everyone, new accounts start with `token_balance=50`. See **D39** (backfilled 2026-07-31, found during E19-S1) — this line is kept for history only, do not treat it as current behavior.
+- ~~Invite code gate: `REGISTRATION_INVITE_CODE` env var; `GET /auth/register/config` returns `{require_invite: bool}`; register handler checks with `hmac.compare_digest`; frontend register page shows invite field conditionally~~ (removed 2026-07-19, see above)
 - Per-user run quota: `MAX_RUNS_PER_USER_PER_DAY` (default 10); counted in UTC day window; 429 with Russian message naming the limit
 - Rate limiting: `backend/src/middleware/rate_limit.py` → `check_rate_limit(request, limit=10)` uses Redis INCR+EXPIRE; wired to login and register
 - Boot check: `main.py` crashes at startup if `jwt_secret` == insecure default in non-local env
@@ -617,7 +632,7 @@ Completed stories land here, newest first. Format:
 - XLSX formula injection: `_safe_text()` prefixes `=`, `+`, `-`, `@` cells with `'`; applied to account_handle, title, summary
 - Login timing: `dummy_verify()` in `passwords.py` (rounds=12); called from `providers.py` on user-not-found path
 - Tests: `backend/tests/test_guardrails.py` — 10 tests (3 unit tests pass locally without Postgres; 7 DB tests run in CI)
-**Smoke test:** DEFERRED — 2026-07-28 review: these are deliberate security/edge-case tests (invite-code rejection, rate-limit hammering, formula-injection export), not things normal app use exercises; folded into the trimmed E19-S1 sweep.
+**Smoke test:** PASSED (rate-limit hammering + formula-injection export, both CI-covered) — the invite-code-rejection check itself is now moot per D39 (registration is intentionally open); replaced 2026-07-31 by `test_register_succeeds_without_invite_code` asserting the current correct behavior.
 
 ## [E#-S#] Title — YYYY-MM-DD
 - What shipped
@@ -637,7 +652,7 @@ Completed stories land here, newest first. Format:
 - `summarize_run_items` accepts optional `client: AsyncAnthropic | None` and `http_client: httpx.AsyncClient | None`; worker creates both once per run and passes in — eliminates per-batch/per-image client recreation
 - `Settings`: `worker_job_timeout_secs` (default 3600), `scrape_concurrency` (default 5)
 - 3 new tests in `test_worker.py`: cancellation marks failed, parallel scrape correct row count, duplicate insert no-op
-**Smoke test:** DEFERRED — 2026-07-28 review: needs an 8+-account run with wall-time timing and a deliberate re-enqueue to check for duplicates — not something general use demonstrates; folded into the trimmed E19-S1 sweep.
+**Smoke test:** PARTIALLY CONFIRMED — re-enqueue/no-duplicate-`content_items` behavior confirmed 2026-07-31 via existing automated coverage (`test_process_run_duplicate_insert_is_noop` in `test_worker.py`). The 8+-account wall-time-vs-sequential timing check is still DEFERRED — split into its own story [E19-S2] so it doesn't block E19-S1's close.
 **Promoted to backlog:**
 - None
 
@@ -654,7 +669,7 @@ Completed stories land here, newest first. Format:
 - `api.getAdminUsage(from, to)` + `AdminUsageResponse`/`UserUsageRowResponse` in `frontend/lib/api.ts`
 - 5 tests in `backend/tests/test_admin.py` (403 non-admin, empty window, shows all users, response shape, is_admin in /me)
 - No ENV vars added
-**Smoke test:** DEFERRED — 2026-07-28 review: requires a direct Postgres flag flip, not something general app use exercises; folded into the trimmed E19-S1 sweep (low priority — admin view is a minor surface).
+**Smoke test:** PASSED — 2026-07-31 (E19-S1 sweep): user confirmed setting `is_admin=true` directly in DEV Postgres correctly unlocks `/admin`.
 **Promoted to backlog:**
 - None
 

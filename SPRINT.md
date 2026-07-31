@@ -183,7 +183,7 @@ Full story definitions live in `BACKLOG.md`.
 
 | # | Story | Title | Status |
 |---|---|---|---|
-| 0 | E19-S1 | DEV smoke-test sweep, trimmed (mandatory — do first, carried from Sprint 10) | backlog |
+| 0 | E19-S1 | DEV smoke-test sweep, trimmed (mandatory — do first, carried from Sprint 10) | done |
 | 1 | E20-S2 | Worker & DB capacity for concurrent load | backlog |
 | 2 | E20-S3 | Baseline rate limiting & provider-quota guardrails (depends on E20-S2) | backlog |
 | 3 | E20-S1 | Batch deep-analysis comment scraping (speed) | backlog |
@@ -192,6 +192,13 @@ Full story definitions live in `BACKLOG.md`.
 **Explicitly not scheduled:** E20-S4 (50→20 competitor cap) — still pending direct user confirmation of the product decision, not an effort/priority call. See BACKLOG.md's `[E20-S4]` entry.
 
 **Human touchpoint:** E19-S1 is a hands-on DEV pass by design; E20-S1's speedup is directly observable by running a deep analysis and timing it.
+
+**E19-S1 closed 2026-07-31.** User's live results resolved all 12 AC items (several with no code change needed, since existing CI tests already covered them — see BACKLOG.md's `[E19-S1]` Changelog/Handover for the full per-item breakdown). Two real findings came out of it, both logged as new decisions:
+- **D39** (backfill): the invite-code registration gate has been dead since 2026-07-19 (commit `053cbe3` superseded E7-S4 same-day) — never documented at the time. E19-S1's corresponding AC item was rewritten and closed against the actual current behavior, not the stale one; `test_register_succeeds_without_invite_code` added.
+- **D40** (new product direction): Review and Analysis are to become fully independent runs — Analysis gets its own Apify scraping pipeline, no longer auto-chains off a completed Review (undoing E18-S1). Scope is the full independent-pipeline version, bigger than a quick fix, and needs its own discussion first (how Apify is used, per-worker capacity) — opened as new epic **E21 (Standalone Analysis Pipeline)**, starting with a scoping-only story `E21-S1`, **not yet scheduled into a sprint** pending that discussion.
+- Also opened **E8-S9** (Telegram completion DM should deep-link into the Mini App, not the system browser) from a live PROD finding.
+- The one item the user wants to do later (E3-S6's 8+-account wall-time timing) was split into its own story **E19-S2** so E19-S1 itself could close — `E19-S2` is unassigned, pick up whenever.
+- **Next in this sprint: E20-S2** (Worker & DB capacity), per the table above.
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 

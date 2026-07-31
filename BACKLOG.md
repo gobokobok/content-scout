@@ -43,39 +43,75 @@ Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS 
 ## [E19-S1] DEV smoke-test sweep (trimmed)
 **Epic:** Pilot Verification Sweep
 **Sprint:** 10 (locked 2026-07-28 `/sprint-review` — mandatory per ≥3-deferred-smoke-test rule, do first)
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-07-31
 **Priority:** critical
 **Depends on:** none (verification-only, no new code expected)
 ### Goal
 Originally scoped to all 39+ deferred smoke tests; trimmed the same day after the user confirmed they'd already manually clicked through the entire live app while building the E18 redesign — that covers every general UI/navigation/rendering flow (marked `PASSED` in DONE.md, 2026-07-28). What's left is specifically the items a normal click-through **can't** hit: things needing a forced fault, a deliberately underfunded/multi-account state, a wait for a cron tick, or a direct DB/psql check.
 ### Acceptance Criteria
-- [ ] **Priority — known real gap, not just untested:** confirm whether the Apify `apidojo` comments actor still rejects calls on this DEV account's plan tier and whether Bright Data credentials exist yet (E17-S2's handover and E18-S4's investigation both found this broken as of 2026-07-27 — every deep-analysis comment fetch was degrading to zero coverage). Either fix the vendor access or explicitly accept the gap for now.
-- [ ] E17-S9: run a deep analysis against a project with comments disabled/restricted on most posts — confirm the thin-coverage degrade banner + reduced token charge
-- [ ] E17-S5: confirm a second user's project/deep-analysis 404s (cross-user isolation)
-- [ ] E17-S4: force a malformed synthesis response and confirm it lands in `failed`, not stuck
-- [ ] E17-S1 / E18-S4: with a deliberately low/zero token balance, confirm the insufficient-balance rejection, the deep-analysis auto-chain skip-reason banner, and a forced chain failure showing correctly on its run card
-- [ ] E14-S1/S2/S5/S6: confirm a schedule actually fires within its 5-minute cron window, the Telegram DM arrives, `notify_enabled=false` sends nothing, and an Once-mode schedule deactivates itself after firing
-- [ ] E14-S6 follow-up: with a zero-balance account and an active schedule due soon, confirm the skip-reason badge/bell notification appear within one cron tick, and clear after topping up + re-saving
-- [ ] E14-S6 follow-up 2: confirm the Telegram completion DM's results link opens correctly on **PROD**, not just DEV
-- [ ] E4-S3: run the same project twice back-to-back; confirm the second run's Claude token usage is a small fraction of the first (cross-run summary reuse)
-- [ ] E7-S4: confirm register-without-invite-code fails, an 11th run in a day 429s, login hammering 429s, and an XLSX cell starting with `=` exports as text
-- [ ] E3-S6: run 8+ accounts and confirm wall time is well under the sequential sum; re-enqueue a finished run and confirm no duplicate `content_items`
-- [ ] E14-S1 / E7-S2 (low priority): `\d scheduled_runs` shows the expected constraints; `is_admin=true` set directly in Postgres correctly unlocks `/admin`
-- [ ] Any confirmed bug gets its own new BACKLOG.md story (not patched ad hoc mid-sweep) unless trivial enough for an immediate one-line fix, logged in this story's Changelog
-- [ ] DONE.md's remaining `DEFERRED` lines updated to `PASSED` (or left `DEFERRED` with a more specific blocking reason) as each item is actually confirmed
+- [x] **Priority — known real gap, not just untested:** confirm whether the Apify `apidojo` comments actor still rejects calls on this DEV account's plan tier and whether Bright Data credentials exist yet (E17-S2's handover and E18-S4's investigation both found this broken as of 2026-07-27 — every deep-analysis comment fetch was degrading to zero coverage). Either fix the vendor access or explicitly accept the gap for now. **Resolved 2026-07-31: user confirmed primary `apidojo` path now works on real DEV data.**
+- [x] E17-S9: run a deep analysis against a project with comments disabled/restricted on most posts — confirm the thin-coverage degrade banner + reduced token charge. **Closed 2026-07-31: token charge reduces correctly; degrade banner not observed on the test run, but user explicitly accepted this without further investigation.**
+- [x] E17-S5: confirm a second user's project/deep-analysis 404s (cross-user isolation). **Closed 2026-07-31 via existing CI coverage** (`test_create_deep_analysis_404_for_foreign_run`, `test_get_deep_analysis_404_for_missing_or_foreign` in `test_deep_analyses_api.py`) — no live second-account click-through needed.
+- [x] E17-S4: force a malformed synthesis response and confirm it lands in `failed`, not stuck. **Closed 2026-07-31 via existing CI coverage** (`test_synthesize_report_malformed_tool_input_marks_failed`, `test_synthesize_report_missing_tool_use_marks_failed` in `test_deep_analysis_synthesis.py`).
+- [x] E17-S1 / E18-S4: with a deliberately low/zero token balance, confirm the insufficient-balance rejection, the deep-analysis auto-chain skip-reason banner, and a forced chain failure showing correctly on its run card. **Confirmed live 2026-07-31.**
+- [x] E14-S1/S2/S5/S6: confirm a schedule actually fires within its 5-minute cron window, the Telegram DM arrives, `notify_enabled=false` sends nothing, and an Once-mode schedule deactivates itself after firing. **Confirmed live 2026-07-31** ("works" — see Handover on which sub-cases were explicitly exercised).
+- [x] E14-S6 follow-up: with a zero-balance account and an active schedule due soon, confirm the skip-reason badge/bell notification appear within one cron tick, and clear after topping up + re-saving. **Explicitly deprioritized and closed without live verification, 2026-07-31 (direct user choice).**
+- [x] E14-S6 follow-up 2: confirm the Telegram completion DM's results link opens correctly on **PROD**, not just DEV. **Confirmed working on PROD 2026-07-31 (opens in the external browser correctly). Follow-on UX request (open inside the Mini App instead) promoted to new story [E8-S9].**
+- [x] E4-S3: run the same project twice back-to-back; confirm the second run's Claude token usage is a small fraction of the first (cross-run summary reuse). **Retired as a smoke-test item 2026-07-31** — E4-S3's own optimization already shipped and is unrelated; the user's response instead surfaced a bigger product-direction change (D40: decouple Analysis from Review entirely), tracked separately as new epic [E21] rather than as a re-test of this AC.
+- [x] E7-S4: confirm register-without-invite-code fails, an 11th run in a day 429s, login hammering 429s, and an XLSX cell starting with `=` exports as text. **Closed 2026-07-31 via existing CI coverage** (rate-limit/quota: `test_rate_limit_blocks_after_threshold`, `test_run_quota_blocks_on_limit`; XLSX formula-injection guard: `test_safe_text_prefixes_formula_triggers`, all in `test_guardrails.py`). **The "register-without-invite-code fails" sub-check was itself stale** — found during this sweep that the invite-code gate was intentionally removed 2026-07-19 (commit `053cbe3`), superseding E7-S4 same-day; backfilled as **D39**, and replaced with `test_register_succeeds_without_invite_code` asserting the actual current (correct) behavior.
+- [x] E3-S6: run 8+ accounts and confirm wall time is well under the sequential sum; re-enqueue a finished run and confirm no duplicate `content_items`. **Closed 2026-07-31: dedup covered by `test_process_run_duplicate_insert_is_noop` in `test_worker.py`. Wall-time-under-sequential-sum split out into its own story [E19-S2] per user request, so it doesn't block this story's close.**
+- [x] E14-S1 / E7-S2 (low priority): `\d scheduled_runs` shows the expected constraints; `is_admin=true` set directly in Postgres correctly unlocks `/admin`. **Confirmed 2026-07-31 via direct DB screenshots (schema shape as expected) and a live `is_admin=true` flip unlocking `/admin`.**
+- [x] Any confirmed bug gets its own new BACKLOG.md story (not patched ad hoc mid-sweep) unless trivial enough for an immediate one-line fix, logged in this story's Changelog. **[E8-S9] and [E21-S1] opened; the E3-S6 wall-time timing check split into [E19-S2].**
+- [x] DONE.md's remaining `DEFERRED` lines updated to `PASSED` (or left `DEFERRED` with a more specific blocking reason) as each item is actually confirmed. **All lines in this story's scope updated 2026-07-31.**
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Any real bugs found have their own backlog stories
-- [ ] DONE.md smoke-test lines updated to reflect actual verified state
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Any real bugs found have their own backlog stories
+- [x] DONE.md smoke-test lines updated to reflect actual verified state
+- [x] BACKLOG.md updated
 ### Smoke test
 This story *is* the smoke test — user-executed on real DEV/PROD, not agent-verified (per CLAUDE.md's no-agent-UI-testing constraint).
 ### Files to read
 CLAUDE.md, DONE.md (remaining `DEFERRED` lines), SPRINT.md
 ### Files to create or modify
 DONE.md (smoke-test status updates), BACKLOG.md (new stories for any real bugs found)
+### Changelog
+- 2026-07-31: user ran the live sweep across DEV/PROD and reported results per AC item; this session cross-checked several against the existing backend test suite before touching DONE.md, closing 4 items purely via already-passing CI (no live re-test needed): cross-user 404 isolation (E17-S5), forced-malformed-synthesis→failed (E17-S4), rate-limit/quota 429s + XLSX formula-injection guard (part of E7-S4), and duplicate-insert-is-noop on re-enqueue (part of E3-S6).
+- Also surfaced a DEFERRED line not in this story's original 12-bullet AC list: **E17-S10**'s "real forced-timeout end-to-end test" (a genuine arq `job_timeout` cancellation, live). That fix already has a dedicated regression test (`test_process_deep_analysis_cancellation_marks_failed`), and forcing a real ~1-hour timeout live is expensive for a case unit-tested to the same effect — flagged to the user for a call on whether it's worth forcing live or can close on the regression test alone.
+- **Second round (same day):** the invite-code AC item turned out to be testing stale behavior — grepped the whole backend and found `registration_invite_code` has zero enforcement call sites anywhere; `git log -S` traced its removal to commit `053cbe3` (2026-07-19), same day as E7-S4, never logged as a decision. Backfilled as **D39**; added `test_register_succeeds_without_invite_code` to `backend/tests/test_auth.py` asserting the actual current behavior (open registration, `token_balance=50`) instead of writing a test for the old gate. `ruff format`/`ruff check` clean on the file; the pre-existing 3 mypy errors on `test_auth.py:20` and the local-Postgres test-order flake (8 failures on `main` unrelated to this change, matches the count already documented in `[E14-S6 follow-up 2]`'s handover) are both unrelated to this edit.
+- User's response to the E14-S6-follow-up-2 AC (Telegram DM link) surfaced a real UX gap: the link opens the system browser, not the Mini App, because `notify_run_complete` sends a plain HTML `<a href>` rather than a `web_app`-type inline keyboard button. Opened new story **[E8-S9]** for it rather than fixing ad hoc.
+- User's response to the E4-S3 AC (cross-run summary reuse) turned into a bigger product-direction statement: Review and Analysis should be fully independent runs, Analysis should no longer auto-chain off Review (undoing E18-S1) and should get its own Apify scraping pipeline entirely. Logged as **D40**; opened new epic **E21 (Standalone Analysis Pipeline)** starting with scoping-only story **[E21-S1]** — deliberately not implemented yet, since the user asked for a discussion on Apify usage/worker capacity first. The original E4-S3 AC item's literal ask (cross-run Claude cost reuse) is superseded by this — E4-S3 itself stays `done` in its own entry (that optimization already shipped and is unrelated to the triggering-flow question), only this story's *reference* to it as a smoke-test item is retired.
 ### Handover
 - Trimmed 2026-07-28 from a full 39-item sweep down to ~13 timing/fault/DB-dependent items after the user confirmed general app use already covers every UI-visible flow — see DONE.md's individual entries for exactly which half of each split story (PASSED vs. DEFERRED) applies.
+- **Closed 2026-07-31.** All 12 AC items resolved: 6 confirmed live by the user on DEV/PROD, 4 closed with no live re-test needed once found to already be covered by CI (`test_deep_analyses_api.py`, `test_deep_analysis_synthesis.py`, `test_guardrails.py`, `test_worker.py`), 1 explicitly deprioritized by direct user choice (zero-balance skip-badge timing), 1 (register-without-invite-code) turned out to be testing stale behavior and was corrected rather than blindly re-tested.
+- Two real findings promoted to their own stories rather than folded back into general use: **[E8-S9]** (Telegram DM should deep-link into the Mini App, not the browser) and **[E21-S1]** (scoping story for D40's Analysis/Review decoupling — new epic **E21**, not yet implementation-ready).
+- One backfilled decision: **D39** — the invite-code gate was actually removed 2026-07-19 (`053cbe3`), same day as E7-S4, never documented until this sweep found it.
+- One item split out to keep this story closeable: the E3-S6 8+-account wall-time timing check moved to **[E19-S2]** (same epic, still open) since the user wants to run it later rather than block this story's close on it.
+- **This closes the Pilot Verification Sweep epic's E19-S1.** E19-S2 (wall-time timing only) is the sole remaining item in the epic.
+
+## [E19-S2] Live 8+-account wall-time timing check
+**Epic:** Pilot Verification Sweep
+**Sprint:** unassigned — user will pick this up later
+**Status:** backlog
+**Priority:** low
+**Depends on:** none
+### Goal
+Split out of [E19-S1] so that story could close cleanly. E3-S6 (parallel scraping) shipped 2026-07-18 with concurrent per-account fetching under a `scrape_concurrency` semaphore; the duplicate-insert-on-re-enqueue half of its smoke test is already CI-covered (`test_process_run_duplicate_insert_is_noop`), but the actual parallelism speedup has never been confirmed against a real run.
+### Acceptance Criteria
+- [ ] Run a project with 8+ competitor accounts on DEV, time the wall clock
+- [ ] Confirm the wall time is well under the sequential sum of scraping each account one-by-one (a rough per-account timing estimate is enough to compare against)
+### Definition of Done
+- [ ] AC checked
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+This story *is* the smoke test — user-executed on real DEV, not agent-verified.
+### Files to read
+DONE.md's `[E3-S6]` entry
+### Files to create or modify
+None expected (verification only) unless timing reveals a real regression
+### Handover
+—
 
 ## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
 **Epic:** Foundation & Auth
@@ -2699,6 +2735,34 @@ backend/src/api/usage.py, frontend/app/(app)/usage/page.tsx, frontend/lib/api.ts
 ### Handover
 —
 
+## [E8-S9] Telegram completion DM: deep-link into the Mini App, not the browser
+**Epic:** Telegram Integration & Monetization
+**Sprint:** unassigned (found during E19-S1's smoke sweep, 2026-07-31)
+**Status:** backlog
+**Priority:** medium
+**Depends on:** none
+### Goal
+The run/scheduled-run completion DM (`telegram_notify.py:notify_run_complete`) links to results via a plain `<a href="{web_url}/...">` HTML anchor. Telegram opens a plain link like this in the system browser, not inside the Mini App — confirmed live on PROD during E19-S1 (link works, but lands in the external browser instead of the in-Telegram experience the rest of the product uses). Fix: send the link as a Telegram inline-keyboard button of type `web_app` instead of (or alongside) the HTML anchor, so tapping it opens the Mini App directly.
+### Acceptance Criteria
+- [ ] `notify_run_complete`'s Bot API `sendMessage` call gains a `reply_markup` with an inline keyboard containing one `web_app`-type button pointing at the same results URL, for both the done and failed message variants where a link is shown
+- [ ] Confirm Telegram's `web_app` inline-button restrictions (e.g. whether it requires the bot's Mini App to be registered with BotFather under a short name, or works against any `web_url` already used by the chat menu button) before assuming the simple case works — check this against the existing `setChatMenuButton` `web_app` config in `telegram_webhook.py`, which already opens the same `web_url` as a Mini App from the persistent menu button
+- [ ] Live DEV/PROD confirmation: tapping the button opens inside Telegram's Mini App view, not the system browser
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests updated (`test_telegram_notify.py`)
+- [ ] CI green, deployed to DEV then PROD
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Trigger a run completion DM on DEV and PROD; tap the results link/button; confirm it opens inside the Telegram Mini App, not the external browser.
+### Files to read
+backend/src/services/telegram_notify.py, backend/src/api/telegram_webhook.py (existing `web_app` menu-button config for reference)
+### Files to create or modify
+backend/src/services/telegram_notify.py, backend/tests/test_telegram_notify.py
+### Handover
+—
+
 ## [E17-S10] Deep-analysis job-cancellation bug fix
 **Epic:** Run Deep Analysis
 **Sprint:** unassigned (found + fixed 2026-07-31 during a DEV run investigation, direct user request)
@@ -2796,7 +2860,7 @@ This story doesn't by itself get the app to "1,000 users" — it's the first, co
 **Priority:** high
 **Depends on:** E20-S2 (shares the "how much concurrency can we actually sustain" analysis)
 ### Goal
-D11 explicitly deferred "rate limiting/hardening beyond basics" as an MVP call for a handful of pilot users. E7-S4 added some guardrails (invite code, per-user daily run cap via `max_runs_per_user_per_day`, XLSX injection escaping) but nothing governs total concurrent load against the two shared, metered, external accounts every user's runs compete for: the Apify account (`apify_api_token`, one account for all users' scraping) and the Anthropic account (`anthropic_api_key`, one key for all Haiku/Sonnet calls). At meaningful scale, a burst of simultaneous runs — including scheduled runs firing in the same 5-minute cron window (`check_scheduled_runs`) if many users pick common times — could hit Apify's per-account concurrent-actor-run limit or Anthropic's org-level RPM/TPM limits, degrading or failing runs for everyone, not just the user who triggered the burst.
+D11 explicitly deferred "rate limiting/hardening beyond basics" as an MVP call for a handful of pilot users. E7-S4 added some guardrails (per-user daily run cap via `max_runs_per_user_per_day`, XLSX injection escaping — its invite-code gate was itself removed same-day by D39/commit `053cbe3`, registration is now open) but nothing governs total concurrent load against the two shared, metered, external accounts every user's runs compete for: the Apify account (`apify_api_token`, one account for all users' scraping) and the Anthropic account (`anthropic_api_key`, one key for all Haiku/Sonnet calls). At meaningful scale, a burst of simultaneous runs — including scheduled runs firing in the same 5-minute cron window (`check_scheduled_runs`) if many users pick common times — could hit Apify's per-account concurrent-actor-run limit or Anthropic's org-level RPM/TPM limits, degrading or failing runs for everyone, not just the user who triggered the burst.
 ### Acceptance Criteria
 - [ ] Confirm current Apify plan's concurrent-actor-run limit and Anthropic org tier's RPM/TPM limits (external account checks, not in-repo)
 - [ ] A global concurrency governor (e.g. a semaphore or queue-depth check in the worker, separate from arq's own `max_jobs`) caps simultaneous Apify actor calls and Claude calls against those confirmed limits, so the app degrades gracefully (queues) instead of erroring when many runs overlap
@@ -2850,3 +2914,29 @@ DECISIONS.md (D13), backend/src/api/ (competitor-list endpoints — exact file n
 TBD — depends on where the 50-limit is currently enforced (not yet located)
 ### Handover
 Not started — explicitly gated on user confirmation per the Goal section. The 50→20 change itself is small; the grandfathering decision for existing projects is the part that needs a real answer before writing code.
+
+## [E21-S1] Scope standalone Analysis pipeline: Apify usage audit + worker capacity
+**Epic:** Standalone Analysis Pipeline (new, D40)
+**Sprint:** unassigned — proposed for a future sprint, pending a dedicated scoping/discussion session
+**Status:** backlog — scoping only, not implementation-ready
+**Priority:** high (direct product-direction change)
+**Depends on:** none, but overlaps E20 (Performance & Scale) — both touch how Apify is invoked from the worker
+### Goal
+Per D40 (2026-07-31, direct user product-direction change during E19-S1): Review and Analysis are meant to be two fully independent runs. Today Analysis (E17's deep analysis) only exists as a chain reaction off a completed Review run (E18-S1's auto-chain) and reads that run's already-scraped `content_items` as its input — it does no scraping of its own. The user wants Analysis to become a standalone task with its own end-to-end Apify scraping path, decoupled from Review entirely, but said explicitly this needs discussion first ("how apify is used and what each of the worker is capable of") before real implementation stories can be written. **This story is that discussion/audit, not the implementation.**
+### Acceptance Criteria
+- [ ] Document current Apify usage end-to-end: which actors are called from which worker step (base run scraping via `platforms/instagram.py`, comment scraping via `services/comment_scraper.py`'s dual-vendor path), what each call costs, and how `usage_events` currently attributes cost per run type
+- [ ] Document current worker capability/capacity model: arq `max_jobs`, `worker_job_timeout_secs`, `scrape_concurrency`, how many Railway replicas each service runs — this overlaps E20-S2's capacity work directly, don't duplicate it independently
+- [ ] Concrete proposal for what "Analysis does its own scraping" means operationally: does it re-scrape the same posts a Review run would have covered (duplicate Apify cost), or does it scrape a fresh, independently-scoped window? Get explicit user sign-off on the cost/behavior implications before any code follows
+- [ ] Once scoped, split real implementation work into its own follow-on stories (likely: remove E18-S1's auto-chain trigger, give deep-analysis creation its own scrape-then-extract-then-synthesize pipeline, update the FAB/run-creation UI's Анализ entry point)
+### Definition of Done
+- [ ] Findings written up (this story's Handover, or a new doc if it's substantial)
+- [ ] Follow-on implementation stories opened with real AC, not placeholders
+- [ ] User has explicitly signed off on the scraping-cost/behavior model before implementation starts
+### Smoke test
+N/A — this is a scoping/discussion story, not a code change.
+### Files to read
+backend/src/worker.py, backend/src/platforms/instagram.py, backend/src/services/comment_scraper.py, backend/src/services/deep_analysis.py, backend/src/services/queue.py, DECISIONS.md (D40, D26, D34/D35), BACKLOG.md (E18-S1, E20-S1/S2/S3)
+### Files to create or modify
+None yet — this story produces a plan, not code
+### Handover
+Opened 2026-07-31 directly from D40; deliberately left unimplemented pending the discussion the user asked for. Do not skip straight to writing an auto-chain-removal PR without this scoping pass — the user was explicit that the deeper worker/Apify-capacity question needs answering first, and that answer will shape how big the actual implementation stories are.
