@@ -34,6 +34,8 @@ Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS 
 
 **2026-07-28 — new epic E18 backfilled at `/sprint-review` time:** between 2026-07-25 (after E17 closed) and 2026-07-28, 26 commits shipped a full navigation/redesign overhaul with no story IDs, no BACKLOG.md entries, and no DONE.md handovers at the time — found only when this sprint review scanned `git log` for untracked fixes and found the entire IA had changed underneath the docs. Backfilled here as E18-S1..S5 (all `Status: done`, real completion dates from commit history) per direct user request at review time, rather than left undocumented. See each `[E18-Sn]` entry below and DONE.md for full handovers.
 
+**2026-07-31 — Sprint 10 `/sprint-review`:** E17-S10 (job-cancellation fix, below) flipped to `done` after DEV deploy + DB correction confirmed. Backfilled **E8-S8** for the 2026-07-30 Mini App hotfix cluster (3 commits, no story ID at the time, but self-flagged for backfill in DONE.md — caught cleanly this review rather than needing git-log archaeology like E18 did). E19-S1 carries over to Sprint 11 as mandatory-first (deprioritized by direct user choice twice now — 2026-07-29 for E8-S3, this session for bug-hunting/E20 scoping). No untracked *epic* found this window. See DONE.md for the full review write-up.
+
 **2026-07-31 — DEV run investigation surfaces a stuck-job bug and new epic E20:** checking a user-reported deep analysis on DEV found it stuck in `extracting` for 2.5+ hours with zero items processed. Root cause: `process_deep_analysis` (worker.py) only caught `Exception`, not `asyncio.CancelledError` (a `BaseException`) — arq's `job_timeout` cancellation bypassed it entirely, leaving the row stuck forever instead of `failed`, violating E17-S4's own "never leave a row stuck mid-pipeline" AC. Fixed same session (mirrors `process_run`'s existing `except asyncio.CancelledError` handling one function up), tracked as **E17-S10**, pending deploy + DEV verification. The same investigation, at direct user request, produced **E20** (drafted above): comment-scraping is called once per post ([comment_scraper.py](backend/src/services/comment_scraper.py) `fetch_comments`) rather than batched, every Railway service runs at `numReplicas: 1` with arq's default `max_jobs=10` and SQLAlchemy's default connection pool (unset in [db.py](backend/src/db.py)), and there's still no per-user rate limiting beyond D11's original MVP scope. E20-S4 (50→20 account cap) is a product decision, not just engineering — flagged as such in its own entry, not assumed.
 
 ---
@@ -2640,6 +2642,35 @@ frontend/app/(app)/usage/page.tsx, backend/src/api/runs.py, frontend/messages/ru
 - The buy-tokens CTA is a stub link to a payment page that doesn't exist yet — **this is Sprint 10's entry point** (E8-S3, Telegram Stars subscriptions). Confirm this stub's route when E8-S3 finally builds the real payment page, since the link target was guessed ahead of that story.
 - **Promoted to backlog:** wiring the buy-tokens CTA to a real payment flow is exactly E8-S3's scope — no new backlog item needed, just noting the dependency explicitly here since it was built speculatively ahead of that story.
 
+## [E8-S8] Telegram Mini App: iOS 401 recovery + auto-project creation (D38)
+**Epic:** Telegram Integration & Monetization
+**Sprint:** backfilled 2026-07-31 `/sprint-review` (shipped 2026-07-30, out of process — direct user bug report, no story opened at the time)
+**Status:** done
+**Completed:** 2026-07-30
+**Priority:** critical
+**Depends on:** none
+### Goal
+A user reported the DEV Mini App broken on iOS (Android and PROD both fine): Competitors showed "Требуется вход в систему" even after auto-login, and the "+" FAB's run-type picker did nothing. Two distinct bugs, one iOS-specific and one not.
+### Acceptance Criteria
+- [x] **Bug 1 (iOS-specific):** any 401 outside `/auth/*` while inside Telegram silently re-derives a token from initData and retries the request once, before surfacing an error — recovers from iOS's Telegram webview losing `localStorage` state mid-session (`frontend/lib/api.ts`)
+- [x] **Bug 2 (not iOS-specific — genuinely new accounts):** the E18 nav overhaul had removed every `createProject` call site; a brand-new account with zero projects hung forever on the competitors redirect and the FAB's run dialog. Root-caused and fixed via **D38**: `create_user_with_workspace` now also creates a default project ("Мой блог") in the same transaction as workspace auto-creation, for both email/password and Telegram signup
+- [x] `Project` data model/API unchanged — D38 is a UX simplification (one invisible project per user), not a schema change
+- [x] Frontend project-creation-prompt UI (added mid-investigation, superseded by D38) removed; `loadDefaultProject` keeps a silent fallback only for pre-D38 accounts; orphaned `Projects` i18n namespace deleted from `ru.json`
+### Definition of Done
+- [x] All AC checked
+- [x] Tests written and passing (`test_register_creates_user_and_personal_workspace` extended; full suite 318 passed)
+- [ ] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+DEFERRED — the 401 fix has partial real-world confirmation (user's retest showed clean logs), but the D38 auto-project change hasn't been retested live with a genuinely new Telegram account on iOS. Folded into E19-S1.
+### Files to read
+CLAUDE.md, frontend/lib/api.ts, backend/src/auth/providers.py, DECISIONS.md (D38)
+### Files to create or modify
+frontend/lib/api.ts, backend/src/auth/providers.py, frontend/messages/ru.json, frontend/app/(app)/page.tsx
+### Handover
+Reconstructed retroactively from commits `4ac273f`, `b9f2c9f`, `d088cb6` (2026-07-30) — no story was opened at the time, but DONE.md's "[Mini App hotfix]" entry explicitly flagged itself as needing this backfill, so it was caught at the next review rather than requiring fresh git-log archaeology. See DONE.md's original entry for the full investigation narrative (railway logs pull, root-cause diagnosis of both bugs).
+
 ## [E8-S7] Surface token purchases in the Balance ledger
 **Epic:** Telegram Integration & Monetization
 **Sprint:** unassigned (promoted from E8-S3, 2026-07-29)
@@ -2671,7 +2702,8 @@ backend/src/api/usage.py, frontend/app/(app)/usage/page.tsx, frontend/lib/api.ts
 ## [E17-S10] Deep-analysis job-cancellation bug fix
 **Epic:** Run Deep Analysis
 **Sprint:** unassigned (found + fixed 2026-07-31 during a DEV run investigation, direct user request)
-**Status:** in-progress (code + tests done this session; not yet deployed or DEV-verified)
+**Status:** done
+**Completed:** 2026-07-31
 **Priority:** critical
 **Depends on:** none
 ### Goal
@@ -2679,23 +2711,23 @@ A real DEV deep analysis was found stuck in `extracting` for 2.5+ hours with zer
 ### Acceptance Criteria
 - [x] `process_deep_analysis` catches `asyncio.CancelledError` separately from `Exception`, sets the analysis to `failed` with `error_message = "Превышено время выполнения"`, refunds `tokens_charged` via the existing `fail_deep_analysis` helper, commits under `asyncio.shield` (so the cleanup write survives the same cancellation that triggered it), then re-raises
 - [x] Regression test mirroring `test_process_run_cancellation_marks_failed`: start `process_deep_analysis` against a blocking `extract_deep_analysis_items` stand-in, cancel the task mid-flight, assert `status == failed`, `error_message` set, `tokens_charged` refunded
-- [ ] Deployed to DEV (push to `main`)
-- [ ] The specific stuck DEV row (`DeepAnalysis` id `88e50be4-ef62-455d-a58c-0100d9a6f585`, run `c05436da-5afc-4ca7-a8f3-ec39e32c6834`) manually marked `failed` + its 1,950 tokens refunded — the code fix only prevents *future* occurrences, this one is orphaned and needs a one-time manual correction
+- [x] Deployed to DEV (push to `main`, commit `9ae08f6`)
+- [x] The specific stuck DEV row (`DeepAnalysis` id `88e50be4-ef62-455d-a58c-0100d9a6f585`, run `c05436da-5afc-4ca7-a8f3-ec39e32c6834`) manually marked `failed` + its 1,950 tokens refunded via direct DB write
 ### Definition of Done
 - [x] AC (code + tests) checked
 - [x] `ruff check`, `ruff format --check`, `mypy` clean on `worker.py`/`test_worker.py`
-- [ ] Deployed to DEV
-- [ ] Stuck row corrected
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated (this entry → done)
+- [x] Deployed to DEV
+- [x] Stuck row corrected
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
-On DEV, force a deep analysis to run past `worker_job_timeout_secs` (or temporarily lower the setting), confirm it lands in `failed` with the timeout message and a full token refund rather than staying stuck.
+DEFERRED — worker deploy confirmed healthy via `railway logs` (clean startup, cron ticks running normally) and `/health` returning ok, but a real end-to-end forced-timeout test (run a deep analysis past `worker_job_timeout_secs`, confirm it lands in `failed` with refund) hasn't been done live. Folded into E19-S1.
 ### Files to read
 backend/src/worker.py (`process_run`'s existing `except asyncio.CancelledError` block for the pattern), backend/src/services/deep_analysis.py (`fail_deep_analysis`)
 ### Files to create or modify
 backend/src/worker.py, backend/tests/test_worker.py
 ### Handover
-Code and tests are complete (`test_process_deep_analysis_cancellation_marks_failed`, 20/20 `test_worker.py` passing, ruff/mypy clean). Blocked only on: (1) user confirmation to push to `main` (DEV auto-deploys on push), and (2) user confirmation to manually correct the orphaned stuck row on DEV via direct DB write, since that's a token-balance mutation outside the normal app flow.
+Code and tests complete (`test_process_deep_analysis_cancellation_marks_failed`, 20/20 `test_worker.py` passing, ruff/mypy clean). Deploy hit 4 consecutive Railway-side transient failures via the GitHub Actions `railway up` step (500 upload error, "Not signed in" auth hiccup ×2, upload timeout — all different failure modes, none of them our code) before landing via a direct local `railway up backend --path-as-root --service api` (and worker/web) instead. Note for next time: a plain local `railway up` from within `backend/` silently uploads from wherever this machine's Railway project link is rooted (repo root here, per `~/.railway/config.json`), not the shell's cwd — `--path-as-root` is required for any monorepo subdirectory deploy run locally.
 
 ## [E20-S1] Batch deep-analysis comment scraping
 **Epic:** Performance & Scale

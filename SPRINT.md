@@ -171,6 +171,28 @@ Full story definitions live in `BACKLOG.md`.
 | 0 | E19-S1 | DEV smoke-test sweep, trimmed (mandatory — do first) | backlog |
 | 1 | E8-S3 | Telegram Stars token top-ups (re-scoped per D37 — pay-as-you-go, not subscription) | done |
 
+**Sprint 10 complete (2026-07-31 `/sprint-review`):** E8-S3 done 2026-07-29 (out of the table's declared order — see note above). E19-S1 did **not** close this sprint; carried to Sprint 11 as mandatory-first, deprioritized by direct user choice a second time. Two unplanned items also landed and are backfilled in DONE.md/BACKLOG.md: **E17-S10** (deep-analysis job-cancellation bug fix, found via a real stuck DEV run and fixed same session) and **E8-S8** (2026-07-30 Mini App iOS 401 + auto-project hotfix cluster, backfilled this review). The same E17-S10 investigation also produced new backlog epic **E20 Performance & Scale** (E20-S1..S4), scoped into Sprint 11 below.
+
+## Sprint 11 — Verification sweep (carried over) + performance & scale (planned 2026-07-31 `/sprint-review`)
+
+**Goal:** finally close E19-S1 (now mandatory two sprints running), then address the performance/scale gaps E17-S10's investigation surfaced — deep-analysis speed, worker/DB capacity, and provider-quota guardrails superseding D11's original MVP-scale assumption.
+
+**Deferred-smoke-test count at planning time: 18** (≥3 threshold) — confirms E19-S1 as non-negotiable first item, not just a carry-over courtesy.
+
+**Stories (in order):**
+
+| # | Story | Title | Status |
+|---|---|---|---|
+| 0 | E19-S1 | DEV smoke-test sweep, trimmed (mandatory — do first, carried from Sprint 10) | backlog |
+| 1 | E20-S2 | Worker & DB capacity for concurrent load | backlog |
+| 2 | E20-S3 | Baseline rate limiting & provider-quota guardrails (depends on E20-S2) | backlog |
+| 3 | E20-S1 | Batch deep-analysis comment scraping (speed) | backlog |
+| 4 | E8-S7 | Surface token purchases in the Balance ledger | backlog |
+
+**Explicitly not scheduled:** E20-S4 (50→20 competitor cap) — still pending direct user confirmation of the product decision, not an effort/priority call. See BACKLOG.md's `[E20-S4]` entry.
+
+**Human touchpoint:** E19-S1 is a hands-on DEV pass by design; E20-S1's speedup is directly observable by running a deep analysis and timing it.
+
 ## Sprint plan (projection, adjust at each /sprint-review)
 
 - **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)
@@ -182,5 +204,5 @@ Full story definitions live in `BACKLOG.md`.
 - **Sprint 8 (locked, 2026-07-22 execution plan):** E13-S1/S2/S3 (nav restructure: Детали/Результаты/Анализ, Details dashboard, Competitors trim), E16-S1 (Analysis teaser), E15-S1/S2/S3 (run detail: AI summary, top-5-by-virality, Summary+Publications tabs)
 - **Sprint 9 (locked, 2026-07-22 execution plan):** E14-S1..S5 — scheduled runs (schema, CRUD + arq cron dispatcher, Scheduled Runs page, Run-now/Schedule wiring, Telegram notification)
 - **Sprint 10 (re-planned 2026-07-28 `/sprint-review`):** E19-S1 (mandatory DEV smoke sweep, 39+ deferred tests including all of E18) first, then E8-S3 re-scoped — single 1990₽/mo → 2000-token subscription via Telegram Stars (D30)
-- **Sprint 11 (was proposed 2026-07-25 brainstorm session; completed out of order the same day, see the Post-Sprint-9 addition above):** E17-S1..S9 — Run Deep Analysis paid add-on (fulfills E16-S1's «Разбор запуска» teaser card): comment scraping (Apify `apidojo` actor primary / Bright Data fallback, D32), Haiku extraction + Sonnet synthesis (D33), Статистика/Рекомендации report UI, thin-coverage degrade + partial refund (E17-S9). Pricing multiplier intentionally unset until a real pilot run's `usage_events` are read (D35) — see BACKLOG.md's 2026-07-25 note and D32–D36
+- **"Sprint 11" (projection label reused — see actual `## Sprint 11` header above for what really carries this number):** this row originally projected E17-S1..S9 (Run Deep Analysis), proposed 2026-07-25 and completed out of order the same day (see the Post-Sprint-9 addition above) — it shipped years before its projected slot and never got its own numbered header, unlike E18 (also out-of-order, also header-less). The **actual** Sprint 11 (planned 2026-07-31 `/sprint-review`) is E19-S1 + E20-S1..S3 + E8-S7, per the header above.
 - **Post-MVP (not yet ordered):** E3-S3/E3-S4 (run resume, two-phase cost confirmation), E3-S5 HikerAPI switch, E7-S3 pre-public-launch hardening, E8-S4 share-to-bot, E9 Public API, E10 Content Generation, E11 IG Connection/Publishing/Analytics (spike first) — see BACKLOG.md and docs/ARCHITECTURE.md § Roadmap beyond MVP
