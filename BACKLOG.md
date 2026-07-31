@@ -20,6 +20,7 @@ Epics:
 - **E17 Run Deep Analysis** — paid add-on fulfilling E16-S1's "Разбор запуска" teaser card: on-demand deep analysis of one completed run's publications + comments (topic/format/hook frequency vs. virality, comment sentiment/complaints/praises/unanswered-questions), producing a two-tab Статистика/Рекомендации report; metered in tokens at a markup over internal cost (D26, D35)
 - **E18 Run-Centric Navigation & Redesign** — backfilled epic (see 2026-07-28 note below): replaces the per-project tab bar (E13) with a unified cross-project run feed + FAB entry point, auto-chains Deep Analysis runs onto their base run, rebuilds the run-creation dialog and scheduled-task cards to match, and reworks the Usage page around a Balance-first layout. **Supersedes E13's bottom-nav/tab-bar shape** — Детали/Результаты/Анализ tabs are gone; Competitors and Runs now live behind the burger menu and home feed respectively.
 - **E19 Pilot Verification Sweep** — cross-cutting, user-executed DEV smoke-test pass covering every deferred smoke test since Sprint 6 (39+ entries), prioritizing E18's unverified redesign first since it's the freshest and largest unverified surface
+- **E20 Performance & Scale** — deep-analysis comment-scraping speed (batch the per-post Apify calls), worker/DB capacity for concurrent users (arq `max_jobs`, connection pool sizing, replica scaling), baseline per-user/provider rate limiting (supersedes D11's "no hardening in MVP"), and an optional smaller competitor cap (supersedes D13's 50-account limit) — drafted 2026-07-31 after a stuck-deep-analysis investigation surfaced these as real, ungrounded gaps
 
 Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS auth (behind Telegram Login in priority per D18), YouTube/TikTok/Threads platforms, native mobile app (not planned — see D17), team workspaces, RU infra migration stages 2–3 (D20, infra-only, tracked outside BACKLOG.md until scheduled). Mobile card layout for tables is now scheduled (E12-S2, Sprint 6 — supersedes the horizontal-scroll-only clause of D16 per D28).
 
@@ -32,6 +33,8 @@ Post-MVP (not scheduled, first stories drafted below for E8–E11): VK ID + SMS 
 **2026-07-25, same day — E17 shipped in full, out of order:** all nine E17 stories (E17-S1..S9) were run back-to-back per direct user request ("run epic E17 Run Deep Analysis - all stories back-to-back"), ahead of Sprint 10 rather than after it as originally proposed — the token-deduction mechanism it reuses was already live independent of E8-S3, so nothing blocked starting early. See each `[E17-Sn]` entry below and DONE.md for full handovers; SPRINT.md's Sprint 11 note has the rollup.
 
 **2026-07-28 — new epic E18 backfilled at `/sprint-review` time:** between 2026-07-25 (after E17 closed) and 2026-07-28, 26 commits shipped a full navigation/redesign overhaul with no story IDs, no BACKLOG.md entries, and no DONE.md handovers at the time — found only when this sprint review scanned `git log` for untracked fixes and found the entire IA had changed underneath the docs. Backfilled here as E18-S1..S5 (all `Status: done`, real completion dates from commit history) per direct user request at review time, rather than left undocumented. See each `[E18-Sn]` entry below and DONE.md for full handovers.
+
+**2026-07-31 — DEV run investigation surfaces a stuck-job bug and new epic E20:** checking a user-reported deep analysis on DEV found it stuck in `extracting` for 2.5+ hours with zero items processed. Root cause: `process_deep_analysis` (worker.py) only caught `Exception`, not `asyncio.CancelledError` (a `BaseException`) — arq's `job_timeout` cancellation bypassed it entirely, leaving the row stuck forever instead of `failed`, violating E17-S4's own "never leave a row stuck mid-pipeline" AC. Fixed same session (mirrors `process_run`'s existing `except asyncio.CancelledError` handling one function up), tracked as **E17-S10**, pending deploy + DEV verification. The same investigation, at direct user request, produced **E20** (drafted above): comment-scraping is called once per post ([comment_scraper.py](backend/src/services/comment_scraper.py) `fetch_comments`) rather than batched, every Railway service runs at `numReplicas: 1` with arq's default `max_jobs=10` and SQLAlchemy's default connection pool (unset in [db.py](backend/src/db.py)), and there's still no per-user rate limiting beyond D11's original MVP scope. E20-S4 (50→20 account cap) is a product decision, not just engineering — flagged as such in its own entry, not assumed.
 
 ---
 
@@ -2664,3 +2667,154 @@ CLAUDE.md, backend/src/api/usage.py, backend/src/models/token_purchase.py, front
 backend/src/api/usage.py, frontend/app/(app)/usage/page.tsx, frontend/lib/api.ts
 ### Handover
 —
+
+## [E17-S10] Deep-analysis job-cancellation bug fix
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned (found + fixed 2026-07-31 during a DEV run investigation, direct user request)
+**Status:** in-progress (code + tests done this session; not yet deployed or DEV-verified)
+**Priority:** critical
+**Depends on:** none
+### Goal
+A real DEV deep analysis was found stuck in `extracting` for 2.5+ hours with zero `deep_analysis_items` created. Root cause: `process_deep_analysis` (worker.py) only caught `Exception`; `asyncio.CancelledError` is a `BaseException` in Python 3.8+, so arq's `job_timeout` cancellation (`asyncio.wait_for` cancelling the job task) bypassed the handler entirely, leaving the row permanently stuck instead of transitioning to `failed`. This directly violates E17-S4's own acceptance criterion ("never leave a row stuck mid-pipeline"). `process_run` already has the correct pattern one function up in the same file (`except asyncio.CancelledError` → mark failed, `asyncio.shield` the cleanup commit, re-raise) — this story ports that exact pattern to `process_deep_analysis`.
+### Acceptance Criteria
+- [x] `process_deep_analysis` catches `asyncio.CancelledError` separately from `Exception`, sets the analysis to `failed` with `error_message = "Превышено время выполнения"`, refunds `tokens_charged` via the existing `fail_deep_analysis` helper, commits under `asyncio.shield` (so the cleanup write survives the same cancellation that triggered it), then re-raises
+- [x] Regression test mirroring `test_process_run_cancellation_marks_failed`: start `process_deep_analysis` against a blocking `extract_deep_analysis_items` stand-in, cancel the task mid-flight, assert `status == failed`, `error_message` set, `tokens_charged` refunded
+- [ ] Deployed to DEV (push to `main`)
+- [ ] The specific stuck DEV row (`DeepAnalysis` id `88e50be4-ef62-455d-a58c-0100d9a6f585`, run `c05436da-5afc-4ca7-a8f3-ec39e32c6834`) manually marked `failed` + its 1,950 tokens refunded — the code fix only prevents *future* occurrences, this one is orphaned and needs a one-time manual correction
+### Definition of Done
+- [x] AC (code + tests) checked
+- [x] `ruff check`, `ruff format --check`, `mypy` clean on `worker.py`/`test_worker.py`
+- [ ] Deployed to DEV
+- [ ] Stuck row corrected
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated (this entry → done)
+### Smoke test
+On DEV, force a deep analysis to run past `worker_job_timeout_secs` (or temporarily lower the setting), confirm it lands in `failed` with the timeout message and a full token refund rather than staying stuck.
+### Files to read
+backend/src/worker.py (`process_run`'s existing `except asyncio.CancelledError` block for the pattern), backend/src/services/deep_analysis.py (`fail_deep_analysis`)
+### Files to create or modify
+backend/src/worker.py, backend/tests/test_worker.py
+### Handover
+Code and tests are complete (`test_process_deep_analysis_cancellation_marks_failed`, 20/20 `test_worker.py` passing, ruff/mypy clean). Blocked only on: (1) user confirmation to push to `main` (DEV auto-deploys on push), and (2) user confirmation to manually correct the orphaned stuck row on DEV via direct DB write, since that's a token-balance mutation outside the normal app flow.
+
+## [E20-S1] Batch deep-analysis comment scraping
+**Epic:** Performance & Scale
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** none
+### Goal
+Deep-analysis turnaround is dominated by comment scraping: `ApifyCommentsClient.fetch_comments` ([comment_scraper.py:57-73](backend/src/services/comment_scraper.py)) calls the `apidojo` actor **once per post**, sequentially in batches of `summary_concurrency` (5) via `extract_deep_analysis_items`'s semaphore. A 130-item run means ~26 sequential rounds of actor cold-starts. The actor's `run_input` already accepts a `startUrls` array — a single actor call with many URLs should replace the per-post call, cutting round-trip and cold-start overhead by roughly the batch size.
+### Acceptance Criteria
+- [ ] `ApifyCommentsClient` (or a new method) accepts a batch of post URLs and issues one actor run instead of N, mapping results back to their source post
+- [ ] Bright Data fallback path (`BrightDataCommentsClient`) still functions per-post for whichever posts the batched Apify call didn't cover (partial-batch failure handling) — check `_BRIGHTDATA_POLL_ATTEMPTS`/`_BRIGHTDATA_HTTP_TIMEOUT_SECS` are still sane for whatever fallback volume results
+- [ ] `deep_analysis_extraction.py`'s batching/concurrency logic updated to call the new batched method instead of looping `fetch_comments` per item
+- [ ] Cost accounting (`UsageEvent` rows, `apify_comment_query_cost_usd`/`apify_comment_overage_cost_usd`) still records per-post, not per-batch — batching is a latency change, not a pricing change
+- [ ] A real DEV timing comparison (before/after) on a run with 20+ items, recorded in this story's Handover
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing (mocked Apify client, no live network per CONVENTIONS.md)
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run a deep analysis on DEV with 20+ published items with comments enabled; confirm total wall time drops meaningfully vs. a pre-change run of similar size, and per-item comment data/costs are unaffected.
+### Files to read
+backend/src/services/comment_scraper.py, backend/src/services/deep_analysis_extraction.py, docs/ARCHITECTURE.md
+### Files to create or modify
+backend/src/services/comment_scraper.py, backend/src/services/deep_analysis_extraction.py, backend/tests/test_comment_scraper.py, backend/tests/test_deep_analysis_extraction.py
+### Handover
+—
+
+## [E20-S2] Worker & DB capacity for concurrent load
+**Epic:** Performance & Scale
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** none
+### Goal
+Every Railway service (api, worker, web) currently runs at `numReplicas: 1` on both DEV and PROD (confirmed via `railway status --json`, 2026-07-31) — no horizontal scaling anywhere. Within that single worker process, arq's `WorkerSettings` ([worker.py](backend/src/worker.py)) doesn't set `max_jobs`, so it defaults to **10 concurrent jobs total** across every user's runs and deep analyses combined; past that, jobs queue behind each other regardless of how idle the rest of the system is. The DB engine ([db.py:16](backend/src/db.py)) is created with `create_async_engine(url, pool_pre_ping=True)` and no explicit `pool_size`/`max_overflow`, so it inherits SQLAlchemy's defaults (5 + 10 = 15 connections) per process — fine for a handful of pilot users (D11), untested at real concurrency. This story is about making deliberate, measured choices for these numbers instead of relying on library defaults nobody chose.
+### Acceptance Criteria
+- [ ] `WorkerSettings.max_jobs` set explicitly (not left at arq's default), sized against Railway's worker instance resources and Apify/Anthropic account-level concurrency limits (see E20-S3 — raising `max_jobs` without provider-side guardrails just moves the bottleneck)
+- [ ] `get_engine()` sets explicit `pool_size`/`max_overflow` sized for expected concurrent API request volume, with headroom under the Postgres plan's `max_connections` (check Railway Postgres plan limit — not yet confirmed this session)
+- [ ] A documented decision (DECISIONS.md entry) on whether/when to move `api`/`worker` off `numReplicas: 1` — this story doesn't have to implement horizontal scaling, but should record the threshold (e.g. queue depth, p95 job latency) at which it becomes necessary
+- [ ] Basic capacity numbers written down somewhere durable (this story's Handover or docs/ARCHITECTURE.md): at current settings, how many concurrent runs/deep-analyses can the system actually sustain before jobs start queueing measurably
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing where applicable (config/engine construction)
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+- [ ] DECISIONS.md updated (new D-entry)
+### Smoke test
+On DEV, enqueue more concurrent runs than the old default `max_jobs` (10) and confirm the new setting's queueing behavior matches what was configured (either more headroom, or a documented, deliberate cap).
+### Files to read
+backend/src/worker.py, backend/src/db.py, backend/src/config.py, ENV.md, DECISIONS.md (D11)
+### Files to create or modify
+backend/src/worker.py, backend/src/db.py, DECISIONS.md
+### Handover
+This story doesn't by itself get the app to "1,000 users" — it's the first, contained piece (tuning what's already deployed) before any horizontal-scaling or provider-quota work (E20-S3). Railway service replica counts and Postgres plan connection limits need confirming from the dashboard/`railway status --json` before picking final numbers, not just guessed.
+
+## [E20-S3] Baseline rate limiting & provider-quota guardrails
+**Epic:** Performance & Scale
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E20-S2 (shares the "how much concurrency can we actually sustain" analysis)
+### Goal
+D11 explicitly deferred "rate limiting/hardening beyond basics" as an MVP call for a handful of pilot users. E7-S4 added some guardrails (invite code, per-user daily run cap via `max_runs_per_user_per_day`, XLSX injection escaping) but nothing governs total concurrent load against the two shared, metered, external accounts every user's runs compete for: the Apify account (`apify_api_token`, one account for all users' scraping) and the Anthropic account (`anthropic_api_key`, one key for all Haiku/Sonnet calls). At meaningful scale, a burst of simultaneous runs — including scheduled runs firing in the same 5-minute cron window (`check_scheduled_runs`) if many users pick common times — could hit Apify's per-account concurrent-actor-run limit or Anthropic's org-level RPM/TPM limits, degrading or failing runs for everyone, not just the user who triggered the burst.
+### Acceptance Criteria
+- [ ] Confirm current Apify plan's concurrent-actor-run limit and Anthropic org tier's RPM/TPM limits (external account checks, not in-repo)
+- [ ] A global concurrency governor (e.g. a semaphore or queue-depth check in the worker, separate from arq's own `max_jobs`) caps simultaneous Apify actor calls and Claude calls against those confirmed limits, so the app degrades gracefully (queues) instead of erroring when many runs overlap
+- [ ] Basic per-user request rate limiting on run-creation and other write endpoints beyond the existing daily cap (D11/E7-S4's original scope) — e.g. a short-window limiter on `POST /projects/{id}/runs` and deep-analysis creation
+- [ ] Scheduled-run cron dispatch (`fire_due_schedules`) doesn't enqueue an unbounded burst in one tick — either the global governor above absorbs it, or dispatch is deliberately staggered
+- [ ] DECISIONS.md updated: this story supersedes D11's "no rate limiting/hardening beyond basics" for the specific mechanisms it adds
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+- [ ] DECISIONS.md updated
+### Smoke test
+Trigger several runs/deep-analyses concurrently on DEV (or simulate via a lowered test limit) and confirm the system queues/degrades predictably rather than runs failing with raw provider rate-limit errors.
+### Files to read
+backend/src/worker.py, backend/src/services/scheduled_runs.py, backend/src/services/comment_scraper.py, backend/src/api/runs.py, DECISIONS.md (D11), BACKLOG.md (E7-S4)
+### Files to create or modify
+backend/src/worker.py, backend/src/services/scheduled_runs.py, backend/src/api/runs.py, backend/src/api/deep_analyses.py, DECISIONS.md
+### Handover
+Depends on knowing real Apify/Anthropic account limits, which this session couldn't check (no live provider dashboard access). Whoever picks this up should confirm those numbers first — the governor's cap values are meaningless guesses otherwise.
+
+## [E20-S4] Reduce competitor account cap (50 → 20)
+**Epic:** Performance & Scale
+**Sprint:** unassigned
+**Status:** backlog — pending product decision, not yet approved
+**Priority:** low (blocked on a decision, not effort)
+**Depends on:** none
+### Goal
+D13 set the competitor-list cap at ≤50 accounts per list as the original product spec. The user raised lowering it to 20 during this session's scale discussion. Worth separating two distinct motivations before implementing: (a) a smaller cap reduces per-run cost and duration and the odds of tripping Apify/Claude provider limits during a burst (a real lever for E20-S2/S3's concerns), but (b) it doesn't change *concurrent-user* capacity at all — that's governed by worker/DB/provider concurrency (E20-S2, E20-S3), not by how many accounts any single run covers. This story should not be implemented until the user confirms it's still wanted after seeing that distinction, since it's a user-facing product restriction (existing projects with 21-50 accounts would need a migration/grandfathering decision too).
+### Acceptance Criteria
+- [ ] Explicit user confirmation to proceed, after the cost/concurrency distinction above
+- [ ] `AccountList`/account-add validation lowered from 50 to 20 (find current enforcement point — likely `backend/src/api/*.py` competitor-list add/import endpoints)
+- [ ] Decide and implement handling for existing projects already above 20 accounts (grandfather them, or force-trim — needs explicit product decision, don't assume)
+- [ ] Frontend copy/limits (`frontend/messages/ru.json`, any "50" references in competitor-list UI) updated to match
+- [ ] DECISIONS.md entry superseding D13
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+- [ ] DECISIONS.md updated
+### Smoke test
+On DEV, confirm adding a 21st competitor is rejected (or whatever the confirmed grandfathering behavior is) with a clear Russian error, and that the existing project with 50 accounts (found during this session's investigation, project `537ad851…`) is handled per whatever grandfathering decision was made.
+### Files to read
+DECISIONS.md (D13), backend/src/api/ (competitor-list endpoints — exact file not yet located this session), frontend/messages/ru.json
+### Files to create or modify
+TBD — depends on where the 50-limit is currently enforced (not yet located)
+### Handover
+Not started — explicitly gated on user confirmation per the Goal section. The 50→20 change itself is small; the grandfathering decision for existing projects is the part that needs a real answer before writing code.

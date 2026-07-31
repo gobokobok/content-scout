@@ -342,6 +342,18 @@ async def process_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -
 
         await synthesize_report(session, analysis, user_id=analysis.requested_by)
         await session.commit()
+    except asyncio.CancelledError:
+        # CancelledError is a BaseException, not Exception — arq's job_timeout cancels the
+        # task via asyncio.wait_for, which would otherwise bypass the except Exception below
+        # and leave the row stuck in extracting/synthesizing forever (mirrors process_run's
+        # same handling above).
+        await asyncio.shield(
+            fail_deep_analysis(
+                session, analysis, "Превышено время выполнения", user_id=analysis.requested_by
+            )
+        )
+        await asyncio.shield(session.commit())
+        raise
     except Exception as exc:  # noqa: BLE001 — worker boundary: never let a deep analysis hang
         await fail_deep_analysis(session, analysis, str(exc), user_id=analysis.requested_by)
         await session.commit()

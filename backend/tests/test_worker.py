@@ -395,6 +395,37 @@ async def test_process_deep_analysis_exception_marks_failed(session: AsyncSessio
     assert user.token_balance == 160
 
 
+async def test_process_deep_analysis_cancellation_marks_failed(session: AsyncSession) -> None:
+    project = await make_project(session)
+    run = await make_run(session, project=project, duration_days=1)
+    user = await make_user(session, token_balance=100)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=60)
+    await session.commit()
+
+    inside = asyncio.Event()
+
+    async def _blocking_extract(*args, **kwargs):
+        inside.set()
+        await asyncio.sleep(60)
+
+    with patch("src.worker.extract_deep_analysis_items", side_effect=_blocking_extract):
+        task = asyncio.create_task(process_deep_analysis(session, analysis))
+        await inside.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert analysis.status == DeepAnalysisStatus.failed
+    assert analysis.error_message == "Превышено время выполнения"
+    assert analysis.completed_at is not None
+    # Same full-refund behavior as any other hard failure (E17-S4 AC: never leave a row
+    # stuck mid-pipeline) — this is the regression test for the bug where arq's job_timeout
+    # cancellation (CancelledError, a BaseException) bypassed `except Exception` entirely and
+    # left rows stuck in extracting/synthesizing forever.
+    assert analysis.tokens_charged == 0
+    assert user.token_balance == 160
+
+
 # ---------------------------------------------------------------------------
 # run_analysis auto-chain (nav overhaul): a done "deep_analysis" run starts + enqueues a
 # DeepAnalysis with no separate user step. Previously untested — the only coverage was of
