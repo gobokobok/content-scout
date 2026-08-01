@@ -200,6 +200,8 @@ Full story definitions live in `BACKLOG.md`.
 - The one item the user wants to do later (E3-S6's 8+-account wall-time timing) was split into its own story **E19-S2** so E19-S1 itself could close — `E19-S2` is unassigned, pick up whenever.
 - **Next in this sprint: E20-S2** (Worker & DB capacity), per the table above.
 
+**Untracked addition, 2026-08-01→02 (new story E2-S4, backfilled 2026-08-02):** three live-blocking competitor-list bugs were reported and fixed directly in chat, out of this sprint's declared order and with no story ID until close — same "add-story after the fact" pattern as E17-S10/E8-S8 rather than left undocumented. Backfilled as **E2-S4** (Competitor deletion, picker staleness, and picker scroll fixes). Summary: competitor deletion now soft-deletes (`Account.archived_at`) instead of hard-deleting into an unhandled `IntegrityError`, the run-creation picker refetches its competitor list instead of trusting a stale page-load snapshot, and the picker's list box no longer gets crushed by flex-shrink (`shrink-0` on a nested `overflow-hidden` flex item — see BACKLOG.md's `[E2-S4]` Changelog for the full DevTools-driven root-cause trail). Also surfaced and documented a Railway build-cache gotcha (stuck image digest across deploys, worked around via an env-var cache bust) extending `[E17-S10]`'s existing `--path-as-root` deploy note. E20-S2 (Worker & DB capacity) is still next in this sprint's declared order.
+
 ## Sprint plan (projection, adjust at each /sprint-review)
 
 - **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)
