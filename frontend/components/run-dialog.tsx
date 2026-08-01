@@ -265,7 +265,7 @@ export function RunDialog({
               <Plus className="h-4 w-4 shrink-0" />
               {tCompetitors("addCompetitorButton")}
             </button>
-            <div className="flex flex-col overflow-hidden rounded-card border border-border">
+            <div className="flex shrink-0 flex-col overflow-hidden rounded-card border border-border">
               {localAccounts.length === 0 && (
                 <p className="p-4 text-sm text-secondary">{t("noAccounts")}</p>
               )}

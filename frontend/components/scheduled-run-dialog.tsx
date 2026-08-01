@@ -208,7 +208,7 @@ export function ScheduledRunDialog({
             <span className="text-sm font-semibold">{tCompetitors("addCompetitorButton")}</span>
           </button>
 
-          <div className="flex flex-col overflow-hidden rounded-card border border-border">
+          <div className="flex shrink-0 flex-col overflow-hidden rounded-card border border-border">
             {localAccounts.length === 0 && (
               <p className="p-4 text-sm text-secondary">{t("noAccounts")}</p>
             )}
