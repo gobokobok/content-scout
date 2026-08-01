@@ -198,8 +198,19 @@ export default function RunFeedPage() {
     return () => clearInterval(handle);
   }, [runs, loadFeed]);
 
-  function onPickRunType(runType: RunType) {
+  async function onPickRunType(runType: RunType) {
     setPickerOpen(false);
+    // accounts is only loaded once on page mount — refresh it before the dialog mounts so a
+    // competitor added since then (elsewhere, or in a still-open tab) shows up in the picker.
+    // RunDialog only seeds its local selection from this prop once per mount, so the fetch
+    // has to land before setDialogRunType, not race it.
+    if (defaultProject) {
+      try {
+        setAccounts(await api.listAccounts(defaultProject.id));
+      } catch {
+        // Fall through and open with whatever accounts we already have.
+      }
+    }
     setDialogRunType(runType);
   }
 

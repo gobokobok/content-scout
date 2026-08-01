@@ -74,7 +74,17 @@ export default function ResultsTabPage() {
         </button>
         {!isArchived && (
           <button
-            onClick={() => setRunDialogOpen(true)}
+            onClick={async () => {
+              // accounts is only loaded once on page mount — refresh it before the dialog
+              // mounts so a competitor added since then shows up in the picker (RunDialog
+              // only seeds its local selection from this prop once per mount).
+              try {
+                setAccounts(await api.listAccounts(params.id));
+              } catch {
+                // Fall through and open with whatever accounts we already have.
+              }
+              setRunDialogOpen(true);
+            }}
             disabled={accounts === null || accounts.length === 0}
             className="flex items-center gap-1.5 rounded-chip bg-lime px-3.5 py-2 text-sm font-semibold text-ink shadow-[0_6px_16px_rgba(140,170,20,0.28)] transition-all active:scale-[0.98] disabled:opacity-40 disabled:shadow-none"
           >
