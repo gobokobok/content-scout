@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -104,7 +104,7 @@ async def list_accounts(
     accounts = (
         await session.scalars(
             select(Account)
-            .where(Account.account_list_id == account_list.id)
+            .where(Account.account_list_id == account_list.id, Account.archived_at.is_(None))
             .order_by(Account.created_at)
         )
     ).all()
@@ -121,8 +121,12 @@ async def add_accounts(
     existing = (
         await session.scalars(select(Account).where(Account.account_list_id == account_list.id))
     ).all()
-    existing_urls = {a.normalized_url for a in existing}
-    slots_left = MAX_ACCOUNTS_PER_LIST - len(existing)
+    active_existing = [a for a in existing if a.archived_at is None]
+    active_urls = {a.normalized_url for a in active_existing}
+    # A previously archived account (same normalized_url) is reactivated in place rather than
+    # erroring on the unique constraint — preserves its scrape history instead of recreating it.
+    archived_by_url = {a.normalized_url: a for a in existing if a.archived_at is not None}
+    slots_left = MAX_ACCOUNTS_PER_LIST - len(active_existing)
 
     added: list[AccountOut] = []
     errors: list[AddAccountError] = []
@@ -138,7 +142,7 @@ async def add_accounts(
             errors.append(AddAccountError(input=line, message_ru=exc.message_ru))
             continue
 
-        if normalized.normalized_url in existing_urls or normalized.normalized_url in seen_in_batch:
+        if normalized.normalized_url in active_urls or normalized.normalized_url in seen_in_batch:
             continue  # duplicate — silently deduped per AC
 
         if slots_left <= 0:
@@ -148,6 +152,16 @@ async def add_accounts(
                     message_ru=f"Достигнут лимит {MAX_ACCOUNTS_PER_LIST} аккаунтов на список.",
                 )
             )
+            continue
+
+        archived_match = archived_by_url.get(normalized.normalized_url)
+        if archived_match is not None:
+            archived_match.archived_at = None
+            archived_match.input_url = line
+            await session.flush()
+            added.append(AccountOut.from_model(archived_match))
+            seen_in_batch.add(normalized.normalized_url)
+            slots_left -= 1
             continue
 
         account = Account(
@@ -165,7 +179,7 @@ async def add_accounts(
     await session.commit()
     for account_out in added:
         await enqueue_profile_fetch(account_out.id, user.id)
-    total = len(existing) + len(added)
+    total = len(active_existing) + len(added)
     return AddAccountsOut(added=added, errors=errors, total=total)
 
 
@@ -181,5 +195,10 @@ async def remove_account(
     )
     if account is None:
         raise ACCOUNT_NOT_FOUND
-    await session.delete(account)
+
+    # Soft delete: content_items/shortlist_items/deep_analysis_items from past runs reference
+    # this account, and removing a competitor must not erase that history. Re-adding the same
+    # account later (add_accounts) un-archives this same row instead of creating a new one.
+    if account.archived_at is None:
+        account.archived_at = datetime.now(UTC)
     await session.commit()

@@ -1,13 +1,25 @@
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.tokens import create_access_token
 from src.db import get_session
 from src.main import app
-from tests.conftest import make_project, make_user, make_workspace
+from src.models import ContentItem, DeepAnalysisItem, ShortlistItem
+from tests.conftest import (
+    make_account,
+    make_account_list,
+    make_content_item,
+    make_deep_analysis,
+    make_project,
+    make_run,
+    make_user,
+    make_workspace,
+)
 
 
 class _TestClient(AsyncClient):
@@ -128,6 +140,100 @@ async def test_remove_account(mock_enqueue: AsyncMock, session: AsyncSession) ->
 
         resp = await c.get(f"/projects/{project.id}/accounts", headers=auth_headers(owner.id))
         assert resp.json() == []
+
+
+async def test_remove_account_with_scrape_history_archives_not_deletes(
+    session: AsyncSession,
+) -> None:
+    # content_items.account_id (and shortlist_items/deep_analysis_items one level further down
+    # via content_item_id) has no ON DELETE cascade — a hard delete used to fail with an
+    # unhandled IntegrityError. Removing a competitor now archives instead, so history survives.
+    owner, project = await _setup_project(session)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
+    run = await make_run(session, project=project, requested_by=owner)
+    item = await make_content_item(session, run=run, account=account)
+    analysis = await make_deep_analysis(session, run=run, requested_by=owner)
+
+    session.add(ShortlistItem(project_id=project.id, content_item_id=item.id, added_by=owner.id))
+    session.add(DeepAnalysisItem(deep_analysis_id=analysis.id, content_item_id=item.id))
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.delete(
+            f"/projects/{project.id}/accounts/{account.id}", headers=auth_headers(owner.id)
+        )
+        assert resp.status_code == 204
+
+    await session.refresh(account)
+    assert account.archived_at is not None
+    assert (await session.scalar(select(ContentItem).where(ContentItem.id == item.id))) is not None
+    assert (
+        await session.scalar(select(ShortlistItem).where(ShortlistItem.content_item_id == item.id))
+    ) is not None
+    assert (
+        await session.scalar(
+            select(DeepAnalysisItem).where(DeepAnalysisItem.content_item_id == item.id)
+        )
+    ) is not None
+
+
+@patch("src.api.accounts.enqueue_profile_fetch", new_callable=AsyncMock)
+async def test_readding_archived_account_reactivates_it(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    owner, project = await _setup_project(session)
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/accounts",
+            json={"entries": ["@comeback"]},
+            headers=auth_headers(owner.id),
+        )
+        original_id = resp.json()["added"][0]["id"]
+
+        resp = await c.delete(
+            f"/projects/{project.id}/accounts/{original_id}", headers=auth_headers(owner.id)
+        )
+        assert resp.status_code == 204
+
+        resp = await c.post(
+            f"/projects/{project.id}/accounts",
+            json={"entries": ["@comeback"]},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert len(body["added"]) == 1
+        assert body["added"][0]["id"] == original_id
+        assert body["total"] == 1
+
+        resp = await c.get(f"/projects/{project.id}/accounts", headers=auth_headers(owner.id))
+        assert [a["id"] for a in resp.json()] == [original_id]
+
+
+@patch("src.api.accounts.enqueue_profile_fetch", new_callable=AsyncMock)
+async def test_archived_accounts_dont_count_against_the_cap_trigger(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    # The DB-level 50-per-list safeguard trigger used to count all rows, so 50 archived
+    # accounts (0 active) would still block a genuinely new INSERT — defeats archiving.
+    owner, project = await _setup_project(session)
+    account_list = await make_account_list(session, project=project)
+    for _ in range(50):
+        await make_account(session, account_list=account_list, archived_at=datetime.now(UTC))
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/accounts",
+            json={"entries": ["@freshslot"]},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert len(body["added"]) == 1
+        assert body["total"] == 1
 
 
 async def test_accounts_scoped_to_owning_workspace(session: AsyncSession) -> None:

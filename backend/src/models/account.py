@@ -38,3 +38,7 @@ class Account(UuidPk, CreatedAt, Base):
     followers_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     display_name: Mapped[str | None] = mapped_column(String(200))
     avatar_url: Mapped[str | None] = mapped_column(String(1000))
+    # Soft-delete (mirrors Project.archived_at): removing a competitor must not destroy the
+    # content_items/shortlist_items/deep_analysis_items history tied to past runs. Re-adding
+    # the same normalized_url un-archives the row instead of erroring on the unique constraint.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
