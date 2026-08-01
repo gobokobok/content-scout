@@ -7,6 +7,10 @@ declare global {
         initData: string;
         ready: () => void;
         expand: () => void;
+        // Bot API 7.7+ — without this, Telegram's own swipe-to-close gesture competes with
+        // (and usually wins over) touch scrolling inside nested scrollable elements like the
+        // competitor-picker bottom sheet, so vertical drags never reach it.
+        disableVerticalSwipes?: () => void;
         // Bot API 8.0+ — may be absent on older Telegram clients, check before calling.
         downloadFile?: (
           params: { url: string; file_name: string },
@@ -35,6 +39,7 @@ export function initTelegramWebApp(): void {
   if (!isTelegramContext()) return;
   window.Telegram!.WebApp!.ready();
   window.Telegram!.WebApp!.expand();
+  window.Telegram!.WebApp!.disableVerticalSwipes?.();
 }
 
 /** True when the Telegram client supports the native downloadFile popup (Bot API 8.0+). Regular
