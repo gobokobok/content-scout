@@ -388,6 +388,34 @@ backend/src/platforms/base.py, backend/src/platforms/instagram.py, backend/src/m
 - Frontend: `frontend/app/(app)/projects/[id]/competitors/page.tsx` — row now shows an avatar circle (Users icon fallback), display_name as primary text with `@handle` + followers + "обновлено DD.MM" as secondary text, or «нет данных» when nothing has been fetched yet. New `Competitors.noData`/`Competitors.updatedLabel` i18n keys.
 - Next story in this sprint (E5-S3, comments column) touches `api/items.py`/`results-table.tsx`/`xlsx_export.py` only — no overlap with this story's files.
 
+## [E2-S4] Competitor deletion, picker staleness, and picker scroll fixes
+**Epic:** Projects & Competitor Lists
+**Sprint:** 11
+**Status:** backlog
+**Priority:** high
+**Depends on:** E2-S2
+### Goal
+Fix three live-blocking bugs surfaced by direct user testing on DEV: deleting a competitor with any scrape history failed outright, the run-creation competitor picker showed a stale competitor list, and the picker's competitor list didn't scroll past the first few rows.
+### Acceptance Criteria
+- [ ] Deleting a competitor that has ever appeared in a completed run succeeds instead of hitting an unhandled `IntegrityError`
+- [ ] Removing a competitor preserves its scrape history (`content_items`, `shortlist_items`, `deep_analysis_items`) rather than deleting it
+- [ ] Re-adding the same competitor URL after removal reactivates the same account (same id, history intact) instead of erroring on the unique constraint
+- [ ] The run-creation competitor picker always reflects the current competitor list, not a stale page-load-time snapshot
+- [ ] The competitor picker's list scrolls correctly when it exceeds the visible area, in both the web app and the Telegram Mini App
+### Definition of Done
+- [x] All AC checked
+- [x] Tests written and passing (3 new/rewritten backend tests in `test_accounts.py`; full suite 323 passed; ruff/mypy/tsc/eslint clean)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+User's own live retest on DEV, both web and Telegram Mini App: delete a competitor with run history (succeeds), re-add it (reactivates), open the run-creation picker with 9+ competitors and scroll the list (works) — all confirmed live by the user.
+### Files to read
+CLAUDE.md, backend/src/api/accounts.py, backend/src/models/account.py, frontend/components/run-dialog.tsx
+### Files to create or modify
+backend/src/api/accounts.py, backend/src/models/account.py, backend/alembic/versions/a2b3c4d5e6f7_add_archived_at_to_accounts.py, backend/tests/test_accounts.py, frontend/components/run-dialog.tsx, frontend/components/scheduled-run-dialog.tsx, frontend/components/ui/bottom-sheet.tsx, frontend/lib/telegram-webapp.ts, frontend/app/(app)/page.tsx, frontend/app/(app)/projects/[id]/results/page.tsx
+
 ## [E3-S1] Run creation, cost estimate, worker skeleton
 **Epic:** Analysis Pipeline
 **Sprint:** 2
