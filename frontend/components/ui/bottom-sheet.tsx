@@ -38,7 +38,7 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
           </div>
         )}
         <div
-          className="overflow-y-auto pt-3"
+          className="min-h-0 flex-1 overflow-y-auto pt-3"
           style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
         >
           {children}

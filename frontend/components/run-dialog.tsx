@@ -255,7 +255,7 @@ export function RunDialog({
             <span className="w-[52px]" />
           </div>
           <div
-            className="flex flex-col gap-3 overflow-y-auto p-4"
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
             style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
           >
             <button
@@ -344,7 +344,7 @@ export function RunDialog({
           </div>
           <form
             onSubmit={(e) => void onAddCompetitor(e)}
-            className="flex flex-col gap-3 overflow-y-auto p-4"
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
             style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
           >
             <textarea
@@ -400,7 +400,7 @@ export function RunDialog({
           </button>
         </div>
         <div
-          className="overflow-y-auto"
+          className="min-h-0 flex-1 overflow-y-auto"
           style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
         >
           {!run && !scheduled && (
