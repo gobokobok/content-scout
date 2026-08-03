@@ -2952,7 +2952,7 @@ Every Railway service (api, worker, web) currently runs at `numReplicas: 1` on b
 ### Definition of Done
 - [x] All AC checked
 - [x] Tests written and passing where applicable (config/engine construction)
-- [ ] CI green, deployed to DEV — not yet pushed, pending user go-ahead
+- [x] CI green, deployed to DEV — pushed 2026-08-03, CI green (`frontend`/`backend`/`deploy-dev` all passed), DEV `/health` confirmed post-deploy
 - [ ] Smoke test passed — deferred, see Handover
 - [x] DONE.md updated
 - [x] BACKLOG.md updated
