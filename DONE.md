@@ -12,7 +12,7 @@ Completed stories land here, newest first. Format:
 - New **D47**, superseding D11 for these specific mechanisms.
 - Tests: new `tests/test_apify_governor.py` (governor concurrency/exception-release/limit behavior, via a small in-memory fake mirroring the real Lua script). `tests/test_guardrails.py` gained a `key`-bucketing unit test plus endpoint-level 429 tests for both new call sites. `test_instagram_platform.py`/`test_comment_scraper.py`'s hand-built test doubles needed a `_max_concurrent_actor_runs` attribute added (same pattern as E20-S2's `_memory_mbytes`). Full suite: 331 passed (up from 325). `ruff`/`ruff format --check`/`mypy src` all clean.
 - This session's sandbox has a working local Redis (`redis-cli ping` → `PONG`), same discovery as the earlier "local Postgres available" finding — the new tests exercise it directly (real Redis, not just mocks) rather than deferring that verification, since per-user-id bucketing means fresh test users never collide across the suite.
-**Smoke test:** DEFERRED — needs a real DEV deploy plus either a live Apify console pull (to watch queueing under real concurrent runs) or several genuinely concurrent triggered runs, same established pattern as every other Apify-account-dependent verification in this project.
+**Smoke test:** DEFERRED — pushed and deployed to DEV (commit `968e986`, CI green, `/health` confirmed), but observing the governor under real concurrent load still needs either a live Apify console pull during real concurrent DEV runs or several genuinely concurrent triggered runs, same established pattern as every other Apify-account-dependent verification in this project.
 **Promoted to backlog:** none.
 
 ## [E20-S2] Worker & DB capacity for concurrent load

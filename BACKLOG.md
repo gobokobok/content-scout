@@ -2999,13 +2999,13 @@ D11 explicitly deferred "rate limiting/hardening beyond basics" as an MVP call f
 ### Definition of Done
 - [x] All AC checked
 - [x] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
+- [x] CI green, deployed to DEV — pushed 2026-08-03 (commit `968e986`), CI green (`frontend`/`backend`/`deploy-dev` all passed), DEV `/health` confirmed post-deploy
+- [ ] Smoke test passed — deferred, see below
 - [x] DONE.md updated
 - [x] BACKLOG.md updated
 - [x] DECISIONS.md updated
 ### Smoke test
-Trigger several runs/deep-analyses concurrently on DEV (or simulate via a lowered test limit) and confirm the system queues/degrades predictably rather than runs failing with raw provider rate-limit errors — specifically, confirm the governor keeps simultaneous Apify calls at or under 25 (D44) even when `max_jobs`/`scrape_concurrency` would otherwise allow more. **Deferred** — same established pattern as every other Apify-account-dependent check in this project; needs a real DEV deploy plus either a live Apify console pull or several genuinely concurrent runs to observe queueing.
+Trigger several runs/deep-analyses concurrently on DEV (or simulate via a lowered test limit) and confirm the system queues/degrades predictably rather than runs failing with raw provider rate-limit errors — specifically, confirm the governor keeps simultaneous Apify calls at or under 25 (D44) even when `max_jobs`/`scrape_concurrency` would otherwise allow more. **Deferred** — same established pattern as every other Apify-account-dependent check in this project; needs either a live Apify console pull during real concurrent DEV runs or several genuinely concurrent triggered runs to observe queueing (deploy itself is done, see DoD above).
 ### Files to read
 backend/src/worker.py, backend/src/services/scheduled_runs.py, backend/src/services/comment_scraper.py, backend/src/api/runs.py, DECISIONS.md (D11, D44), BACKLOG.md (E7-S4)
 ### Files to create or modify
