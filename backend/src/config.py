@@ -103,6 +103,11 @@ class Settings(BaseSettings):
 
     # E17-S4: synthesis is the one non-Haiku call in the pipeline (D33).
     deep_analysis_synthesis_model: str = "claude-sonnet-5"
+    # Was hardcoded at 4096 — a live DEV failure (2026-08-03) surfaced no other error signal
+    # for a 10-item/100-comment run, and the REPORT_TOOL schema's required fields (multiple
+    # arrays across stats+recommendations, all in Russian, which tokenizes less densely than
+    # English) are plausibly enough to hit that ceiling mid-JSON, breaking the tool_use block.
+    deep_analysis_synthesis_max_tokens: int = 8192
 
     # E17-S9: below this share of `done` items having any fetched comments, the report
     # degrades to content-layer-only (comment-derived sections stripped) and the customer is

@@ -283,7 +283,7 @@ async def synthesize_report(
         _client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
         response = await _client.messages.create(  # type: ignore[call-overload]
             model=settings.deep_analysis_synthesis_model,
-            max_tokens=4096,
+            max_tokens=settings.deep_analysis_synthesis_max_tokens,
             system=SYSTEM_PROMPT,
             tools=[REPORT_TOOL],
             tool_choice={"type": "tool", "name": "submit_deep_analysis_report"},
@@ -297,6 +297,16 @@ async def synthesize_report(
 
         tool_use = next((b for b in response.content if b.type == "tool_use"), None)
         if tool_use is None or not isinstance(tool_use.input, dict):
+            # No exception was raised, so the except-Exception branch below (which does log)
+            # never fires for this path — log explicitly, since stop_reason="max_tokens" here
+            # is the fingerprint of a truncated tool call (see deep_analysis_synthesis_max_tokens).
+            logger.warning(
+                "deep analysis synthesis: no usable tool_use block for analysis_id=%s "
+                "(stop_reason=%s, content_types=%s)",
+                analysis.id,
+                response.stop_reason,
+                [b.type for b in response.content],
+            )
             await fail_deep_analysis(session, analysis, _UNPARSEABLE_MESSAGE_RU, user_id=user_id)
             return
 
@@ -304,6 +314,13 @@ async def synthesize_report(
         stats = data.get("stats")
         recommendations = data.get("recommendations")
         if not isinstance(stats, dict) or not isinstance(recommendations, dict):
+            logger.warning(
+                "deep analysis synthesis: tool_use missing stats/recommendations for "
+                "analysis_id=%s (stop_reason=%s, keys=%s)",
+                analysis.id,
+                response.stop_reason,
+                list(data.keys()),
+            )
             await fail_deep_analysis(session, analysis, _UNPARSEABLE_MESSAGE_RU, user_id=user_id)
             return
 

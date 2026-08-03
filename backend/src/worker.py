@@ -43,6 +43,13 @@ from src.services.summarizer import summarize_run_items
 from src.services.telegram_notify import notify_run_complete
 from src.services.usage import rollup_run_totals
 
+# arq's own logging.config.dictConfig only configures the "arq" namespace (see arq/logs.py) —
+# it never touches the root logger, so every `logging.getLogger(__name__)` call anywhere in
+# src/ was silently going nowhere in the worker process (found 2026-08-03 debugging a
+# deep-analysis failure with zero log trace anywhere despite an explicit logger.exception call
+# on the failure path). Mirrors the same fix in main.py for the api process.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
 logger = logging.getLogger(__name__)
 
 _SUMMARIZER_HTTP_TIMEOUT = 10.0

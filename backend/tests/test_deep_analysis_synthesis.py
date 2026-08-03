@@ -1,4 +1,5 @@
 import copy
+import logging
 from types import SimpleNamespace
 
 from sqlalchemy import select
@@ -38,7 +39,9 @@ _VALID_REPORT = {
 }
 
 
-def _tool_use_response(data: dict, input_tokens: int = 500, output_tokens: int = 300):
+def _tool_use_response(
+    data: dict, input_tokens: int = 500, output_tokens: int = 300, stop_reason: str = "tool_use"
+):
     # deepcopy: synthesize_report mutates stats/recommendations in place when degrading
     # coverage (E17-S9) — sharing the module-level _VALID_REPORT dict across tests without
     # copying would let one test's mutation leak into every test that runs after it.
@@ -49,6 +52,7 @@ def _tool_use_response(data: dict, input_tokens: int = 500, output_tokens: int =
             )
         ],
         usage=SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens),
+        stop_reason=stop_reason,
     )
 
 
@@ -174,6 +178,7 @@ async def test_synthesize_report_missing_tool_use_marks_failed(session: AsyncSes
     text_only_response = SimpleNamespace(
         content=[SimpleNamespace(type="text", text="не могу выполнить")],
         usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+        stop_reason="end_turn",
     )
     fake_client = _FakeClient(text_only_response)
     await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
@@ -268,3 +273,32 @@ async def test_synthesize_report_uses_configured_sonnet_model(session: AsyncSess
         "type": "tool",
         "name": "submit_deep_analysis_report",
     }
+    assert fake_client.messages.calls[0]["max_tokens"] == 8192
+
+
+async def test_synthesize_report_truncated_response_marks_failed_and_logs_stop_reason(
+    session: AsyncSession, caplog
+) -> None:
+    """Reproduces the 2026-08-03 DEV incident: Sonnet hit its output-token ceiling mid tool
+    call, so no tool_use block came back at all — no exception raised, so the except-Exception
+    branch (which does log) never fires. The stop_reason must be logged from this path directly,
+    otherwise there is zero trace of why the analysis failed anywhere but the DB row itself."""
+    user = await make_user(session)
+    run = await make_run(session, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    await _make_done_extraction_item(session, run, deep_analysis_id=analysis.id)
+    await session.commit()
+
+    truncated_response = SimpleNamespace(
+        content=[],
+        usage=SimpleNamespace(input_tokens=6000, output_tokens=8192),
+        stop_reason="max_tokens",
+    )
+    fake_client = _FakeClient(truncated_response)
+    with caplog.at_level(logging.WARNING):
+        await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert analysis.status == DeepAnalysisStatus.failed
+    assert "max_tokens" in caplog.text
+    assert str(analysis.id) in caplog.text

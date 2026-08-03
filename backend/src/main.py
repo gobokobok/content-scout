@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -23,6 +24,12 @@ from src.api.telegram_webhook import router as telegram_router
 from src.api.telegram_webhook import setup_webhook_and_menu
 from src.api.usage import router as usage_router
 from src.config import get_settings
+
+# Neither uvicorn nor arq (worker.py) configures the root logger's handlers on our behalf —
+# uvicorn's own dictConfig only sets up its own "uvicorn.*" namespace loggers, and arq's only
+# configures "arq" — so every `logging.getLogger(__name__)` call in src/ was silently going
+# nowhere (found 2026-08-03 debugging a deep-analysis failure with zero log trace anywhere).
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 settings = get_settings()
 
