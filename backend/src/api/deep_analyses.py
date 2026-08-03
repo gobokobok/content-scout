@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
+from src.middleware.rate_limit import check_rate_limit
 from src.models import AnalysisRun, ContentItem, DeepAnalysis, DeepAnalysisItem, User
 from src.services.deep_analysis import (
     InsufficientTokenBalanceError,
@@ -124,9 +125,17 @@ async def estimate_deep_analysis(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_deep_analysis(
-    project_id: uuid.UUID, run_id: uuid.UUID, user: CurrentUser, session: SessionDep
+    project_id: uuid.UUID,
+    run_id: uuid.UUID,
+    user: CurrentUser,
+    session: SessionDep,
+    request: Request,
 ) -> DeepAnalysisOut:
     await _get_project(session, user, project_id)
+    settings = get_settings()
+    await check_rate_limit(
+        request, limit=settings.write_endpoint_rate_limit_per_minute, key=str(user.id)
+    )
     run = await session.get(AnalysisRun, run_id)
     if run is None or run.project_id != project_id:
         raise RUN_NOT_FOUND
@@ -134,7 +143,6 @@ async def create_deep_analysis(
     db_user = await session.get(User, user.id)
     if db_user is None:
         raise RUN_NOT_FOUND
-    settings = get_settings()
     try:
         analysis = await start_deep_analysis(session, run, db_user, settings)
     except RunNotDoneError:

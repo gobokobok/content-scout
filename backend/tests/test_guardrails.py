@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -13,12 +13,14 @@ from src.auth.tokens import create_access_token
 from src.config import Settings, get_settings
 from src.db import get_session
 from src.main import app
-from src.models import AnalysisRun
+from src.models import AnalysisRun, RunStatus
 from src.services.xlsx_export import _safe_text
 from tests.conftest import (
     make_account,
     make_account_list,
+    make_content_item,
     make_project,
+    make_run,
     make_user,
     make_workspace,
 )
@@ -167,3 +169,125 @@ async def test_rate_limit_blocks_after_threshold() -> None:
 
     assert exc_info.value.status_code == 429
     assert exc_info.value.detail["code"] == "rate_limited"
+
+
+async def test_rate_limit_buckets_by_key_not_just_ip() -> None:
+    """Two different `key` values (e.g. two user ids) from the same IP/path must not share a
+    bucket — the point of keying by user id on authenticated write endpoints."""
+    from src.middleware.rate_limit import check_rate_limit
+
+    counts: dict[str, int] = {}
+
+    async def _incr(key: str) -> int:
+        counts[key] = counts.get(key, 0) + 1
+        return counts[key]
+
+    async def _expire(_key: str, _ttl: int) -> None:
+        pass
+
+    mock_redis = MagicMock()
+    mock_redis.incr = _incr
+    mock_redis.expire = _expire
+
+    async def _get_mock_pool():
+        return mock_redis
+
+    from starlette.datastructures import Headers
+    from starlette.requests import Request
+
+    scope = {
+        "type": "http",
+        "method": "POST",
+        "path": "/projects/x/runs",
+        "query_string": b"",
+        "headers": Headers().raw,
+    }
+
+    with patch("src.middleware.rate_limit.get_redis_pool", _get_mock_pool):
+        for _ in range(3):
+            req = Request(scope)
+            req._client = ("127.0.0.1", 9999)  # type: ignore[attr-defined]
+            await check_rate_limit(req, limit=3, key="user-a")
+
+        # user-b, same IP/path, must still have its own fresh budget.
+        req = Request(scope)
+        req._client = ("127.0.0.1", 9999)  # type: ignore[attr-defined]
+        await check_rate_limit(req, limit=3, key="user-b")
+
+    user_a_keys = [k for k in counts if "user-a" in k]
+    user_b_keys = [k for k in counts if "user-b" in k]
+    assert len(user_a_keys) == 1 and counts[user_a_keys[0]] == 3
+    assert len(user_b_keys) == 1 and counts[user_b_keys[0]] == 1
+
+
+# ---------------------------------------------------------------------------
+# Per-user rate limiting on run/deep-analysis creation (E20-S3)
+# ---------------------------------------------------------------------------
+
+
+@patch("src.api.runs.enqueue_run", new_callable=AsyncMock)
+async def test_run_creation_rate_limited_per_user(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    user = await make_user(session)
+    workspace = await make_workspace(session, owner=user)
+    project = await make_project(session, workspace=workspace)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    await session.commit()
+
+    settings = get_settings()
+    overridden = Settings(**{**settings.model_dump(), "write_endpoint_rate_limit_per_minute": 2})
+
+    async with await _client(session) as c:
+        with patch("src.api.runs.get_settings", return_value=overridden):
+            for _ in range(2):
+                resp = await c.post(
+                    f"/projects/{project.id}/runs",
+                    json={"duration_days": 1},
+                    headers=auth_headers(user.id),
+                )
+                assert resp.status_code == 201
+
+            resp = await c.post(
+                f"/projects/{project.id}/runs",
+                json={"duration_days": 1},
+                headers=auth_headers(user.id),
+            )
+
+    assert resp.status_code == 429
+    assert resp.json()["detail"]["code"] == "rate_limited"
+    assert mock_enqueue.await_count == 2
+
+
+@patch("src.api.deep_analyses.enqueue_deep_analysis", new_callable=AsyncMock)
+async def test_deep_analysis_creation_rate_limited_per_user(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    user = await make_user(session, token_balance=1000)
+    workspace = await make_workspace(session, owner=user)
+    project = await make_project(session, workspace=workspace)
+    run = await make_run(session, project=project, requested_by=user)
+    run.status = RunStatus.done
+    await make_content_item(session, run=run)
+    await session.commit()
+
+    settings = get_settings()
+    overridden = Settings(**{**settings.model_dump(), "write_endpoint_rate_limit_per_minute": 1})
+
+    async with await _client(session) as c:
+        with patch("src.api.deep_analyses.get_settings", return_value=overridden):
+            resp = await c.post(
+                f"/projects/{project.id}/runs/{run.id}/deep-analyses",
+                headers=auth_headers(user.id),
+            )
+            assert resp.status_code == 201
+
+            resp = await c.post(
+                f"/projects/{project.id}/runs/{run.id}/deep-analyses",
+                headers=auth_headers(user.id),
+            )
+
+    assert resp.status_code == 429
+    assert resp.json()["detail"]["code"] == "rate_limited"
+    assert mock_enqueue.await_count == 1

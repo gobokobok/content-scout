@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from src.api.scheduled_runs import SCHEDULE_LIST_VISIBLE, ScheduledRunOut
 from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
+from src.middleware.rate_limit import check_rate_limit
 from src.models import AnalysisRun, DeepAnalysis, DeepAnalysisItem, Project, ScheduledRun, User
 from src.services.estimator import estimate_run
 from src.services.projects import ProjectNotFoundError, get_owned_project
@@ -204,9 +205,16 @@ async def estimate_project_run(
     "/projects/{project_id}/runs", response_model=RunOut, status_code=status.HTTP_201_CREATED
 )
 async def create_run(
-    project_id: uuid.UUID, body: RunRequestIn, user: CurrentUser, session: SessionDep
+    project_id: uuid.UUID,
+    body: RunRequestIn,
+    user: CurrentUser,
+    session: SessionDep,
+    request: Request,
 ) -> RunOut:
     await _get_project(session, user, project_id)
+    await check_rate_limit(
+        request, limit=get_settings().write_endpoint_rate_limit_per_minute, key=str(user.id)
+    )
     await _check_run_quota(session, user.id)
     db_user = await session.get(User, user.id)
     if db_user is not None and db_user.token_balance <= 0:

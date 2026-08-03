@@ -17,6 +17,7 @@ from src.models import (
     ContentItem,
     UsageEvent,
 )
+from src.services.apify_governor import acquire_apify_slot
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ class ApifyCommentsClient:
         self._actor_id = settings.apify_comments_actor_id
         self._max_charge_usd = Decimal(str(settings.apify_max_charge_per_fetch_usd))
         self._memory_mbytes = settings.apify_actor_memory_mbytes
+        self._max_concurrent_actor_runs = settings.apify_max_concurrent_actor_runs
 
     async def fetch_comments(self, post_url: str, limit: int) -> list[RawComment]:
         last_exc: Exception | None = None
@@ -67,12 +69,13 @@ class ApifyCommentsClient:
         raise ApifyCommentsFailedError(str(last_exc)) from last_exc
 
     async def _fetch_once(self, post_url: str, limit: int) -> list[RawComment]:
-        run = await self._client.actor(self._actor_id).call(
-            run_input={"startUrls": [{"url": post_url}], "resultsLimit": limit},
-            run_timeout=timedelta(seconds=_APIFY_RUN_TIMEOUT_SECS),
-            max_total_charge_usd=self._max_charge_usd,
-            memory_mbytes=self._memory_mbytes,
-        )
+        async with acquire_apify_slot(self._max_concurrent_actor_runs):
+            run = await self._client.actor(self._actor_id).call(
+                run_input={"startUrls": [{"url": post_url}], "resultsLimit": limit},
+                run_timeout=timedelta(seconds=_APIFY_RUN_TIMEOUT_SECS),
+                max_total_charge_usd=self._max_charge_usd,
+                memory_mbytes=self._memory_mbytes,
+            )
         if run is None or run.status != "SUCCEEDED":
             status = run.status if run else "no run"
             raise ApifyCommentsFailedError(f"apidojo comments run for {post_url}: {status}")

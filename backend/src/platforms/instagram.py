@@ -9,6 +9,7 @@ from apify_client import ApifyClientAsync
 from src.config import get_settings
 from src.models import Account, ContentType
 from src.platforms.base import ProfileInfo, RawContentItem
+from src.services.apify_governor import acquire_apify_slot
 
 
 class ApifyRunFailedError(Exception):
@@ -38,6 +39,7 @@ class InstagramPlatform:
         self._actor_id = settings.apify_ig_actor_id
         self._max_charge_usd = Decimal(str(settings.apify_max_charge_per_fetch_usd))
         self._memory_mbytes = settings.apify_actor_memory_mbytes
+        self._max_concurrent_actor_runs = settings.apify_max_concurrent_actor_runs
 
     async def fetch_content(
         self, account: Account, *, since: datetime | None, limit: int | None = None
@@ -72,12 +74,13 @@ class InstagramPlatform:
         if since is not None:
             run_input["onlyPostsNewerThan"] = since.date().isoformat()
 
-        run = await self._client.actor(self._actor_id).call(
-            run_input=run_input,
-            run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
-            max_total_charge_usd=self._max_charge_usd,
-            memory_mbytes=self._memory_mbytes,
-        )
+        async with acquire_apify_slot(self._max_concurrent_actor_runs):
+            run = await self._client.actor(self._actor_id).call(
+                run_input=run_input,
+                run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
+                max_total_charge_usd=self._max_charge_usd,
+                memory_mbytes=self._memory_mbytes,
+            )
         if run is None:
             raise ApifyRunFailedError(f"Apify actor run for @{account.handle} returned no run")
         if run.status != "SUCCEEDED":
@@ -101,15 +104,16 @@ class InstagramPlatform:
         return [_normalize(item) for item in valid_items]
 
     async def _fetch_profile_once(self, account: Account) -> ProfileInfo:
-        run = await self._client.actor(self._actor_id).call(
-            run_input={
-                "directUrls": [account.normalized_url],
-                "resultsType": "details",
-            },
-            run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
-            max_total_charge_usd=self._max_charge_usd,
-            memory_mbytes=self._memory_mbytes,
-        )
+        async with acquire_apify_slot(self._max_concurrent_actor_runs):
+            run = await self._client.actor(self._actor_id).call(
+                run_input={
+                    "directUrls": [account.normalized_url],
+                    "resultsType": "details",
+                },
+                run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
+                max_total_charge_usd=self._max_charge_usd,
+                memory_mbytes=self._memory_mbytes,
+            )
         if run is None:
             raise ApifyRunFailedError(f"Apify profile run for @{account.handle} returned no run")
         if run.status != "SUCCEEDED":

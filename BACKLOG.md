@@ -2983,7 +2983,8 @@ Tests: extended `test_instagram_platform.py`/`test_comment_scraper.py`'s fake Ap
 ## [E20-S3] Baseline rate limiting & provider-quota guardrails
 **Epic:** Performance & Scale
 **Sprint:** unassigned
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-08-03
 **Priority:** high
 **Depends on:** E20-S2 (shares the "how much concurrency can we actually sustain" analysis)
 ### Goal
@@ -2991,24 +2992,33 @@ D11 explicitly deferred "rate limiting/hardening beyond basics" as an MVP call f
 ### Acceptance Criteria
 - [x] Confirm current Apify plan's concurrent-actor-run limit — **done, D44 (2026-08-03, revised same-day): 25 concurrent Actor runs, flat**, shared across every call this app makes (posts, profiles, comments, all users). RAM (16 GB total) is only *not* a competing constraint once `[E20-S2]`'s `memory_mbytes=256` fix lands — real app-triggered runs showed the base scraper actor's unpinned memory allocation swinging as high as 4096 MB, which alone would cap real concurrency at 4 runs regardless of the 25-run ceiling. This governor's Apify-side cap of 25 is only trustworthy once that memory fix ships — don't build this story's governor against the 25 number until E20-S2 confirms it
 - [x] Confirm Anthropic org tier's RPM/TPM limits — **done, D45 (2026-08-03)**: Haiku 4.x and Sonnet 5 both sit at 10K requests/min, 10.0M input tokens/min, 2.0M output tokens/min, essentially unused. Orders of magnitude above the Apify-side 25-run ceiling (D44) — **Anthropic is not expected to bind before Apify does** at any DAU scale discussed so far, so this governor's Claude-side cap is a lower priority than its Apify-side one
-- [ ] A global concurrency governor (e.g. a semaphore or queue-depth check in the worker, separate from arq's own `max_jobs`) caps simultaneous Apify actor calls at **25** (D44, contingent on E20-S2's memory-pinning fix) — this is the governor's real job per D45; still track Claude request/token usage so the "Anthropic won't bind" assumption can be caught if it stops holding, but don't spend this story's design effort on a Claude-side cap that isn't the actual bottleneck
-- [ ] Basic per-user request rate limiting on run-creation and other write endpoints beyond the existing daily cap (D11/E7-S4's original scope) — e.g. a short-window limiter on `POST /projects/{id}/runs` and deep-analysis creation
-- [ ] Scheduled-run cron dispatch (`fire_due_schedules`) doesn't enqueue an unbounded burst in one tick — either the global governor above absorbs it, or dispatch is deliberately staggered
-- [ ] DECISIONS.md updated: this story supersedes D11's "no rate limiting/hardening beyond basics" for the specific mechanisms it adds
+- [x] A global concurrency governor (e.g. a semaphore or queue-depth check in the worker, separate from arq's own `max_jobs`) caps simultaneous Apify actor calls at **25** (D44, contingent on E20-S2's memory-pinning fix) — this is the governor's real job per D45; still track Claude request/token usage so the "Anthropic won't bind" assumption can be caught if it stops holding, but don't spend this story's design effort on a Claude-side cap that isn't the actual bottleneck
+- [x] Basic per-user request rate limiting on run-creation and other write endpoints beyond the existing daily cap (D11/E7-S4's original scope) — e.g. a short-window limiter on `POST /projects/{id}/runs` and deep-analysis creation
+- [x] Scheduled-run cron dispatch (`fire_due_schedules`) doesn't enqueue an unbounded burst in one tick — either the global governor above absorbs it, or dispatch is deliberately staggered
+- [x] DECISIONS.md updated: this story supersedes D11's "no rate limiting/hardening beyond basics" for the specific mechanisms it adds
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
+- [x] All AC checked
+- [x] Tests written and passing
 - [ ] CI green, deployed to DEV
 - [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
-- [ ] DECISIONS.md updated
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+- [x] DECISIONS.md updated
 ### Smoke test
-Trigger several runs/deep-analyses concurrently on DEV (or simulate via a lowered test limit) and confirm the system queues/degrades predictably rather than runs failing with raw provider rate-limit errors — specifically, confirm the governor keeps simultaneous Apify calls at or under 25 (D44) even when `max_jobs`/`scrape_concurrency` would otherwise allow more.
+Trigger several runs/deep-analyses concurrently on DEV (or simulate via a lowered test limit) and confirm the system queues/degrades predictably rather than runs failing with raw provider rate-limit errors — specifically, confirm the governor keeps simultaneous Apify calls at or under 25 (D44) even when `max_jobs`/`scrape_concurrency` would otherwise allow more. **Deferred** — same established pattern as every other Apify-account-dependent check in this project; needs a real DEV deploy plus either a live Apify console pull or several genuinely concurrent runs to observe queueing.
 ### Files to read
 backend/src/worker.py, backend/src/services/scheduled_runs.py, backend/src/services/comment_scraper.py, backend/src/api/runs.py, DECISIONS.md (D11, D44), BACKLOG.md (E7-S4)
 ### Files to create or modify
-backend/src/worker.py, backend/src/services/scheduled_runs.py, backend/src/api/runs.py, backend/src/api/deep_analyses.py, DECISIONS.md
+backend/src/services/apify_governor.py (new), backend/src/platforms/instagram.py, backend/src/services/comment_scraper.py, backend/src/middleware/rate_limit.py, backend/src/api/runs.py, backend/src/api/deep_analyses.py, backend/src/config.py, backend/tests/test_apify_governor.py (new), backend/tests/test_guardrails.py, backend/tests/test_instagram_platform.py, backend/tests/test_comment_scraper.py, DECISIONS.md, ENV.md
+### Changelog
+**2026-08-03 — implementation:**
+- New `services/apify_governor.py`: `acquire_apify_slot(limit)` async context manager, a Redis sorted-set-backed global semaphore (atomic check-and-add via a Lua script, so concurrent acquirers can't both pass a check-then-add race and overshoot the limit). Stale-entry pruning (job_timeout + margin) guards against a crashed worker permanently occupying a slot it never released. Wraps the actual `ActorClientAsync...call()` invocation, not the whole retry loop, so each retry attempt acquires its own slot.
+- Wired into all three real Apify actor call sites: `platforms/instagram.py`'s `_fetch_once`/`_fetch_profile_once`, `comment_scraper.py`'s `ApifyCommentsClient._fetch_once`. New `Settings.apify_max_concurrent_actor_runs` (default 25, D44).
+- `middleware/rate_limit.py`'s `check_rate_limit()` gained an optional `key` param — when given, buckets by that key instead of the caller's IP. Used for the two new call sites (user id) so authenticated users behind a shared/mobile NAT don't share a limiter bucket; login/register are unaffected (still IP-keyed, no `key` passed).
+- `POST /projects/{id}/runs` (`create_run`) and `POST /projects/{id}/runs/{run_id}/deep-analyses` (`create_deep_analysis`) each gained a `Request` param and a `check_rate_limit(request, limit=settings.write_endpoint_rate_limit_per_minute, key=str(user.id))` call. New `Settings.write_endpoint_rate_limit_per_minute` (default 5/min).
+- Scheduled-run burst AC closed with no code change: `fire_due_schedules` already enqueues through the same `enqueue_run` path a manual run uses, so a burst of schedules firing in one 5-minute tick is already bounded by the governor (actual Apify calls queue on `acquire_apify_slot`) and by `WorkerSettings.max_jobs=5` (D46) — the story's own AC text allowed either the governor absorbing it or separate staggering, and the governor already does.
+- Tests: new `tests/test_apify_governor.py` (3 tests — serializes beyond the limit, releases the slot on an exception, allows exactly `limit` concurrent holders — using a small in-memory fake that mirrors the real Lua script's accounting, same mocking style as the rest of this project's Redis tests). `tests/test_guardrails.py` gained a `key`-bucketing unit test for `check_rate_limit` plus two endpoint-level tests (`create_run`/`create_deep_analysis` 429 after the per-minute limit). `tests/test_instagram_platform.py`/`test_comment_scraper.py`'s hand-built test doubles (`InstagramPlatform.__new__`/`ApifyCommentsClient.__new__`) needed a new `_max_concurrent_actor_runs` attribute set, same pattern as the existing `_memory_mbytes` attribute from E20-S2. Full suite: 331 passed (up from 325 at E20-S2's close). `ruff check`/`ruff format --check`/`mypy src` all clean on every file this story touched.
+- **Note on the governor's test coverage**: verified against a real local Redis available in this sandbox (`redis-cli ping` → `PONG`) as well as the mocked-Redis unit style already established in this file — both the new endpoint-level tests in `test_guardrails.py` and the pre-existing ones now exercise the real local Redis (per-user-id bucketing means fresh test users never collide, so no isolation issue), the same discovery pattern as this project's earlier "local Postgres available" finding.
 ### Handover
 **2026-08-03 update:** both provider-side blockers are now resolved. D44 (Apify): flat 25-concurrent-actor-run ceiling, confirmed live, but only trustworthy once `[E20-S2]` ships its `memory_mbytes=256` fix — real app-triggered runs showed the base scraper actor's *unpinned* memory allocation reaching 4096 MB, which alone would cap real concurrency at 4 runs regardless of the 25-run ceiling. **Land E20-S2 first** (or at least its memory-pinning AC), then build this story's governor against 25 with confidence. D45 (Anthropic): Haiku 4.x and Sonnet 5 both sit at 10K requests/min, 10.0M input tokens/min, 2.0M output tokens/min — essentially idle at check time, and orders of magnitude above what even a fully-loaded Apify-bound system would ever ask of them (worst case modeled: ~5 simultaneous Analysis runs today × ~200 Haiku extraction calls each ≈ 1,000 requests/min, a tenth of the ceiling). **Practical implication: design this governor around the Apify ceiling — that's the real, near-term binding constraint. A Claude-side cap is not wasted work, but it's not where the urgency is; don't let it consume this story's design effort disproportionately.**
 

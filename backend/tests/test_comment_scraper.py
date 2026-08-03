@@ -49,6 +49,7 @@ def _apify_client_with(actor_client, dataset_client=None) -> ApifyCommentsClient
     client._actor_id = "apidojo/instagram-comments-scraper-api"  # type: ignore[attr-defined]
     client._max_charge_usd = Decimal("0.5")  # type: ignore[attr-defined]
     client._memory_mbytes = 256  # type: ignore[attr-defined]
+    client._max_concurrent_actor_runs = 25  # type: ignore[attr-defined]
     return client
 
 

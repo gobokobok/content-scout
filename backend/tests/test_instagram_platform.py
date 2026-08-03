@@ -55,6 +55,7 @@ def _platform_with(actor_client, dataset_client=None) -> InstagramPlatform:
     platform._actor_id = "apify/instagram-scraper"  # type: ignore[attr-defined]
     platform._max_charge_usd = Decimal("0.5")  # type: ignore[attr-defined]
     platform._memory_mbytes = 256  # type: ignore[attr-defined]
+    platform._max_concurrent_actor_runs = 25  # type: ignore[attr-defined]
     return platform
 
 

@@ -35,6 +35,14 @@ class Settings(BaseSettings):
 
     registration_invite_code: str = ""
     max_runs_per_user_per_day: int = 10
+    # E20-S3/D44: global ceiling on simultaneous Apify actor calls across the whole worker
+    # fleet (not just one process) — arq's max_jobs/scrape_concurrency only bound concurrency
+    # within a single worker process, not across fetch_account_profile/comment-scraping calls
+    # firing alongside run_analysis jobs. Matches the confirmed 25-concurrent-Actor-run ceiling.
+    apify_max_concurrent_actor_runs: int = 25
+    # E20-S3: short-window per-user limiter on run-creation/deep-analysis-creation, distinct
+    # from max_runs_per_user_per_day's daily cap — stops a scripted burst within one minute.
+    write_endpoint_rate_limit_per_minute: int = 5
 
     telegram_bot_token: str = ""
     telegram_bot_username: str = ""  # @handle without @; used by Login Widget

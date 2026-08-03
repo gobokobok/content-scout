@@ -30,6 +30,8 @@ All environment variables. No values here — see `.env.example` for the templat
 | APIFY_ACTOR_MEMORY_MBYTES | `memory_mbytes` pinned on every Apify actor call (E20-S2/D44/D46, default 256) | optional | optional | optional |
 | DB_POOL_SIZE | SQLAlchemy async engine `pool_size` (E20-S2/D46, default 10) | optional | optional | optional |
 | DB_MAX_OVERFLOW | SQLAlchemy async engine `max_overflow` (E20-S2/D46, default 10) | optional | optional | optional |
+| APIFY_MAX_CONCURRENT_ACTOR_RUNS | Global governor cap on simultaneous Apify actor calls across the worker fleet (E20-S3/D44/D47, default 25) | optional | optional | optional |
+| WRITE_ENDPOINT_RATE_LIMIT_PER_MINUTE | Per-user short-window limiter on run-creation/deep-analysis-creation (E20-S3/D47, default 5) | optional | optional | optional |
 
 ## Frontend
 
