@@ -15,6 +15,23 @@ class Settings(BaseSettings):
 
     worker_job_timeout_secs: int = 3600
     scrape_concurrency: int = 5
+    # E20-S2/D44: arq's max_jobs bounds total concurrent worker jobs across every function
+    # (run_analysis, fetch_account_profile, run_deep_analysis) sharing one worker process. Each
+    # run_analysis job can itself fire up to scrape_concurrency Apify calls at once, so the
+    # worst case is worker_max_jobs * scrape_concurrency simultaneous Apify actor runs — sized
+    # here so that worst case lands at the confirmed 25-concurrent-run ceiling (5 * 5 = 25), not
+    # above it (the previous unset arq default of 10 allowed up to 50).
+    worker_max_jobs: int = 5
+    # D44: pin Apify actor memory allocation instead of trusting the platform's non-deterministic
+    # per-run default (observed swinging 128-4096 MB on identical real workloads). 256 MB leaves
+    # ~2.7x headroom over the highest actual usage observed (92.5 MB) across every sampled run.
+    apify_actor_memory_mbytes: int = 256
+    # E20-S2: explicit DB pool sizing instead of SQLAlchemy's unconfigured default (5 + 10 = 15).
+    # Conservative pending real confirmation of the Railway Postgres plan's max_connections —
+    # api and worker each run their own engine/pool (numReplicas=1 each), so the combined peak
+    # is 2 * (db_pool_size + db_max_overflow) = 40 connections today.
+    db_pool_size: int = 10
+    db_max_overflow: int = 10
 
     registration_invite_code: str = ""
     max_runs_per_user_per_day: int = 10

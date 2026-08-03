@@ -28,11 +28,12 @@ class _FakeActorClient:
         self._run_result = run_result
         self.call_kwargs: dict | None = None
 
-    async def call(self, *, run_input, run_timeout, max_total_charge_usd):
+    async def call(self, *, run_input, run_timeout, max_total_charge_usd, memory_mbytes):
         self.call_kwargs = {
             "run_input": run_input,
             "run_timeout": run_timeout,
             "max_total_charge_usd": max_total_charge_usd,
+            "memory_mbytes": memory_mbytes,
         }
         return self._run_result
 
@@ -53,6 +54,7 @@ def _platform_with(actor_client, dataset_client=None) -> InstagramPlatform:
     )
     platform._actor_id = "apify/instagram-scraper"  # type: ignore[attr-defined]
     platform._max_charge_usd = Decimal("0.5")  # type: ignore[attr-defined]
+    platform._memory_mbytes = 256  # type: ignore[attr-defined]
     return platform
 
 
@@ -98,6 +100,10 @@ async def test_fetch_content_passes_since_and_url() -> None:
     # Regression: an unset max_total_charge_usd lets Apify auto-reserve the whole remaining
     # account balance per run, so a second concurrent run can never start (stuck in READY).
     assert actor_client.call_kwargs["max_total_charge_usd"] == Decimal("0.5")
+    # D44/E20-S2: an unset memory_mbytes lets Apify pick a non-deterministic per-run default
+    # observed swinging 128-4096 MB, risking RAM exhaustion well below the 25-run concurrency
+    # ceiling — must be pinned explicitly on every actor call.
+    assert actor_client.call_kwargs["memory_mbytes"] == 256
 
 
 async def test_fetch_content_item_limit_mode_omits_date_cutoff() -> None:
@@ -145,7 +151,7 @@ async def test_fetch_content_retries_then_raises() -> None:
         def __init__(self) -> None:
             self.attempts = 0
 
-        async def call(self, *, run_input, run_timeout, max_total_charge_usd):
+        async def call(self, *, run_input, run_timeout, max_total_charge_usd, memory_mbytes):
             self.attempts += 1
             raise RuntimeError("apify boom")
 
@@ -185,6 +191,7 @@ async def test_fetch_profile_uses_details_results_type() -> None:
 
     assert actor_client.call_kwargs is not None
     assert actor_client.call_kwargs["run_input"]["resultsType"] == "details"
+    assert actor_client.call_kwargs["memory_mbytes"] == 256
 
 
 async def test_fetch_profile_treats_error_placeholder_as_failure() -> None:

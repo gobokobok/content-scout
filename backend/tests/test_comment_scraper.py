@@ -26,8 +26,8 @@ class _FakeActorClient:
         self._raises = raises
         self.call_kwargs: dict | None = None
 
-    async def call(self, *, run_input, run_timeout, max_total_charge_usd):
-        self.call_kwargs = {"run_input": run_input}
+    async def call(self, *, run_input, run_timeout, max_total_charge_usd, memory_mbytes):
+        self.call_kwargs = {"run_input": run_input, "memory_mbytes": memory_mbytes}
         if self._raises:
             raise RuntimeError("apidojo boom")
         return self._run_result
@@ -48,6 +48,7 @@ def _apify_client_with(actor_client, dataset_client=None) -> ApifyCommentsClient
     )
     client._actor_id = "apidojo/instagram-comments-scraper-api"  # type: ignore[attr-defined]
     client._max_charge_usd = Decimal("0.5")  # type: ignore[attr-defined]
+    client._memory_mbytes = 256  # type: ignore[attr-defined]
     return client
 
 
@@ -69,6 +70,7 @@ async def test_apify_client_normalizes_and_passes_limit() -> None:
         {"url": "https://instagram.com/p/abc/"}
     ]
     assert actor_client.call_kwargs["run_input"]["resultsLimit"] == 25
+    assert actor_client.call_kwargs["memory_mbytes"] == 256
 
 
 async def test_fetch_comments_uses_apify_primary_sorts_by_likes_and_records_usage(

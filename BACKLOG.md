@@ -2176,6 +2176,63 @@ frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx (new), frontend/lib/api.t
 - **POST-CLOSE CORRECTION (2026-07-22, same-day):** per direct user feedback, this page is no longer reached from Детали. Результаты is now the run-history landing page (the "Создать запуск" button + run-history cards moved here from E13-S2's Детали page), and clicking a run card lands here directly. The back link at the top of this page now reads "← Результаты" and routes to `/projects/[id]/results` (was "← Детали" → `/projects/[id]/details`). The global run-notification dropdown (`frontend/app/(app)/layout.tsx`) and `telegram_notify.py`'s completion-DM link both already pointed here and needed no further change.
 **Smoke test:** DEFERRED — needs a real DEV project with a finished run to confirm the Summary tab's live data, the Publications tab's parity with Результаты minus the run-filter icon, and that a real Telegram completion DM's link lands here (same deferral pattern as the rest of this project's verification).
 
+## [E15-S4] Run-detail: partial results + failure disclaimer on Review runs
+**Epic:** Run Detail View
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** none
+### Goal
+Per D43: today `runs/[runId]/page.tsx` gates the Summary/Publications tabs entirely on `run.status === "done"` — a `failed` run shows only a bare "Запуск завершился с ошибкой" line, even though `ContentItem`/summary rows already committed before the crash are still in the DB (Review commits per-account incrementally in `process_run`). Separately, `run.error_message` — already returned by the API and typed on the frontend (`RunResponse.error_message`) — is never rendered anywhere on this page, not even in the token-balance-exhaustion case where `run.status` stays `done` and a real Russian disclaimer (`_TOKEN_BALANCE_EXHAUSTED_MSG`) is already set server-side. Users currently have no way to see "your run stopped early, here's what we got before it stopped, and why."
+### Acceptance Criteria
+- [ ] Summary/Publications tabs render whenever there are committed `ContentItem`s for the run, regardless of `run.status` — a `failed` run with partial data shows the same tabs a `done` run does, not just a status line
+- [ ] A disclaimer banner renders `run.error_message` whenever it's non-null, on both the token-exhaustion `done` case and the `failed` case (distinct visual treatment per status — neutral banner for the exhaustion disclaimer vs. `danger` styling for a hard failure, matching the deep-analysis report page's existing `analysis.error_message` treatment, which this page currently lacks)
+- [ ] A `failed` run with zero committed items (crashed before any account finished) still falls back to the current bare status message — no empty/broken tabs
+- [ ] No backend change expected — `run.error_message` and the underlying `ContentItem` rows already exist and already flow to the frontend type; confirm this during implementation before assuming a backend change is needed
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Force a run to fail mid-scrape (e.g. a deliberately bad account mixed with good ones, or a lowered token balance) and confirm partial publications + the disclaimer both render; confirm the token-exhaustion (`done`-with-message) case also now shows its disclaimer.
+### Files to read
+CLAUDE.md, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, backend/src/api/runs.py, backend/src/worker.py (`process_run`'s failure/exhaustion paths)
+### Files to create or modify
+frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/messages/ru.json
+### Handover
+Opened 2026-08-03 from E21-S1's scoping discussion (see BACKLOG.md's `[E21-S1]` entry and DECISIONS.md's D43). Standalone — ships independently of E21, doesn't depend on the Analysis decoupling work.
+
+## [E15-S5] Review results: competitor drill-down modal
+**Epic:** Run Detail View
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** none
+### Goal
+Direct user request during E21-S1's scoping session: on a run's Summary tab, let the user tap through to see which competitor accounts were actually included in that run — a read-only, scrollable bottom sheet listing the accounts, not a live edit surface. Supports the stated core Review use case ("every morning, what did my competitors post in the last 24h, top viral") by making it easy to confirm scope at a glance without leaving the run.
+### Acceptance Criteria
+- [ ] Summary tab's "Конкуренты" KPI row (or a new affordance near it) opens a `BottomSheet` (reuse `components/ui/bottom-sheet.tsx` — same component already used for the top-virality item detail on this page) listing every account included in the run: handle, display name/avatar if available, scrollable
+- [ ] Read-only — no remove/edit actions inside the sheet
+- [ ] Backend: confirm whether the account list for a run can already be derived from existing data (`AnalysisRun.account_ids`, a join via `ContentItem.account_id` for accounts that returned data, `Account.status`/`fail_reason` for ones that failed) or needs a new small endpoint — check before assuming new API surface is required
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Open a finished run with several competitors (including at least one that failed to scrape), tap into the drill-down, confirm all accounts appear with a sensible failed/succeeded indication if that ends up in scope.
+### Files to read
+CLAUDE.md, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/components/ui/bottom-sheet.tsx, backend/src/api/runs.py, backend/src/models/analysis_run.py
+### Files to create or modify
+frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, possibly backend/src/api/runs.py, frontend/lib/api.ts, frontend/messages/ru.json
+### Handover
+Opened 2026-08-03 from E21-S1's scoping discussion. Standalone, no dependency on E21.
+
 ## [E16-S1] Analysis teaser page
 **Epic:** Analysis Teaser
 **Sprint:** 8 (locked 2026-07-22 execution plan)
@@ -2844,8 +2901,14 @@ Code and tests complete (`test_process_deep_analysis_cancellation_marks_failed`,
 **Depends on:** none
 ### Goal
 Deep-analysis turnaround is dominated by comment scraping: `ApifyCommentsClient.fetch_comments` ([comment_scraper.py:57-73](backend/src/services/comment_scraper.py)) calls the `apidojo` actor **once per post**, sequentially in batches of `summary_concurrency` (5) via `extract_deep_analysis_items`'s semaphore. A 130-item run means ~26 sequential rounds of actor cold-starts. The actor's `run_input` already accepts a `startUrls` array — a single actor call with many URLs should replace the per-post call, cutting round-trip and cold-start overhead by roughly the batch size.
+
+**Expanded scope (2026-08-03, E21-S1 scoping session — see D41):** this story also fixes a real, verified bug and applies a cost-cap change at the same call site, so they're bundled here rather than as separate stories:
+- `comment_scraper.py:70` sends `run_input={"startUrls": [...], "resultsLimit": limit}` to the `apidojo` actor — but `resultsLimit` isn't a field this actor's real input schema recognizes (verified live against `https://apify.com/apidojo/instagram-comments-scraper-api/input-schema`); the actual field is `maxItems`. Apify silently ignores unrecognized fields, so **the per-post comment cap has likely never been enforced server-side** — only the client-side `_sort_and_cap` (D36) trims the result *after* the vendor already returned and billed for whatever it chose to send back. Fix: use the correct field name.
+- `deep_analysis_comments_per_post` default drops from 25 to 15 (D41, supersedes D34) — 15 is exactly apidojo's free-included tier per post, so this run eliminates all per-comment overage cost once the `maxItems` fix above makes the cap actually bind.
 ### Acceptance Criteria
 - [ ] `ApifyCommentsClient` (or a new method) accepts a batch of post URLs and issues one actor run instead of N, mapping results back to their source post
+- [ ] The batched call uses the actor's real `maxItems` field (not `resultsLimit`) — confirm the correct way to express a **per-post** cap once batching multiple `startUrls` into one call (the schema's `maxItems` is described as a global cap across the whole run, not per-post — verify empirically or via a DEV timing/volume test whether a single batched call with N posts needs `maxItems = N × per_post_cap` or a different mechanism entirely to keep the per-post guarantee)
+- [ ] `deep_analysis_comments_per_post` default changed 25 → 15 (D41); `apify_comment_included_comments` (15) stays the free-tier reference point so this run yields zero overage by default
 - [ ] Bright Data fallback path (`BrightDataCommentsClient`) still functions per-post for whichever posts the batched Apify call didn't cover (partial-batch failure handling) — check `_BRIGHTDATA_POLL_ATTEMPTS`/`_BRIGHTDATA_HTTP_TIMEOUT_SECS` are still sane for whatever fallback volume results
 - [ ] `deep_analysis_extraction.py`'s batching/concurrency logic updated to call the new batched method instead of looping `fetch_comments` per item
 - [ ] Cost accounting (`UsageEvent` rows, `apify_comment_query_cost_usd`/`apify_comment_overage_cost_usd`) still records per-post, not per-batch — batching is a latency change, not a pricing change
@@ -2857,44 +2920,65 @@ Deep-analysis turnaround is dominated by comment scraping: `ApifyCommentsClient.
 - [ ] Smoke test passed
 - [ ] DONE.md updated
 - [ ] BACKLOG.md updated
+- [ ] DECISIONS.md's D41 cross-referenced (no new entry needed, D41 already covers this change)
 ### Smoke test
-Run a deep analysis on DEV with 20+ published items with comments enabled; confirm total wall time drops meaningfully vs. a pre-change run of similar size, and per-item comment data/costs are unaffected.
+Run a deep analysis on DEV with 20+ published items with comments enabled; confirm total wall time drops meaningfully vs. a pre-change run of similar size, per-item comment data/costs are unaffected, and (new) that a post with >15 comments actually gets capped at 15 with zero overage `UsageEvent` rows — proving the `maxItems` fix actually binds where `resultsLimit` didn't.
 ### Files to read
-backend/src/services/comment_scraper.py, backend/src/services/deep_analysis_extraction.py, docs/ARCHITECTURE.md
+backend/src/services/comment_scraper.py, backend/src/services/deep_analysis_extraction.py, docs/ARCHITECTURE.md, DECISIONS.md (D34, D36, D41)
 ### Files to create or modify
-backend/src/services/comment_scraper.py, backend/src/services/deep_analysis_extraction.py, backend/tests/test_comment_scraper.py, backend/tests/test_deep_analysis_extraction.py
+backend/src/services/comment_scraper.py, backend/src/services/deep_analysis_extraction.py, backend/src/config.py (`deep_analysis_comments_per_post` default), backend/tests/test_comment_scraper.py, backend/tests/test_deep_analysis_extraction.py
 ### Handover
 —
 
 ## [E20-S2] Worker & DB capacity for concurrent load
 **Epic:** Performance & Scale
 **Sprint:** unassigned
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-08-03
 **Priority:** high
 **Depends on:** none
 ### Goal
 Every Railway service (api, worker, web) currently runs at `numReplicas: 1` on both DEV and PROD (confirmed via `railway status --json`, 2026-07-31) — no horizontal scaling anywhere. Within that single worker process, arq's `WorkerSettings` ([worker.py](backend/src/worker.py)) doesn't set `max_jobs`, so it defaults to **10 concurrent jobs total** across every user's runs and deep analyses combined; past that, jobs queue behind each other regardless of how idle the rest of the system is. The DB engine ([db.py:16](backend/src/db.py)) is created with `create_async_engine(url, pool_pre_ping=True)` and no explicit `pool_size`/`max_overflow`, so it inherits SQLAlchemy's defaults (5 + 10 = 15 connections) per process — fine for a handful of pilot users (D11), untested at real concurrency. This story is about making deliberate, measured choices for these numbers instead of relying on library defaults nobody chose.
+**Real Apify ceiling confirmed 2026-08-03, revised same-day (D44):** the account's plan caps at **25 concurrent Actor runs, flat**, shared across every call this app makes (base-scrape posts, profile fetches, comment scraping — all of it, all users). Initial reading (from one `apidojo` comments-actor run at 256 MB) concluded RAM wasn't a competing constraint — but **revised** after three further real, app-triggered runs of the base `apify/instagram-scraper` actor showed allocated memory swinging **128 MB → 4096 MB → 4096 MB** with no correlation to workload size (actual usage stayed 55–92 MB throughout). Neither `platforms/instagram.py` nor `comment_scraper.py` ever sets the `apify-client` SDK's `memory_mbytes` parameter on `.call()`, so every run falls back to the platform's own implicit default — confirmed non-deterministic. At 4096 MB/run, only **4 concurrent runs** would exhaust the 16 GB RAM budget, far below the 25-run ceiling — meaning RAM, not the flat run cap, could be the real and unpredictable bottleneck as configured today. This AC's "Apify/Anthropic account-level concurrency limits" dependency is now half-answered (Apify: 25, contingent on the memory fix below) — Anthropic's org RPM/TPM limits still need the same live check before `max_jobs` can be sized with confidence.
+
+**Immediate risk, not just a future-scale one:** today's config (`max_jobs` unset → arq default 10, × `process_run`'s `scrape_concurrency=5`) can already fire up to **50 simultaneous Apify calls** if multiple users' runs overlap — already 2× the real 25-run ceiling, with no 200-DAU assumption required to hit it, and now compounded by the unpinned-memory risk above. Confirm what Apify actually does past 25 (queues the excess vs. hard-errors) before treating this as merely theoretical.
 ### Acceptance Criteria
-- [ ] `WorkerSettings.max_jobs` set explicitly (not left at arq's default), sized against Railway's worker instance resources and Apify/Anthropic account-level concurrency limits (see E20-S3 — raising `max_jobs` without provider-side guardrails just moves the bottleneck)
-- [ ] `get_engine()` sets explicit `pool_size`/`max_overflow` sized for expected concurrent API request volume, with headroom under the Postgres plan's `max_connections` (check Railway Postgres plan limit — not yet confirmed this session)
-- [ ] A documented decision (DECISIONS.md entry) on whether/when to move `api`/`worker` off `numReplicas: 1` — this story doesn't have to implement horizontal scaling, but should record the threshold (e.g. queue depth, p95 job latency) at which it becomes necessary
-- [ ] Basic capacity numbers written down somewhere durable (this story's Handover or docs/ARCHITECTURE.md): at current settings, how many concurrent runs/deep-analyses can the system actually sustain before jobs start queueing measurably
+- [x] Pin `memory_mbytes=256` explicitly on every `ActorClientAsync.call()` invocation in `platforms/instagram.py` (`_fetch_once`, `_fetch_profile_once`) and `comment_scraper.py` (`ApifyCommentsClient._fetch_once`) — makes memory allocation deterministic instead of trusting Apify's unpredictable per-run default (D44); 256 MB leaves ~2.7× headroom over the highest actual usage observed (92.5 MB) across every sampled real run of either actor, and restores 16 GB ÷ 256 MB = 64 concurrent-run RAM headroom, comfortably above the 25-run ceiling
+- [x] `WorkerSettings.max_jobs` set explicitly (not left at arq's default), sized against the confirmed **25-concurrent-Apify-run ceiling** (D44, once the memory fix above makes it the real binding constraint again) and Anthropic org tier's RPM/TPM limits (still unconfirmed — see E20-S3) — raising `max_jobs` without both provider-side numbers just moves the bottleneck
+- [x] `get_engine()` sets explicit `pool_size`/`max_overflow` sized for expected concurrent API request volume, with headroom under the Postgres plan's `max_connections` (check Railway Postgres plan limit — not yet confirmed this session)
+- [x] A documented decision (DECISIONS.md entry) on whether/when to move `api`/`worker` off `numReplicas: 1` — this story doesn't have to implement horizontal scaling, but should record the threshold (e.g. queue depth, p95 job latency) at which it becomes necessary
+- [x] Basic capacity numbers written down somewhere durable (this story's Handover or docs/ARCHITECTURE.md): at current settings, how many concurrent runs/deep-analyses can the system actually sustain before jobs start queueing measurably — anchor this against the real 25-run Apify ceiling (D44), not a guess
+- [x] Confirm and fix (or explicitly accept, with a documented reason) today's `max_jobs`(10) × `scrape_concurrency`(5) = up to 50 potential simultaneous Apify calls already exceeding the real 25-run ceiling — this predates any 200-DAU scaling question
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing where applicable (config/engine construction)
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
-- [ ] DECISIONS.md updated (new D-entry)
+- [x] All AC checked
+- [x] Tests written and passing where applicable (config/engine construction)
+- [ ] CI green, deployed to DEV — not yet pushed, pending user go-ahead
+- [ ] Smoke test passed — deferred, see Handover
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+- [x] DECISIONS.md updated (new D-entry, D46)
 ### Smoke test
-On DEV, enqueue more concurrent runs than the old default `max_jobs` (10) and confirm the new setting's queueing behavior matches what was configured (either more headroom, or a documented, deliberate cap).
+On DEV, enqueue more concurrent runs than the old default `max_jobs` (10) and confirm the new setting's queueing behavior matches what was configured (either more headroom, or a documented, deliberate cap) — and confirm it stays under the real 25-Apify-run ceiling (D44). Separately: pull a few post-fix runs' Apify console detail pages and confirm `memory_mbytes=256` actually landed (allocated Memory reads 256 MB, not a random value) — the exact check that surfaced the original bug.
 ### Files to read
-backend/src/worker.py, backend/src/db.py, backend/src/config.py, ENV.md, DECISIONS.md (D11)
+backend/src/worker.py, backend/src/db.py, backend/src/config.py, backend/src/platforms/instagram.py, backend/src/services/comment_scraper.py, ENV.md, DECISIONS.md (D11, D44)
 ### Files to create or modify
-backend/src/worker.py, backend/src/db.py, DECISIONS.md
+backend/src/worker.py, backend/src/db.py, backend/src/platforms/instagram.py, backend/src/services/comment_scraper.py, DECISIONS.md
+### Changelog
+- 2026-08-03: implemented all 4 AC items — `memory_mbytes=256` pinned on every Apify actor call (`instagram.py`, `comment_scraper.py`), `WorkerSettings.max_jobs=5` (was arq's unset default of 10), `get_engine()` explicit `pool_size=10`/`max_overflow=10`, D46 recording the `numReplicas: 1` revisit thresholds. New settings: `worker_max_jobs`, `apify_actor_memory_mbytes`, `db_pool_size`, `db_max_overflow` (ENV.md updated). Tests extended in `test_instagram_platform.py`/`test_comment_scraper.py` (assert the memory pin is actually sent) and new `test_db.py`/a new case in `test_worker.py` (assert the pool kwargs and the `max_jobs × scrape_concurrency ≤ 25` invariant). Full suite 325 passed, ruff/mypy clean.
 ### Handover
-This story doesn't by itself get the app to "1,000 users" — it's the first, contained piece (tuning what's already deployed) before any horizontal-scaling or provider-quota work (E20-S3). Railway service replica counts and Postgres plan connection limits need confirming from the dashboard/`railway status --json` before picking final numbers, not just guessed.
+This story doesn't by itself get the app to "1,000 users" — it's the first, contained piece (tuning what's already deployed) before any horizontal-scaling or provider-quota work (E20-S3). Railway service replica counts and Postgres plan connection limits need confirming from the dashboard/`railway status --json` before picking final numbers, not just guessed. **2026-08-03 update:** the Apify half of the concurrency-limit blocker went through two passes — first read as resolved (25 concurrent runs, RAM not a constraint) from a single comments-actor sample, then **revised same-day** after three more real app-triggered runs of the base scraper actor showed unpinned memory allocation swinging 128 MB↔4096 MB (D44). The fix (`memory_mbytes=256` on every call) is now a concrete AC item here rather than a follow-on story — small, isolated, and at the exact same call sites this story already touches. **2026-08-03, both provider limits now confirmed** (D44 Apify: 25 concurrent runs; D45 Anthropic: 10K req/min, 10M input/2M output tokens/min per model, essentially idle — orders of magnitude above anything this system will ask of it) — `max_jobs` can now be sized against real numbers instead of picked conservatively: Apify is the binding constraint, Anthropic is not expected to matter at any DAU scale discussed so far.
+
+**Basic capacity numbers (this AC's own ask), worked from D44 — not yet live-measured, see `[E20-S1]`'s "real DEV timing comparison" AC for that**: one Analysis run at 20 accounts × 10 posts needs ~240 Apify actor calls today (20 content + 20 profile + 200 per-post comment calls, pre-batching). At current per-run concurrency (`scrape_concurrency`/`summary_concurrency` = 5), each run occupies up to 5 of the 25 shared Apify slots at its peak, so **the system can fully-speed-serve at most 25 ÷ 5 = 5 simultaneous Analysis starts today** before the 6th+ user queues behind the rest. This is a zero-sum trade between per-run speed and simultaneous-user count against the fixed 25-slot budget — `max_jobs` and `scrape_concurrency` should be picked with that trade explicit, not independently. Full model, including the three levers to raise the 5-user number (comment batching, an Apify plan upgrade — Starter 32/Scale 128/Business 256 concurrent runs, see Apify's public pricing — or a governor that dynamically shrinks per-run concurrency under load), is written up in `[E20-S3]`'s Handover, since that story owns the governor that actually acts on it.
+
+**Implementation, 2026-08-03 (this session, real code this time, not just the numbers above):** picked up directly instead of `[E20-S3]` after that story's own dependency check flagged it wasn't safe to build a 25-run governor before this story's memory pin landed — see full changelog below. All four AC items now have real code/docs backing them, not just worked-out numbers:
+1. `Settings.apify_actor_memory_mbytes` (default 256, D44) now flows into every `ActorClientAsync.call()` in `platforms/instagram.py` (both `_fetch_once` and `_fetch_profile_once`) and `comment_scraper.py`'s `ApifyCommentsClient._fetch_once` via a `self._memory_mbytes` set in each class's `__init__`.
+2. `Settings.worker_max_jobs` (default 5) now sets `WorkerSettings.max_jobs` explicitly in `worker.py` — chosen as the exact value where the worst case (every one of `max_jobs` concurrent worker jobs happens to be a `run_analysis` job, each running `scrape_concurrency`=5 Apify calls at once) lands exactly at the 25-run ceiling: 5 × 5 = 25, not above it. This directly fixes AC 6 (was 10 × 5 = 50).
+3. `Settings.db_pool_size`/`db_max_overflow` (10/10 each) now flow into `get_engine()`'s `create_async_engine()` call. **Deviation from the AC's literal ask**: the real Railway Postgres plan's `max_connections` could not be confirmed this session — querying it needs `DATABASE_URL`, and fetching that was correctly blocked by the permission classifier as credential access (same instinct as not hand-typing secrets). 10+10=20 per process × 2 processes (api, worker, each `numReplicas: 1`) = 40 total connections is a conservative, documented placeholder, not a number derived from the real ceiling — flagged here the same way D35/D37's placeholder pricing constants were, pending a real check (from the Railway dashboard directly, not a query this sandbox can run).
+4. New D46 (DECISIONS.md) records both the concrete config changes above and the `numReplicas: 1`-stays-as-is decision with explicit revisit thresholds (sustained queue depth across cron ticks, or p95 API latency > 500ms) — neither has been measured yet, this just names what to watch for.
+
+Tests: extended `test_instagram_platform.py`/`test_comment_scraper.py`'s fake Apify actor clients to assert `memory_mbytes=256` is actually sent (they'd have silently swallowed a missing/wrong value otherwise, since the old fakes didn't accept the kwarg at all); new `test_worker.py::test_worker_max_jobs_stays_within_apify_concurrency_ceiling` asserts the `max_jobs × scrape_concurrency ≤ 25` invariant directly rather than just eyeballing the config values; new `test_db.py` asserts `get_engine()` passes the configured pool kwargs through to `create_async_engine` (mocked — doesn't require a real DB connection). Full suite: 325 passed (up from 281 at Sprint 9's close), `ruff check`/`ruff format --check`/`mypy src` all clean.
+
+**Deferred, same established pattern as every other Apify-account-dependent check in this project**: this story's smoke test (pulling post-fix Apify console run-detail pages to confirm `memory_mbytes=256` actually landed as `Memory: 256 MB`, and confirming DEV job-queueing behavior under >5 concurrent runs) needs a real DEV deploy and a real Apify console, neither available in this sandbox — owed on your next DEV pass, same as D36/D37/E19-S1's precedent. Postgres `max_connections` should be checked the same pass, before AC 3's 20-connection-per-process number is trusted at anything beyond pilot scale. **Next: `[E20-S3]`** — this story was the one thing standing between it and a governor built on a number that's now actually true.
 
 ## [E20-S3] Baseline rate limiting & provider-quota guardrails
 **Epic:** Performance & Scale
@@ -2905,8 +2989,9 @@ This story doesn't by itself get the app to "1,000 users" — it's the first, co
 ### Goal
 D11 explicitly deferred "rate limiting/hardening beyond basics" as an MVP call for a handful of pilot users. E7-S4 added some guardrails (per-user daily run cap via `max_runs_per_user_per_day`, XLSX injection escaping — its invite-code gate was itself removed same-day by D39/commit `053cbe3`, registration is now open) but nothing governs total concurrent load against the two shared, metered, external accounts every user's runs compete for: the Apify account (`apify_api_token`, one account for all users' scraping) and the Anthropic account (`anthropic_api_key`, one key for all Haiku/Sonnet calls). At meaningful scale, a burst of simultaneous runs — including scheduled runs firing in the same 5-minute cron window (`check_scheduled_runs`) if many users pick common times — could hit Apify's per-account concurrent-actor-run limit or Anthropic's org-level RPM/TPM limits, degrading or failing runs for everyone, not just the user who triggered the burst.
 ### Acceptance Criteria
-- [ ] Confirm current Apify plan's concurrent-actor-run limit and Anthropic org tier's RPM/TPM limits (external account checks, not in-repo)
-- [ ] A global concurrency governor (e.g. a semaphore or queue-depth check in the worker, separate from arq's own `max_jobs`) caps simultaneous Apify actor calls and Claude calls against those confirmed limits, so the app degrades gracefully (queues) instead of erroring when many runs overlap
+- [x] Confirm current Apify plan's concurrent-actor-run limit — **done, D44 (2026-08-03, revised same-day): 25 concurrent Actor runs, flat**, shared across every call this app makes (posts, profiles, comments, all users). RAM (16 GB total) is only *not* a competing constraint once `[E20-S2]`'s `memory_mbytes=256` fix lands — real app-triggered runs showed the base scraper actor's unpinned memory allocation swinging as high as 4096 MB, which alone would cap real concurrency at 4 runs regardless of the 25-run ceiling. This governor's Apify-side cap of 25 is only trustworthy once that memory fix ships — don't build this story's governor against the 25 number until E20-S2 confirms it
+- [x] Confirm Anthropic org tier's RPM/TPM limits — **done, D45 (2026-08-03)**: Haiku 4.x and Sonnet 5 both sit at 10K requests/min, 10.0M input tokens/min, 2.0M output tokens/min, essentially unused. Orders of magnitude above the Apify-side 25-run ceiling (D44) — **Anthropic is not expected to bind before Apify does** at any DAU scale discussed so far, so this governor's Claude-side cap is a lower priority than its Apify-side one
+- [ ] A global concurrency governor (e.g. a semaphore or queue-depth check in the worker, separate from arq's own `max_jobs`) caps simultaneous Apify actor calls at **25** (D44, contingent on E20-S2's memory-pinning fix) — this is the governor's real job per D45; still track Claude request/token usage so the "Anthropic won't bind" assumption can be caught if it stops holding, but don't spend this story's design effort on a Claude-side cap that isn't the actual bottleneck
 - [ ] Basic per-user request rate limiting on run-creation and other write endpoints beyond the existing daily cap (D11/E7-S4's original scope) — e.g. a short-window limiter on `POST /projects/{id}/runs` and deep-analysis creation
 - [ ] Scheduled-run cron dispatch (`fire_due_schedules`) doesn't enqueue an unbounded burst in one tick — either the global governor above absorbs it, or dispatch is deliberately staggered
 - [ ] DECISIONS.md updated: this story supersedes D11's "no rate limiting/hardening beyond basics" for the specific mechanisms it adds
@@ -2919,13 +3004,15 @@ D11 explicitly deferred "rate limiting/hardening beyond basics" as an MVP call f
 - [ ] BACKLOG.md updated
 - [ ] DECISIONS.md updated
 ### Smoke test
-Trigger several runs/deep-analyses concurrently on DEV (or simulate via a lowered test limit) and confirm the system queues/degrades predictably rather than runs failing with raw provider rate-limit errors.
+Trigger several runs/deep-analyses concurrently on DEV (or simulate via a lowered test limit) and confirm the system queues/degrades predictably rather than runs failing with raw provider rate-limit errors — specifically, confirm the governor keeps simultaneous Apify calls at or under 25 (D44) even when `max_jobs`/`scrape_concurrency` would otherwise allow more.
 ### Files to read
-backend/src/worker.py, backend/src/services/scheduled_runs.py, backend/src/services/comment_scraper.py, backend/src/api/runs.py, DECISIONS.md (D11), BACKLOG.md (E7-S4)
+backend/src/worker.py, backend/src/services/scheduled_runs.py, backend/src/services/comment_scraper.py, backend/src/api/runs.py, DECISIONS.md (D11, D44), BACKLOG.md (E7-S4)
 ### Files to create or modify
 backend/src/worker.py, backend/src/services/scheduled_runs.py, backend/src/api/runs.py, backend/src/api/deep_analyses.py, DECISIONS.md
 ### Handover
-Depends on knowing real Apify/Anthropic account limits, which this session couldn't check (no live provider dashboard access). Whoever picks this up should confirm those numbers first — the governor's cap values are meaningless guesses otherwise.
+**2026-08-03 update:** both provider-side blockers are now resolved. D44 (Apify): flat 25-concurrent-actor-run ceiling, confirmed live, but only trustworthy once `[E20-S2]` ships its `memory_mbytes=256` fix — real app-triggered runs showed the base scraper actor's *unpinned* memory allocation reaching 4096 MB, which alone would cap real concurrency at 4 runs regardless of the 25-run ceiling. **Land E20-S2 first** (or at least its memory-pinning AC), then build this story's governor against 25 with confidence. D45 (Anthropic): Haiku 4.x and Sonnet 5 both sit at 10K requests/min, 10.0M input tokens/min, 2.0M output tokens/min — essentially idle at check time, and orders of magnitude above what even a fully-loaded Apify-bound system would ever ask of them (worst case modeled: ~5 simultaneous Analysis runs today × ~200 Haiku extraction calls each ≈ 1,000 requests/min, a tenth of the ceiling). **Practical implication: design this governor around the Apify ceiling — that's the real, near-term binding constraint. A Claude-side cap is not wasted work, but it's not where the urgency is; don't let it consume this story's design effort disproportionately.**
+
+**Capacity model, worked from D44 alone (illustrative, not yet live-measured — see `[E20-S1]`'s own "real DEV timing comparison" AC for that):** one Analysis run at the user's example (20 accounts × 10 posts) needs ~240 Apify actor calls today (20 content + 20 profile + 200 per-post comment calls, pre-E20-S1 batching). At the current per-run concurrency (`scrape_concurrency`/`summary_concurrency` = 5), each run occupies up to 5 of the 25 shared slots at its peak — meaning **the system can fully-speed-serve at most 25 ÷ 5 = 5 simultaneous Analysis starts today**; a 6th simultaneous user queues behind the first 5 rather than getting a 6th slot, which is exactly the scenario this story's governor needs to manage gracefully (queue + honest "starting in ~X min" UX) rather than let degrade silently or error. This is a hard, zero-sum trade: raising per-run concurrency speeds up one user's run but reduces how many users can run at once against the fixed 25-slot budget, so the governor's design should treat "per-run speed" and "simultaneous-user count" as one shared, allocatable resource — not two independent settings. Three levers exist to raise the 5-simultaneous-user number without necessarily touching the governor's logic itself: (1) `[E20-S1]`'s comment-call batching, which shrinks each run's occupancy of the shared pool by replacing ~200 per-post calls with far fewer batched ones; (2) an Apify plan upgrade — Starter ~$29/mo raises the ceiling to 32 concurrent runs, Scale ~$199/mo to 128 (≈25 simultaneous users at today's per-run concurrency), Business ~$999/mo to 256, figures pulled from Apify's public pricing page 2026-08-03, verify against the account's actual billing page before committing to a purchase; (3) the governor itself dynamically shrinking each active run's per-run concurrency as more users pile on, instead of a fixed `scrape_concurrency=5` regardless of load.
 
 ## [E20-S4] Reduce competitor account cap (50 → 20)
 **Epic:** Performance & Scale
@@ -2960,26 +3047,111 @@ Not started — explicitly gated on user confirmation per the Goal section. The 
 
 ## [E21-S1] Scope standalone Analysis pipeline: Apify usage audit + worker capacity
 **Epic:** Standalone Analysis Pipeline (new, D40)
-**Sprint:** unassigned — proposed for a future sprint, pending a dedicated scoping/discussion session
-**Status:** backlog — scoping only, not implementation-ready
+**Sprint:** unassigned — scoping complete, follow-on stories unassigned
+**Status:** done
+**Completed:** 2026-08-03
 **Priority:** high (direct product-direction change)
 **Depends on:** none, but overlaps E20 (Performance & Scale) — both touch how Apify is invoked from the worker
 ### Goal
 Per D40 (2026-07-31, direct user product-direction change during E19-S1): Review and Analysis are meant to be two fully independent runs. Today Analysis (E17's deep analysis) only exists as a chain reaction off a completed Review run (E18-S1's auto-chain) and reads that run's already-scraped `content_items` as its input — it does no scraping of its own. The user wants Analysis to become a standalone task with its own end-to-end Apify scraping path, decoupled from Review entirely, but said explicitly this needs discussion first ("how apify is used and what each of the worker is capable of") before real implementation stories can be written. **This story is that discussion/audit, not the implementation.**
 ### Acceptance Criteria
-- [ ] Document current Apify usage end-to-end: which actors are called from which worker step (base run scraping via `platforms/instagram.py`, comment scraping via `services/comment_scraper.py`'s dual-vendor path), what each call costs, and how `usage_events` currently attributes cost per run type
-- [ ] Document current worker capability/capacity model: arq `max_jobs`, `worker_job_timeout_secs`, `scrape_concurrency`, how many Railway replicas each service runs — this overlaps E20-S2's capacity work directly, don't duplicate it independently
-- [ ] Concrete proposal for what "Analysis does its own scraping" means operationally: does it re-scrape the same posts a Review run would have covered (duplicate Apify cost), or does it scrape a fresh, independently-scoped window? Get explicit user sign-off on the cost/behavior implications before any code follows
-- [ ] Once scoped, split real implementation work into its own follow-on stories (likely: remove E18-S1's auto-chain trigger, give deep-analysis creation its own scrape-then-extract-then-synthesize pipeline, update the FAB/run-creation UI's Анализ entry point)
+- [x] Document current Apify usage end-to-end: which actors are called from which worker step (base run scraping via `platforms/instagram.py`, comment scraping via `services/comment_scraper.py`'s dual-vendor path), what each call costs, and how `usage_events` currently attributes cost per run type
+- [x] Document current worker capability/capacity model: arq `max_jobs`, `worker_job_timeout_secs`, `scrape_concurrency`, how many Railway replicas each service runs — this overlaps E20-S2's capacity work directly, don't duplicate it independently
+- [x] Concrete proposal for what "Analysis does its own scraping" means operationally — got explicit user sign-off (D42)
+- [x] Once scoped, split real implementation work into its own follow-on stories
 ### Definition of Done
-- [ ] Findings written up (this story's Handover, or a new doc if it's substantial)
-- [ ] Follow-on implementation stories opened with real AC, not placeholders
-- [ ] User has explicitly signed off on the scraping-cost/behavior model before implementation starts
+- [x] Findings written up (this story's Handover)
+- [x] Follow-on implementation stories opened with real AC, not placeholders
+- [x] User has explicitly signed off on the scraping-cost/behavior model before implementation starts (D42)
 ### Smoke test
 N/A — this is a scoping/discussion story, not a code change.
 ### Files to read
 backend/src/worker.py, backend/src/platforms/instagram.py, backend/src/services/comment_scraper.py, backend/src/services/deep_analysis.py, backend/src/services/queue.py, DECISIONS.md (D40, D26, D34/D35), BACKLOG.md (E18-S1, E20-S1/S2/S3)
 ### Files to create or modify
-None yet — this story produces a plan, not code
+None — this story produces a plan, not code
 ### Handover
-Opened 2026-07-31 directly from D40; deliberately left unimplemented pending the discussion the user asked for. Do not skip straight to writing an auto-chain-removal PR without this scoping pass — the user was explicit that the deeper worker/Apify-capacity question needs answering first, and that answer will shape how big the actual implementation stories are.
+Opened 2026-07-31 directly from D40; closed 2026-08-03 after a scoping conversation covering the whole worker/Apify/comment-scraping surface, well beyond the original audit-only framing. Full findings:
+
+**1. Current Apify usage (audit):**
+- `InstagramPlatform` (`platforms/instagram.py`) — base Review pipeline. One `apify/instagram-scraper` call per account per run for posts (`fetch_content`, `resultsType: "posts"`) and a separate call for profile details (`fetch_profile`, `resultsType: "details"`). Flat `$0.0027`/item (`apify_unit_cost_usd`). Every successful call writes a `KIND_APIFY_RESULT` `usage_events` row with real quantity × unit cost — nothing here assumes or requires an Analysis run downstream.
+- `ApifyCommentsClient`/`BrightDataCommentsClient` (`comment_scraper.py`) — Analysis-only, one call **per post** (not per run), primary `apidojo/instagram-comments-scraper-api` ($0.0075/post query, 15 comments included free — **verified live** against the actor's real Apify Store page, matching our `apify_comment_query_cost_usd`/`apify_comment_included_comments` config exactly), fallback Bright Data ($0.00075/request). Writes `KIND_APIFY_COMMENT_RESULT`/`KIND_BRIGHTDATA_COMMENT_RESULT` rows.
+- **Real bug found and verified live** (see D41, fix landed in `[E20-S1]`): `comment_scraper.py` sends `resultsLimit` to the `apidojo` actor, but the actor's real input schema has no such field (`maxItems` is the real one) — the per-post comment cap has likely never been server-side enforced.
+- **Verified via the actor's real input schema**: `apidojo`'s comments actor accepts **only** direct post URLs/IDs — no profile/username field, no post-discovery capability, and no comment sort/order parameter at all (confirms D36's suspicion was warranted — there is no vendor-side "top comments" control on this actor). Separately, `apify/instagram-scraper` (our existing base-scrape actor, same vendor account) turns out to *also* have an unused `resultsType: "comments"` mode with an `isNewestComments` toggle, implying a default top/most-relevant order — a real, previously-unconsidered alternative for future comment-ordering control, not adopted here but worth keeping in mind for `[E21-S2]`.
+- Comment scraping **structurally requires a post URL to exist first** — no Apify actor we found (or general market pattern, per a broader search) does profile-in → posts-with-comments-out in one call. Standalone Analysis therefore still means "discover this run's posts, then fetch comments for them" as two steps — just both owned by Analysis itself instead of the second step borrowing the first step's output from a different run.
+
+**2. Current worker capacity model (audit, cross-referenced against `[E20-S2]` rather than duplicated):** `scrape_concurrency=5` (semaphore over per-account Apify calls in `process_run`), `worker_job_timeout_secs=3600`, arq `max_jobs` unset (defaults to 10). All Railway services (`api`/`worker`/`web`) run at `numReplicas: 1` (already recorded in `[E20-S2]`'s own Handover, not re-verified here). **200-DAU capacity/concurrency math was explicitly not produced this session** — Apify's per-account concurrent-actor-run limit and Anthropic's org RPM/TPM limits are dashboard-only facts neither this session nor `[E20-S3]`'s prior session could check; that remains `[E20-S3]`'s blocker, not resolved here. A pure cost-volume model (given assumptions on avg competitors/user and run frequency) is a different, answerable question, not attempted here since no assumptions were supplied.
+
+**3. Standalone-Analysis proposal, user sign-off (D42):** Analysis gets its own account-selection + scrape (own `InstagramPlatform` post-discovery + own comment fetch), capped at **20 competitors per Analysis run** (independent of the account list's 50-cap, D13 — more competitors means multiple parallel Analysis runs, not one larger one), with **incremental per-item token charging** replacing today's up-front lump sum (mirrors Review's existing per-batch debit pattern) so a mid-run failure only burns tokens for completed work and refunds the rest (D43, also covers Review's parallel gap).
+
+**4. Two additional real UX gaps found while checking D43's "partial results" requirement against the actual frontend** (not part of the original audit scope, but directly relevant and verified live): `runs/[runId]/page.tsx` gates its Summary/Publications tabs entirely on `run.status === "done"`, so a `failed` run shows a bare status line even though already-committed `ContentItem`s exist in the DB; and `run.error_message` (already returned by the API and typed on the frontend) is never rendered anywhere on that page, including the token-exhaustion case that already sets a real disclaimer message server-side. The deep-analysis report page, by contrast, already surfaces `analysis.error_message` on failure — the two pages are currently inconsistent. Opened as `[E15-S4]`.
+
+**5. Explicitly out of scope / deferred by the user:** AI-insights review/UX for the Analysis report ("let's separately review this") — no story opened, revisit on request.
+
+**Follow-on stories opened this session:**
+- `[E15-S4]` Run-detail: partial results + failure disclaimer on Review runs (D43)
+- `[E15-S5]` Review results: competitor drill-down modal (direct feature request, independent of E21)
+- `[E20-S1]` (existing, expanded) — now also fixes the `resultsLimit`→`maxItems` bug and lowers the comment cap 25→15 (D41)
+- `[E21-S2]` Standalone Analysis pipeline implementation — own scrape, 20-competitor cap, incremental token charging (D42, D43)
+- `[E21-S3]` Analysis publications tab (depends on E21-S2)
+- `[E20-S2]`/`[E20-S3]` unchanged — still the right home for worker capacity/rate-limiting, still blocked on real Apify/Anthropic account limits neither session could check
+
+## [E21-S2] Standalone Analysis pipeline: own scraping, own competitor cap, incremental token charging
+**Epic:** Standalone Analysis Pipeline
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E21-S1 (this story's own proposal/sign-off, D42/D43); overlaps E20-S1 (comment-scraping call site) and E20-S2/S3 (worker capacity) — don't duplicate either
+### Goal
+Per D40/D42, remove Analysis's auto-chain off Review (`worker.py:maybe_start_deep_analysis`) and give a `DeepAnalysis` its own end-to-end scrape → extract → synthesize pipeline instead of reading a Review run's already-scraped `content_items`. Analysis becomes a fully independent run type the user launches directly — the FAB already has the entry point (E18-S1), it currently just means "chain onto a Review run" instead of "start your own."
+### Acceptance Criteria
+- [ ] `DeepAnalysis` creation gets its own account-selection step (reusing `resolve_target_accounts`/`InstagramPlatform` the same way `process_run` does), fully decoupled from any `AnalysisRun` — an Analysis run is not "attached to" a Review run anymore
+- [ ] Analysis run creation enforces a **20-competitor cap** (D42) — separate from and independent of the account list's existing 50-account cap (D13); a user with 50 competitors selects up to 20 per Analysis run and can launch multiple runs in parallel to cover the rest
+- [ ] `maybe_start_deep_analysis`'s auto-chain call in `run_analysis` is removed; confirm with product whether `run_type="deep_analysis"` on `AnalysisRun`/`ScheduledRun` (E18-S1) is still meaningful post-decoupling, or whether Analysis stops being "a kind of run" and becomes its own top-level entity
+- [ ] Token charging becomes **incremental, not up-front**: charge per item as extraction actually happens (mirroring `process_run`'s existing per-batch debit against `token_balance`), instead of `start_deep_analysis`'s current lump-sum charge based on a pre-known item count (which won't be knowable at creation time anymore, since scraping hasn't happened yet)
+- [ ] On failure (cancellation, exception, or token exhaustion) mid-pipeline: refund only the **unprocessed** portion of tokens, not the full charge (`fail_deep_analysis`'s current "always refund `tokens_charged` in full" no longer matches an incremental-charge model); leave whatever was already extracted/synthesized visible to the user with a disclaimer (D43, same spirit as `[E15-S4]`)
+- [ ] Comment-scraping call site inherits whatever `[E20-S1]` ships (batched calls, 15-comment cap, `maxItems` fix) — don't duplicate that work here, build on top of it
+- [ ] Frontend: the FAB's "Анализ публикаций и комментариев" flow gets its own competitor-picker step (same UI pattern as Review's run-creation dialog) instead of implicitly reusing whatever a chained Review run picked
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+- [ ] DECISIONS.md updated if the `run_type`/entity-relationship question above lands on a schema change
+### Smoke test
+On DEV: launch a standalone Analysis run without ever running a Review first, confirm it scrapes its own posts+comments, confirm the 20-competitor cap blocks a 21st selection, and force a mid-run failure to confirm partial results + proportional token charge.
+### Files to read
+CLAUDE.md, backend/src/worker.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_extraction.py, backend/src/platforms/instagram.py, backend/src/services/comment_scraper.py, backend/src/services/runs.py, backend/src/api/deep_analyses.py, backend/src/api/runs.py, frontend/components/run-dialog.tsx, frontend/components/run-type-picker-sheet.tsx, DECISIONS.md (D40, D42, D43, D26)
+### Files to create or modify
+backend/src/worker.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_extraction.py, backend/src/api/deep_analyses.py, backend/src/models/ (possible schema change, new migration), frontend/components/run-dialog.tsx, frontend/components/run-type-picker-sheet.tsx, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, frontend/messages/ru.json, DECISIONS.md
+### Handover
+Opened 2026-08-03 from `[E21-S1]`'s scoping session. This is the largest piece of E21 — likely worth its own further breakdown (schema/migration first, then worker pipeline, then frontend) once picked up, same pattern E14/E17 used for their own multi-step epics. Land `[E20-S1]` first (or at minimum coordinate closely) to avoid duplicating the comment-scraping call-site work.
+
+## [E21-S3] Analysis publications tab
+**Epic:** Standalone Analysis Pipeline
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E21-S2
+### Goal
+Bring the deep-analysis report page up to parity with Review's run-detail page — a Publications tab listing every post the Analysis scraped, reusing the same `ResultsTable`/`ResultsCards` components Review already uses, instead of the report page being AI-insights-only.
+### Acceptance Criteria
+- [ ] Deep-analysis report page (`deep-analyses/[analysisId]/page.tsx`) gains a second tab (Публикации), matching `runs/[runId]/page.tsx`'s Summary/Publications tab pattern
+- [ ] Reuses `ResultsTable`/`ResultsCards`/`ResultsControlsBar` — same sort/star/export affordances Review's Publications tab has, scoped to this Analysis's own scraped items (post-E21-S2, these are the Analysis's own `ContentItem`s, not borrowed from a Review run)
+- [ ] Comment-derived signal (sentiment/complaints/praises tags from E17-S3's extraction) stays visible per item, either inline in this tab or linked from it — don't regress the comment-analysis data that's the whole point of Analysis
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Open a completed standalone Analysis run, switch to the new Publications tab, confirm it lists the analysis's own posts with sort/star/export working and per-item comment tags visible.
+### Files to read
+CLAUDE.md, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/components/results-table.tsx, frontend/components/results-cards.tsx
+### Files to create or modify
+frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, frontend/messages/ru.json
+### Handover
+Opened 2026-08-03 from `[E21-S1]`'s scoping session. Blocked on `[E21-S2]` landing first — until Analysis has its own `ContentItem`s independent of a chained Review run, there's nothing distinct for this tab to show beyond what E21-S2 leaves behind.

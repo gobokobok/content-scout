@@ -53,6 +53,7 @@ class ApifyCommentsClient:
         self._client = ApifyClientAsync(token=settings.apify_api_token)
         self._actor_id = settings.apify_comments_actor_id
         self._max_charge_usd = Decimal(str(settings.apify_max_charge_per_fetch_usd))
+        self._memory_mbytes = settings.apify_actor_memory_mbytes
 
     async def fetch_comments(self, post_url: str, limit: int) -> list[RawComment]:
         last_exc: Exception | None = None
@@ -70,6 +71,7 @@ class ApifyCommentsClient:
             run_input={"startUrls": [{"url": post_url}], "resultsLimit": limit},
             run_timeout=timedelta(seconds=_APIFY_RUN_TIMEOUT_SECS),
             max_total_charge_usd=self._max_charge_usd,
+            memory_mbytes=self._memory_mbytes,
         )
         if run is None or run.status != "SUCCEEDED":
             status = run.status if run else "no run"

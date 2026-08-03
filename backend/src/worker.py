@@ -373,3 +373,7 @@ class WorkerSettings:
     cron_jobs = [cron(check_scheduled_runs, minute=set(range(0, 60, 5)), second=0)]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     job_timeout = get_settings().worker_job_timeout_secs
+    # D44/E20-S2: sized against the confirmed 25-concurrent-Apify-run ceiling — see
+    # Settings.worker_max_jobs for the worst-case math (previously arq's unset default of 10
+    # allowed up to 50 simultaneous Apify calls, already 2x the real ceiling).
+    max_jobs = get_settings().worker_max_jobs

@@ -37,6 +37,7 @@ class InstagramPlatform:
         self._client = ApifyClientAsync(token=settings.apify_api_token)
         self._actor_id = settings.apify_ig_actor_id
         self._max_charge_usd = Decimal(str(settings.apify_max_charge_per_fetch_usd))
+        self._memory_mbytes = settings.apify_actor_memory_mbytes
 
     async def fetch_content(
         self, account: Account, *, since: datetime | None, limit: int | None = None
@@ -75,6 +76,7 @@ class InstagramPlatform:
             run_input=run_input,
             run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
             max_total_charge_usd=self._max_charge_usd,
+            memory_mbytes=self._memory_mbytes,
         )
         if run is None:
             raise ApifyRunFailedError(f"Apify actor run for @{account.handle} returned no run")
@@ -106,6 +108,7 @@ class InstagramPlatform:
             },
             run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
             max_total_charge_usd=self._max_charge_usd,
+            memory_mbytes=self._memory_mbytes,
         )
         if run is None:
             raise ApifyRunFailedError(f"Apify profile run for @{account.handle} returned no run")

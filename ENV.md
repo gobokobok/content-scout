@@ -26,6 +26,10 @@ All environment variables. No values here — see `.env.example` for the templat
 | MAX_RUNS_PER_USER_PER_DAY | Per-user daily run quota (E7-S4, default 10) | optional | ✔ | ✔ |
 | BRIGHTDATA_API_TOKEN | Bright Data API token — fallback vendor for E17-S2 comment scraping (D32), used only when the primary Apify `apidojo` actor fails a post | ✔ | ✔ | ✔ |
 | BRIGHTDATA_IG_COMMENTS_DATASET_ID | Bright Data Instagram comments dataset id (Dataset API `dataset_id` param) | ✔ | ✔ | ✔ |
+| WORKER_MAX_JOBS | arq `WorkerSettings.max_jobs` — total concurrent worker jobs across all functions (E20-S2/D46, default 5, sized against the confirmed 25-concurrent-Apify-run ceiling) | optional | optional | optional |
+| APIFY_ACTOR_MEMORY_MBYTES | `memory_mbytes` pinned on every Apify actor call (E20-S2/D44/D46, default 256) | optional | optional | optional |
+| DB_POOL_SIZE | SQLAlchemy async engine `pool_size` (E20-S2/D46, default 10) | optional | optional | optional |
+| DB_MAX_OVERFLOW | SQLAlchemy async engine `max_overflow` (E20-S2/D46, default 10) | optional | optional | optional |
 
 ## Frontend
 

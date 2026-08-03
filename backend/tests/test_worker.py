@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import get_settings
 from src.models import (
     KIND_APIFY_RESULT,
     KIND_CLAUDE_INPUT_TOKENS,
@@ -17,7 +18,7 @@ from src.models import (
     RunStatus,
     UsageEvent,
 )
-from src.worker import maybe_start_deep_analysis, process_deep_analysis, process_run
+from src.worker import WorkerSettings, maybe_start_deep_analysis, process_deep_analysis, process_run
 from tests.conftest import (
     make_account,
     make_account_list,
@@ -51,6 +52,16 @@ async def _fake_summarize(session, items, *, user_id, run_id, **_kwargs) -> None
                 unit_cost_usd=Decimal("0.000005"),
             )
         )
+
+
+def test_worker_max_jobs_stays_within_apify_concurrency_ceiling() -> None:
+    """E20-S2/D44: worst case is every concurrent worker job being a run_analysis job, each
+    firing up to scrape_concurrency Apify calls at once — that product must not exceed the
+    confirmed 25-concurrent-Apify-run ceiling (the previous unset arq default of 10 allowed up
+    to 50, already 2x over)."""
+    settings = get_settings()
+    assert WorkerSettings.max_jobs == settings.worker_max_jobs
+    assert settings.worker_max_jobs * settings.scrape_concurrency <= 25
 
 
 async def test_process_run_scrapes_mock_content_and_completes(session: AsyncSession) -> None:
