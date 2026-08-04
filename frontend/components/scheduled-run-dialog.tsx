@@ -19,6 +19,10 @@ import { Segmented } from "@/components/ui";
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
 const COMMENTS_LIMIT_OPTIONS = [5, 10, 15, 25, 50, 100];
+// Apify's comment-scraping actor is capped at 10 items on the current (Free Plan) account
+// regardless of what we request — options above that are shown as a teaser, not selectable,
+// until the account is upgraded or a working fallback vendor is configured.
+const ACTIVE_COMMENTS_LIMIT_OPTIONS = new Set([5, 10]);
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 type ScopeMode = "days" | "count";
 type RepeatMode = "once" | "recurring";
@@ -33,6 +37,9 @@ function chipClass(active: boolean): string {
     active ? "bg-ink text-lime font-semibold" : "border border-border text-ink hover:bg-bg"
   }`;
 }
+
+const disabledChipClass =
+  "h-10 min-w-10 rounded-[10px] border border-border px-2 font-mono text-[13px] font-medium text-secondary/50 opacity-60 cursor-not-allowed";
 
 function ToggleSwitch({
   checked,
@@ -90,7 +97,7 @@ export function ScheduledRunDialog({
   const [view, setView] = useState<View>("form");
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>(existing?.analysis_mode ?? "account");
   const [postUrl, setPostUrl] = useState(existing?.target_post_url ?? "");
-  const [commentsLimit, setCommentsLimit] = useState(existing?.comments_limit ?? 15);
+  const [commentsLimit, setCommentsLimit] = useState(existing?.comments_limit ?? 10);
   const [scopeMode, setScopeMode] = useState<ScopeMode>(
     existing?.item_limit != null ? "count" : "days",
   );
@@ -489,15 +496,19 @@ export function ScheduledRunDialog({
               {tRunDialog("commentsLimitLabel")}
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {COMMENTS_LIMIT_OPTIONS.map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setCommentsLimit(n)}
-                  className={chipClass(commentsLimit === n)}
-                >
-                  {n}
-                </button>
-              ))}
+              {COMMENTS_LIMIT_OPTIONS.map((n) => {
+                const enabled = ACTIVE_COMMENTS_LIMIT_OPTIONS.has(n);
+                return (
+                  <button
+                    key={n}
+                    onClick={() => enabled && setCommentsLimit(n)}
+                    disabled={!enabled}
+                    className={enabled ? chipClass(commentsLimit === n) : disabledChipClass}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
