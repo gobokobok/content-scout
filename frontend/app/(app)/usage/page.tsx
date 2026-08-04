@@ -134,28 +134,38 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailType")}</dt>
             <dd className="text-sm font-medium text-ink">
-              {run.kind === "deep_analysis" ? t("taskTypeAnalysis") : t("taskTypeReview")}
+              {run.kind === "purchase"
+                ? t("taskTypePurchase")
+                : run.kind === "deep_analysis"
+                  ? t("taskTypeAnalysis")
+                  : t("taskTypeReview")}
             </dd>
           </div>
-          <div className="flex items-center justify-between py-3">
-            <dt className="text-sm text-secondary">{t("detailRunId")}</dt>
-            <dd className="flex items-center font-mono text-xs text-secondary ml-4">
-              <span className="truncate max-w-[120px]">{run.id.slice(0, 8)}…</span>
-              <CopyButton value={run.id} />
-            </dd>
-          </div>
+          {run.kind !== "purchase" && (
+            <div className="flex items-center justify-between py-3">
+              <dt className="text-sm text-secondary">{t("detailRunId")}</dt>
+              <dd className="flex items-center font-mono text-xs text-secondary ml-4">
+                <span className="truncate max-w-[120px]">{run.id.slice(0, 8)}…</span>
+                <CopyButton value={run.id} />
+              </dd>
+            </div>
+          )}
           <div className="flex items-center justify-between py-3">
             <dt className="text-sm text-secondary">{t("detailStarted")}</dt>
             <dd className="font-mono text-sm text-ink">{formatDateTime(run.created_at)}</dd>
           </div>
-          <div className="flex items-center justify-between py-3">
-            <dt className="text-sm text-secondary">{t("detailStatus")}</dt>
-            <dd className="text-sm text-ink">{statusLabel[run.status] ?? run.status}</dd>
-          </div>
-          <div className="flex items-center justify-between py-3">
-            <dt className="text-sm text-secondary">{t("detailPublications")}</dt>
-            <dd className="font-mono text-sm font-medium text-ink">{run.progress_items}</dd>
-          </div>
+          {run.kind !== "purchase" && (
+            <>
+              <div className="flex items-center justify-between py-3">
+                <dt className="text-sm text-secondary">{t("detailStatus")}</dt>
+                <dd className="text-sm text-ink">{statusLabel[run.status] ?? run.status}</dd>
+              </div>
+              <div className="flex items-center justify-between py-3">
+                <dt className="text-sm text-secondary">{t("detailPublications")}</dt>
+                <dd className="font-mono text-sm font-medium text-ink">{run.progress_items}</dd>
+              </div>
+            </>
+          )}
           {run.kind === "deep_analysis" && (
             <div className="flex items-center justify-between py-3">
               <dt className="text-sm text-secondary">{t("detailCommentsAnalyzed")}</dt>
@@ -165,8 +175,15 @@ function RunDetailSheet({ run, onClose }: { run: RunSummaryResponse; onClose: ()
             </div>
           )}
           <div className="flex items-center justify-between py-3">
-            <dt className="text-sm text-secondary">{t("detailTokens")}</dt>
-            <dd className="font-mono text-sm font-medium text-ink tabular-nums">
+            <dt className="text-sm text-secondary">
+              {run.kind === "purchase" ? t("detailAmount") : t("detailTokens")}
+            </dt>
+            <dd
+              className={`font-mono text-sm font-medium tabular-nums ${
+                run.kind === "purchase" ? "text-success" : "text-ink"
+              }`}
+            >
+              {run.kind === "purchase" ? "+" : ""}
               {new Intl.NumberFormat("ru-RU").format(run.tokens_charged)}
             </dd>
           </div>
@@ -324,11 +341,19 @@ export default function UsagePage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const totalTokens = runs?.reduce((sum, r) => sum + r.tokens_charged, 0) ?? 0;
+  // E8-S7: "spent this period" must stay pure spend — token_purchases rows carry a positive
+  // tokens_charged (credited, not charged), so they're excluded from this sum.
+  const totalTokens =
+    runs?.filter((r) => r.kind !== "purchase").reduce((sum, r) => sum + r.tokens_charged, 0) ?? 0;
 
-  // Every existing ledger line is a spend ("usage") — top-ups are not tracked yet, so that
-  // filter option always yields an empty list until a real top-up flow lands.
-  const filteredRuns = runs === null ? null : lineFilter === "topup" ? [] : runs;
+  const filteredRuns =
+    runs === null
+      ? null
+      : lineFilter === "topup"
+        ? runs.filter((r) => r.kind === "purchase")
+        : lineFilter === "usage"
+          ? runs.filter((r) => r.kind !== "purchase")
+          : runs;
 
   const groups = (() => {
     if (!filteredRuns) return [];
@@ -597,10 +622,19 @@ export default function UsagePage() {
                       {formatTime(r.created_at)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-                      {r.kind === "deep_analysis" ? t("taskTypeAnalysis") : t("taskTypeReview")}
+                      {r.kind === "purchase"
+                        ? t("taskTypePurchase")
+                        : r.kind === "deep_analysis"
+                          ? t("taskTypeAnalysis")
+                          : t("taskTypeReview")}
                     </span>
-                    <span className="shrink-0 font-mono text-sm font-semibold text-ink">
-                      −{new Intl.NumberFormat("ru-RU").format(r.tokens_charged)}
+                    <span
+                      className={`shrink-0 font-mono text-sm font-semibold ${
+                        r.kind === "purchase" ? "text-success" : "text-ink"
+                      }`}
+                    >
+                      {r.kind === "purchase" ? "+" : "−"}
+                      {new Intl.NumberFormat("ru-RU").format(r.tokens_charged)}
                     </span>
                   </button>
                 ))}

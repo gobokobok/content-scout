@@ -328,6 +328,7 @@
   "filterTopup": "Пополнения",
   "taskTypeReview": "Ревью",
   "taskTypeAnalysis": "Анализ",
+  "taskTypePurchase": "Пополнение",
   "detailsHeader": "Детали задачи",
   "detailType": "Тип",
   "detailRunId": "ID запуска",
@@ -336,6 +337,7 @@
   "detailPublications": "Публикаций проанализировано",
   "detailCommentsAnalyzed": "Комментариев проанализировано",
   "detailTokens": "Токенов использовано",
+  "detailAmount": "Зачислено токенов",
   "copied": "Скопировано",
   "navLink": "Использование"
  },

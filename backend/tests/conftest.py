@@ -18,6 +18,7 @@ from src.models import (
     PlatformSlug,
     Project,
     ScheduledRun,
+    TokenPurchase,
     User,
     Workspace,
     WorkspaceMember,
@@ -235,6 +236,22 @@ async def make_deep_analysis(
     session.add(analysis)
     await session.flush()
     return analysis
+
+
+async def make_token_purchase(
+    session: AsyncSession, user: User | None = None, **kw
+) -> TokenPurchase:
+    user = user or await make_user(session)
+    purchase = TokenPurchase(
+        user_id=user.id,
+        tokens=kw.pop("tokens", 1000),
+        amount_stars=kw.pop("amount_stars", 1000),
+        telegram_charge_id=kw.pop("telegram_charge_id", f"charge_{uuid.uuid4().hex[:12]}"),
+        **kw,
+    )
+    session.add(purchase)
+    await session.flush()
+    return purchase
 
 
 async def make_content_item(

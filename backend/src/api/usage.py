@@ -10,7 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.db import get_session
-from src.models import AnalysisRun, DeepAnalysis, DeepAnalysisItem, Project, UsageEvent
+from src.models import (
+    AnalysisRun,
+    DeepAnalysis,
+    DeepAnalysisItem,
+    Project,
+    TokenPurchase,
+    UsageEvent,
+)
 from src.models.workspace import WorkspaceMember
 
 router = APIRouter(tags=["usage"])
@@ -32,13 +39,18 @@ class UsageOut(BaseModel):
 
 class RunSummaryOut(BaseModel):
     id: uuid.UUID
-    project_id: uuid.UUID
-    project_name: str
+    # E8-S7: a "purchase" row (kind="purchase") isn't tied to a project, unlike run/deep_analysis
+    # rows — project_id/project_name are None for those. Not rendered anywhere in the frontend
+    # today (confirmed before loosening these), so this is a safe widening.
+    project_id: uuid.UUID | None
+    project_name: str | None
     kind: str
     status: str
     duration_days: int | None
     item_limit: int | None
     progress_items: int
+    # For kind="purchase": tokens *credited* (positive), not charged — same field, opposite
+    # sign of meaning, so the frontend renders it with a "+" and distinct styling per kind.
     tokens_charged: int
     total_input_tokens: int
     total_output_tokens: int
@@ -164,6 +176,33 @@ async def get_my_runs(
             finished_at=analysis.completed_at,
         )
         for analysis, project_name, run_progress_items in deep_analysis_rows
+    )
+
+    # E8-S7: token_purchases rows (E8-S3) — the Balance page's «Пополнения» filter has shown
+    # an empty state since E18-S5; these are the real credited top-up events.
+    purchase_rows = await session.scalars(
+        select(TokenPurchase)
+        .where(TokenPurchase.user_id == user.id)
+        .where(TokenPurchase.created_at >= from_)
+        .where(TokenPurchase.created_at < to)
+    )
+    entries.extend(
+        RunSummaryOut(
+            id=purchase.id,
+            project_id=None,
+            project_name=None,
+            kind="purchase",
+            status="done",
+            duration_days=None,
+            item_limit=None,
+            progress_items=0,
+            tokens_charged=purchase.tokens,
+            total_input_tokens=0,
+            total_output_tokens=0,
+            created_at=purchase.created_at,
+            finished_at=purchase.created_at,
+        )
+        for purchase in purchase_rows
     )
 
     entries.sort(key=lambda e: e.created_at, reverse=True)

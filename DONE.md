@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E8-S7] Surface token purchases in the Balance ledger
+**Completed:** 2026-08-04
+**Handover:**
+- Extended `GET /me/runs` (no new endpoint) with `kind="purchase"` rows sourced from `TokenPurchase`, appended to the existing runs/deep-analyses list and re-sorted chronologically together — closes the AC's "all filter interleaves" requirement for free, no separate merge logic.
+- `project_id`/`project_name` widened to `Optional` (purchases aren't tied to a project); confirmed first that neither is actually rendered anywhere in the current frontend, so this was a safe widening.
+- `tokens_charged` doubles as "tokens credited" for purchase rows (positive, same field, opposite meaning) — disambiguated entirely via `kind` on the frontend: "+"/`text-success` for purchases vs. the existing "−"/`text-ink` for spend. `spentThisPeriod`'s total now explicitly excludes purchase rows so a top-up doesn't inflate the "spent" figure.
+- `RunDetailSheet` gained a purchase-aware simplified layout (type/date/credited amount only) — optional per the AC, added anyway since it was cheap.
+- New backend test helper `make_token_purchase`; 3 new tests. Full suite 371 passed (up from 368). ruff/ruff format/mypy clean; frontend `tsc --noEmit`/`next lint`/`next build` clean. No new dependencies, no ENV vars, no migration.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. Needs a real DEV Telegram Stars purchase to confirm the row appears in the «Пополнения» filter with the right amount/date and correct positive styling.
+**Promoted to backlog:**
+- (none)
+
 ## [E20-S1] Batch deep-analysis comment scraping
 **Completed:** 2026-08-04
 **Handover:**

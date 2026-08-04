@@ -22,6 +22,7 @@ from tests.conftest import (
     make_deep_analysis,
     make_project,
     make_run,
+    make_token_purchase,
     make_user,
     make_workspace,
 )
@@ -415,3 +416,88 @@ async def test_my_runs_sums_comments_analyzed_count_for_deep_analysis(
     assert by_id[str(analysis.id)]["comments_analyzed_count"] == 7
     assert by_id[str(analysis.id)]["progress_items"] == 2
     assert by_id[str(run.id)]["comments_analyzed_count"] is None
+
+
+# --- E8-S7: token_purchases surfaced in /me/runs ---
+
+
+async def test_my_runs_includes_token_purchases(session: AsyncSession) -> None:
+    user = await make_user(session)
+    now = datetime.now(UTC)
+
+    purchase = await make_token_purchase(
+        session,
+        user=user,
+        tokens=2000,
+        amount_stars=2000,
+        created_at=now - timedelta(hours=1),
+    )
+    await session.commit()
+
+    async with await _client(session) as c:
+        resp = await c.get(
+            _runs_url(now - timedelta(days=1), now + timedelta(days=1)),
+            headers=auth_headers(user.id),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+
+    by_id = {e["id"]: e for e in body}
+    entry = by_id[str(purchase.id)]
+    assert entry["kind"] == "purchase"
+    assert entry["tokens_charged"] == 2000
+    assert entry["project_id"] is None
+    assert entry["project_name"] is None
+    assert entry["status"] == "done"
+
+
+async def test_my_runs_interleaves_purchases_with_runs_chronologically(
+    session: AsyncSession,
+) -> None:
+    user = await make_user(session)
+    ws = await make_workspace(session, owner=user)
+    project = await make_project(session, workspace=ws)
+    now = datetime.now(UTC)
+
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        status="done",
+        progress_items=4,
+        created_at=now - timedelta(hours=2),
+    )
+    purchase = await make_token_purchase(session, user=user, created_at=now - timedelta(hours=1))
+    await session.commit()
+
+    async with await _client(session) as c:
+        resp = await c.get(
+            _runs_url(now - timedelta(days=1), now + timedelta(days=1)),
+            headers=auth_headers(user.id),
+        )
+        body = resp.json()
+
+    # most recent first, purchase and run interleaved in the same list
+    assert [e["id"] for e in body] == [str(purchase.id), str(run.id)]
+
+
+async def test_my_runs_token_purchases_respect_date_range_and_user_isolation(
+    session: AsyncSession,
+) -> None:
+    user = await make_user(session)
+    other_user = await make_user(session)
+    now = datetime.now(UTC)
+
+    in_range = await make_token_purchase(session, user=user, created_at=now - timedelta(hours=1))
+    await make_token_purchase(session, user=user, created_at=now - timedelta(days=10))  # outside
+    await make_token_purchase(session, user=other_user, created_at=now - timedelta(hours=1))
+    await session.commit()
+
+    async with await _client(session) as c:
+        resp = await c.get(
+            _runs_url(now - timedelta(days=1), now + timedelta(days=1)),
+            headers=auth_headers(user.id),
+        )
+        body = resp.json()
+
+    assert [e["id"] for e in body] == [str(in_range.id)]

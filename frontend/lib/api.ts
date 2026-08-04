@@ -324,9 +324,10 @@ export interface UsageResponse {
 
 export interface RunSummaryResponse {
   id: string;
-  project_id: string;
-  project_name: string;
-  kind: "run" | "deep_analysis";
+  // E8-S7: null for kind="purchase" — a top-up isn't tied to a project.
+  project_id: string | null;
+  project_name: string | null;
+  kind: "run" | "deep_analysis" | "purchase";
   status: string;
   duration_days: number | null;
   item_limit: number | null;

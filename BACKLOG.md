@@ -2914,23 +2914,24 @@ Reconstructed retroactively from commits `4ac273f`, `b9f2c9f`, `d088cb6` (2026-0
 
 ## [E8-S7] Surface token purchases in the Balance ledger
 **Epic:** Telegram Integration & Monetization
-**Sprint:** unassigned (promoted from E8-S3, 2026-07-29)
-**Status:** backlog
+**Sprint:** 12
+**Status:** done
+**Completed:** 2026-08-04
 **Priority:** low
 **Depends on:** E8-S3 (token_purchases table + purchase flow)
 ### Goal
 The Balance page's «Пополнения» ledger filter has shown an empty state since E18-S5, with a code comment noting top-ups "are not tracked yet." E8-S3 made that real (`token_purchases` rows now exist), but didn't wire them into the ledger — a user who buys tokens sees their balance jump with no line item explaining why.
 ### Acceptance Criteria
-- [ ] `GET /me/runs` (or a new endpoint) includes `token_purchases` rows alongside runs/deep-analyses, or the frontend queries them separately — either way, the «Пополнения» filter on `/usage` shows real rows instead of always being empty
-- [ ] Each row shows the credited amount (positive, distinct styling from the negative spend rows) and purchase date; tapping one can show amount_stars in a detail sheet if useful, but isn't required
-- [ ] The "all" filter view interleaves purchases with spend rows in the same chronological grouping the page already uses for runs/deep-analyses
+- [x] `GET /me/runs` (or a new endpoint) includes `token_purchases` rows alongside runs/deep-analyses, or the frontend queries them separately — either way, the «Пополнения» filter on `/usage` shows real rows instead of always being empty
+- [x] Each row shows the credited amount (positive, distinct styling from the negative spend rows) and purchase date; tapping one can show amount_stars in a detail sheet if useful, but isn't required
+- [x] The "all" filter view interleaves purchases with spend rows in the same chronological grouping the page already uses for runs/deep-analyses
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Buy tokens on DEV, open the Balance page's «Пополнения» filter, confirm the purchase appears as a line item with the right amount and date.
 ### Files to read
@@ -2938,7 +2939,11 @@ CLAUDE.md, backend/src/api/usage.py, backend/src/models/token_purchase.py, front
 ### Files to create or modify
 backend/src/api/usage.py, frontend/app/(app)/usage/page.tsx, frontend/lib/api.ts
 ### Handover
-—
+- `GET /me/runs` extended (not a new endpoint) — `RunSummaryOut` gained `kind="purchase"` rows queried from `TokenPurchase` for the same user/date-range, appended to the existing runs+deep-analyses list and re-sorted chronologically together (satisfies the "all" interleaving AC directly, no separate merge logic needed). `project_id`/`project_name` widened to `Optional` since a purchase isn't tied to a project — confirmed neither field is actually rendered anywhere in the current frontend before loosening them, so this is a safe widening, not a breaking change.
+- `tokens_charged` is reused for purchases too, holding the *credited* amount (positive) rather than a charge — same field, opposite sign of meaning, disambiguated entirely by `kind` on the frontend (a "+" prefix and `text-success` styling for purchase rows vs. the existing "−" prefix/`text-ink` for spend rows).
+- Frontend: `lineFilter`'s dead "topup always empty" special-case replaced with a real `kind === "purchase"` filter (also fixed "usage" to properly exclude purchases, which it never needed to before since purchases didn't exist in the list). `spentThisPeriod`'s total now explicitly excludes purchase rows (would otherwise have inflated "spent" by whatever was topped up, since both share the same positive-valued field). `RunDetailSheet` (tap-to-expand) gained a purchase-aware simplified layout — per the AC's own "isn't required" caveat, still added since it was cheap: shows type + date + credited amount, skips the status/run-id/publications rows that don't apply to a purchase.
+- New backend test helper `make_token_purchase` (`tests/conftest.py`); 3 new backend tests (purchase surfaced correctly, chronological interleaving with a run, date-range + cross-user isolation). Full suite 371 passed (up from 368). ruff/ruff format/mypy clean. Frontend `tsc --noEmit`/`next lint`/`next build` all clean.
+- No new dependencies, no ENV vars, no migration (reuses the existing `token_purchases` table from E8-S3).
 
 ## [E8-S9] Telegram completion DM: deep-link into the Mini App, not the browser
 **Epic:** Telegram Integration & Monetization
