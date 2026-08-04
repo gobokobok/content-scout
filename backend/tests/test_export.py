@@ -249,6 +249,41 @@ async def test_project_items_export_pools_across_runs_and_respects_run_filter(
         assert wb.active.max_row == 2  # header + 1 item scoped to run_1
 
 
+async def test_project_items_export_run_id_includes_items_from_a_failed_run(
+    session: AsyncSession,
+) -> None:
+    """E15-S4/D43: exporting one specific (failed) run's own Publications tab reflects whatever
+    it already committed — mirrors items.py:list_project_items' same fix."""
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, handle="natgeo")
+    failed_run = await make_run(
+        session, project=project, requested_by=owner, status=RunStatus.failed
+    )
+    await make_content_item(session, run=failed_run, account=account, title="Partial item")
+    await session.commit()
+
+    import io
+
+    from openpyxl import load_workbook
+
+    async with await client(session) as c:
+        headers = auth_headers(owner.id)
+
+        # Aggregate export (run_id omitted) still excludes it — unchanged behavior.
+        resp = await c.get(f"/projects/{project.id}/items/export.xlsx", headers=headers)
+        wb = load_workbook(io.BytesIO(resp.content))
+        assert wb.active.max_row == 1  # header only
+
+        resp = await c.get(
+            f"/projects/{project.id}/items/export.xlsx?run_id={failed_run.id}", headers=headers
+        )
+        wb = load_workbook(io.BytesIO(resp.content))
+        assert wb.active.max_row == 2  # header + the one partial item
+
+
 async def test_project_items_export_respects_starred_only(session: AsyncSession) -> None:
     owner = await make_user(session)
     ws = await make_workspace(session, owner=owner)

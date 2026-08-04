@@ -372,13 +372,20 @@ async def list_project_items(
     likes_per_day = likes_per_day_expr()
     engagement_rate = engagement_rate_expr()
 
-    done_runs_in_project = select(AnalysisRun.id).where(
-        AnalysisRun.project_id == project_id, AnalysisRun.status == RunStatus.done
-    )
+    runs_in_project = select(AnalysisRun.id).where(AnalysisRun.project_id == project_id)
+    done_runs_in_project = runs_in_project.where(AnalysisRun.status == RunStatus.done)
 
-    item_scope: Any = ContentItem.run_id.in_(done_runs_in_project)
     if run_id is not None:
-        item_scope = and_(item_scope, ContentItem.run_id == run_id)
+        # E15-S4/D43: viewing one specific run's own Publications tab shows whatever it
+        # already committed regardless of status (partial results on a failed/exhausted run)
+        # — still scoped to this project's own runs (ownership already gated by
+        # get_owned_project above), just without the "all runs" aggregate view's done-only
+        # requirement below.
+        item_scope: Any = and_(
+            ContentItem.run_id == run_id, ContentItem.run_id.in_(runs_in_project)
+        )
+    else:
+        item_scope = ContentItem.run_id.in_(done_runs_in_project)
 
     where_clauses: list[Any] = [item_scope]
     virality_subq = virality_baseline_subquery(item_scope)

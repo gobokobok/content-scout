@@ -313,12 +313,19 @@ async def export_project_items_xlsx(
     likes_per_day = likes_per_day_expr()
     engagement_rate = engagement_rate_expr()
 
-    done_runs_in_project = select(AnalysisRun.id).where(
-        AnalysisRun.project_id == project_id, AnalysisRun.status == RunStatus.done
-    )
-    item_scope: Any = ContentItem.run_id.in_(done_runs_in_project)
+    runs_in_project = select(AnalysisRun.id).where(AnalysisRun.project_id == project_id)
+    done_runs_in_project = runs_in_project.where(AnalysisRun.status == RunStatus.done)
+
     if run_id is not None:
-        item_scope = and_(item_scope, ContentItem.run_id == run_id)
+        # E15-S4/D43: exporting one specific run's own Publications tab reflects whatever it
+        # already committed regardless of status (mirrors items.py:list_project_items) —
+        # still scoped to this project's own runs, just without the "all runs" aggregate
+        # export's done-only requirement below.
+        item_scope: Any = and_(
+            ContentItem.run_id == run_id, ContentItem.run_id.in_(runs_in_project)
+        )
+    else:
+        item_scope = ContentItem.run_id.in_(done_runs_in_project)
 
     where_clauses: list[Any] = [item_scope]
     virality_subq = virality_baseline_subquery(item_scope)

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Film, ImageIcon, Images, Settings2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Film, ImageIcon, Images, Settings2 } from "lucide-react";
 import {
   api,
   downloadXlsx,
@@ -94,20 +94,25 @@ export default function RunDetailPage() {
 
   useEffect(() => { void loadRun(); }, [loadRun]);
 
+  // E15-S4/D43: a run that stopped early (failed, or done-with-token-exhaustion) still shows
+  // whatever was already committed, not just a bare status line — the same threshold used
+  // below to decide whether the Summary/Publications tabs render at all.
+  const showTabs = run?.status === "done" || (run?.progress_items ?? 0) > 0;
+
   // ── Top-5 by virality (Summary tab) ────────────────────────────────────
   useEffect(() => {
-    if (run?.status !== "done") return;
+    if (!showTabs) return;
     let cancelled = false;
     api
       .getTopVirality(params.runId, 5)
       .then((res) => { if (!cancelled) setTopVirality(res.items); })
       .catch(() => { if (!cancelled) setTopVirality([]); });
     return () => { cancelled = true; };
-  }, [run?.status, params.runId]);
+  }, [showTabs, params.runId]);
 
   // ── Publications tab — reuses the project items endpoint scoped to this run ──
   useEffect(() => {
-    if (tab !== "publications" || run?.status !== "done") return;
+    if (tab !== "publications" || !showTabs) return;
     let cancelled = false;
     setItemsPage(null);
     api
@@ -115,7 +120,7 @@ export default function RunDetailPage() {
       .then((res) => { if (!cancelled) setItemsPage({ items: res.items, total: res.total }); })
       .catch((err) => { if (cancelled) return; addToast(err instanceof ApiError ? err.messageRu : t("genericError")); });
     return () => { cancelled = true; };
-  }, [tab, run?.status, params.id, params.runId, starredOnly, sort, order, page, t, addToast]);
+  }, [tab, showTabs, params.id, params.runId, starredOnly, sort, order, page, t, addToast]);
 
   function onSortChange(field: ItemSortField) {
     if (field === sort) setOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -216,13 +221,37 @@ export default function RunDetailPage() {
             ))}
           </div>
 
-          {run.status !== "done" && (
+          {!showTabs && (
             <p className="text-sm text-secondary">
-              {run.status === "failed" ? t("status_failed") : t(`status_${run.status}`)}
+              {run.status === "failed"
+                ? run.error_message || t("status_failed")
+                : t(`status_${run.status}`)}
             </p>
           )}
 
-          {run.status === "done" && tab === "summary" && (
+          {/* E15-S4/D43: a disclaimer whenever the run stopped early but still committed
+              something — neutral styling for the done-with-token-exhaustion case, danger
+              styling for a hard failure, matching the deep-analysis report page's treatment. */}
+          {showTabs && run.error_message && (
+            <div
+              className={`flex items-start gap-2 rounded-card border px-3.5 py-3 ${
+                run.status === "failed"
+                  ? "border-danger/30 bg-danger-soft"
+                  : "border-warning/30 bg-accent-soft"
+              }`}
+            >
+              <AlertTriangle
+                className={`mt-0.5 h-4 w-4 shrink-0 ${
+                  run.status === "failed" ? "text-danger" : "text-accent"
+                }`}
+              />
+              <p className={`text-sm ${run.status === "failed" ? "text-danger" : "text-accent"}`}>
+                {run.error_message}
+              </p>
+            </div>
+          )}
+
+          {showTabs && tab === "summary" && (
             <div className="flex flex-col gap-4">
               <div className="flex flex-col divide-y divide-border rounded-card border border-border bg-card px-4">
                 <div className="flex items-center justify-between gap-2 py-3">
@@ -325,7 +354,7 @@ export default function RunDetailPage() {
             </div>
           )}
 
-          {run.status === "done" && tab === "publications" && (
+          {showTabs && tab === "publications" && (
             <div className="flex flex-col gap-3">
               <div className="md:hidden">
                 <ResultsControlsBar

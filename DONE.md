@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E15-S4] Run-detail: partial results + failure disclaimer on Review runs
+**Completed:** 2026-08-04
+**Handover:**
+- Direct chat bug report (already had a full BACKLOG.md story from E21-S1's scoping session, D43) — the user hit a run that errored with a real −11 token charge but zero visible results, exactly the gap this story was scoped to close.
+- Frontend: `showTabs = run.status === "done" || run.progress_items > 0` now gates the Summary/Publications tabs and their data-fetch effects instead of a hard `status === "done"` check. New disclaimer banner renders `run.error_message` whenever present (danger styling for `failed`, the existing warning styling for the done-with-token-exhaustion case), reusing the deep-analysis report page's visual pattern.
+- **Real backend gap found while confirming the AC's "no backend change expected" assumption**: `api/items.py:list_project_items` and `api/export.py:export_project_items_xlsx` both required `status == done` even for an explicitly-requested single `run_id`, not just the "all runs" aggregate view — so a failed run's Publications tab/export would have stayed empty regardless of the frontend fix. Fixed by scoping the explicit-`run_id` case to project ownership instead of run status, verified not to leak a foreign project's items with a dedicated test.
+- 5 new/extended backend tests; full suite 378 passed (up from 375). ruff/ruff format/mypy clean; frontend `tsc --noEmit`/`next lint`/`next build` clean. No new dependencies, no ENV vars, no migration.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. The user's own report is what surfaced this gap; a follow-up look at the actual run they mentioned (started 15:23) would confirm the fix live.
+**Promoted to backlog:**
+- (none)
+
 ## [E8-S7] Surface token purchases in the Balance ledger
 **Completed:** 2026-08-04
 **Handover:**

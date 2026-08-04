@@ -2275,24 +2275,25 @@ frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx (new), frontend/lib/api.t
 
 ## [E15-S4] Run-detail: partial results + failure disclaimer on Review runs
 **Epic:** Run Detail View
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** unassigned (closed 2026-08-04, direct chat bug report)
+**Status:** done
+**Completed:** 2026-08-04
 **Priority:** high
 **Depends on:** none
 ### Goal
 Per D43: today `runs/[runId]/page.tsx` gates the Summary/Publications tabs entirely on `run.status === "done"` — a `failed` run shows only a bare "Запуск завершился с ошибкой" line, even though `ContentItem`/summary rows already committed before the crash are still in the DB (Review commits per-account incrementally in `process_run`). Separately, `run.error_message` — already returned by the API and typed on the frontend (`RunResponse.error_message`) — is never rendered anywhere on this page, not even in the token-balance-exhaustion case where `run.status` stays `done` and a real Russian disclaimer (`_TOKEN_BALANCE_EXHAUSTED_MSG`) is already set server-side. Users currently have no way to see "your run stopped early, here's what we got before it stopped, and why."
 ### Acceptance Criteria
-- [ ] Summary/Publications tabs render whenever there are committed `ContentItem`s for the run, regardless of `run.status` — a `failed` run with partial data shows the same tabs a `done` run does, not just a status line
-- [ ] A disclaimer banner renders `run.error_message` whenever it's non-null, on both the token-exhaustion `done` case and the `failed` case (distinct visual treatment per status — neutral banner for the exhaustion disclaimer vs. `danger` styling for a hard failure, matching the deep-analysis report page's existing `analysis.error_message` treatment, which this page currently lacks)
-- [ ] A `failed` run with zero committed items (crashed before any account finished) still falls back to the current bare status message — no empty/broken tabs
-- [ ] No backend change expected — `run.error_message` and the underlying `ContentItem` rows already exist and already flow to the frontend type; confirm this during implementation before assuming a backend change is needed
+- [x] Summary/Publications tabs render whenever there are committed `ContentItem`s for the run, regardless of `run.status` — a `failed` run with partial data shows the same tabs a `done` run does, not just a status line
+- [x] A disclaimer banner renders `run.error_message` whenever it's non-null, on both the token-exhaustion `done` case and the `failed` case (distinct visual treatment per status — neutral banner for the exhaustion disclaimer vs. `danger` styling for a hard failure, matching the deep-analysis report page's existing `analysis.error_message` treatment, which this page currently lacks)
+- [x] A `failed` run with zero committed items (crashed before any account finished) still falls back to the current bare status message — no empty/broken tabs
+- [x] No backend change expected — `run.error_message` and the underlying `ContentItem` rows already exist and already flow to the frontend type; confirm this during implementation before assuming a backend change is needed — **turned out false, see Handover: two real backend gaps found and fixed**
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Force a run to fail mid-scrape (e.g. a deliberately bad account mixed with good ones, or a lowered token balance) and confirm partial publications + the disclaimer both render; confirm the token-exhaustion (`done`-with-message) case also now shows its disclaimer.
 ### Files to read
@@ -2300,7 +2301,10 @@ CLAUDE.md, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, backend/src/a
 ### Files to create or modify
 frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/messages/ru.json
 ### Handover
-Opened 2026-08-03 from E21-S1's scoping discussion (see BACKLOG.md's `[E21-S1]` entry and DECISIONS.md's D43). Standalone — ships independently of E21, doesn't depend on the Analysis decoupling work.
+- Opened 2026-08-03 from E21-S1's scoping discussion (see BACKLOG.md's `[E21-S1]` entry and DECISIONS.md's D43). Standalone — ships independently of E21, doesn't depend on the Analysis decoupling work. **Closed 2026-08-04** after the user hit exactly this gap live (a run that errored showed zero results despite a real −11 token charge on the Balance page) and reported it directly in chat.
+- Frontend: new `showTabs = run.status === "done" || run.progress_items > 0` gates both tab content and the two data-fetch effects (top-virality, publications) — `progress_items` is committed incrementally per-account before any later-stage failure (confirmed in `worker.py` before relying on it), so it's a reliable "has committed data" proxy without a new field. Bare status message now prefers `run.error_message` over the generic "Запуск завершился с ошибкой" when both a failed status and a real message exist. New disclaimer banner (reused visual pattern from the deep-analysis report page) renders `run.error_message` whenever `showTabs` is true — `border-danger/30 bg-danger-soft` for `failed`, the existing `border-warning/30 bg-accent-soft` for the done-with-exhaustion case.
+- **AC's own "confirm during implementation" instruction paid off — a backend change *was* needed, twice**: `api/items.py:list_project_items` and `api/export.py:export_project_items_xlsx` both scope `run_id`-filtered items through a `status == done` subquery even when a *specific* `run_id` is explicitly requested (not just the "all runs" aggregate view) — meaning a failed run's Publications tab/export would have stayed empty even after the frontend fix, since the underlying data fetch itself excluded it. Fixed by splitting the scope: the explicit-`run_id` case now checks `ContentItem.run_id == run_id AND run_id IN (runs in this project)` (ownership-scoped, not done-scoped), while the `run_id=None` aggregate view keeps the original done-only requirement unchanged (deliberate design for that view, out of scope here). Verified this doesn't regress cross-project isolation with a dedicated test (a foreign project's failed run can't leak items just because the status filter was dropped).
+- 5 new/extended backend tests (`test_items_api.py` ×2, `test_export.py` ×1, existing done-only aggregate tests re-confirmed unchanged). Full suite 378 passed (up from 375). ruff/ruff format/mypy clean. Frontend `tsc --noEmit`/`next lint`/`next build` clean. No new dependencies, no ENV vars, no migration.
 
 ## [E15-S5] Run results: settings + competitor drill-down modal (Review and Analysis)
 **Epic:** Run Detail View

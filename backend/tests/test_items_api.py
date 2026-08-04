@@ -492,6 +492,69 @@ async def test_project_items_excludes_non_done_runs(session: AsyncSession) -> No
         assert titles == {"Done item"}
 
 
+async def test_project_items_run_id_includes_items_from_a_failed_run(
+    session: AsyncSession,
+) -> None:
+    """E15-S4/D43: viewing one specific (failed) run's own Publications tab shows whatever it
+    already committed — the "done runs only" restriction is for the run_id=None aggregate view
+    only, not a single explicitly-requested run."""
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list, handle="natgeo")
+    failed_run = await make_run(
+        session,
+        project=project,
+        requested_by=owner,
+        status=RunStatus.failed,
+        error_message="Баланс токенов исчерпан.",
+    )
+    await make_content_item(session, run=failed_run, account=account, title="Partial item")
+    await session.commit()
+
+    async with await client(session) as c:
+        # Aggregate view (run_id omitted) still excludes it — unchanged behavior.
+        resp = await c.get(f"/projects/{project.id}/items", headers=auth_headers(owner.id))
+        assert resp.json()["items"] == []
+
+        # This run's own Publications tab shows it.
+        resp = await c.get(
+            f"/projects/{project.id}/items?run_id={failed_run.id}", headers=auth_headers(owner.id)
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 1
+        assert body["items"][0]["title"] == "Partial item"
+
+
+async def test_project_items_run_id_still_scoped_to_owning_project_when_not_done(
+    session: AsyncSession,
+) -> None:
+    """The relaxed run_id-explicit scope must still verify the run belongs to *this* project —
+    a foreign project's failed run must not leak items just because status filtering was
+    dropped for the explicit-run_id case."""
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+
+    other_project = await make_project(session, workspace=ws)
+    other_account_list = await make_account_list(session, project=other_project)
+    other_account = await make_account(session, account_list=other_account_list)
+    foreign_run = await make_run(
+        session, project=other_project, requested_by=owner, status=RunStatus.failed
+    )
+    await make_content_item(session, run=foreign_run, account=other_account, title="Not yours")
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(
+            f"/projects/{project.id}/items?run_id={foreign_run.id}", headers=auth_headers(owner.id)
+        )
+        assert resp.status_code == 200
+        assert resp.json()["items"] == []
+
+
 async def test_project_items_starred_only_filter(session: AsyncSession) -> None:
     owner = await make_user(session)
     ws = await make_workspace(session, owner=owner)
