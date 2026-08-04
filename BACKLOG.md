@@ -117,23 +117,23 @@ None expected (verification only) unless timing reveals a real regression
 ## [E19-S3] DEV smoke sweep for Sprint 11's deferred items
 **Epic:** Pilot Verification Sweep
 **Sprint:** 12
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Depends on:** none
 ### Goal
 Sprint 11's `/sprint-review` found 6 genuinely open `Smoke test: DEFERRED` entries in DONE.md (of 7 total — the 7th, E14's zero-balance-badge edge case, was explicitly deprioritized by direct user choice during E19-S1 and isn't in scope here). Same mandatory-sweep pattern as E19-S1: ≥3 deferred entries triggers a dedicated verification story rather than letting them accumulate further.
 ### Acceptance Criteria
 - [ ] **[E20-S3]** — observe the Apify concurrency governor under real concurrent load: live Apify console pull during real concurrent DEV runs, or trigger several genuinely concurrent runs and confirm the 25-slot cap holds
-- [ ] **[E20-S2]** — confirm `Memory: 256 MB` actually lands on post-fix Apify run-detail pages; enqueue >5 concurrent runs and confirm queueing behavior matches `max_jobs=5`
+- [x] **[E20-S2]** — confirm `Memory: 256 MB` actually lands on post-fix Apify run-detail pages; enqueue >5 concurrent runs and confirm queueing behavior matches `max_jobs=5`
 - [ ] **[E17-S10]** — force a real `asyncio` job-timeout cancellation live (e.g. a deliberately low `worker_job_timeout_secs` test run) and confirm the analysis lands in `failed` with a full token refund, not stuck
-- [ ] **[E8-S8]** — retest D38's auto-project-creation + iOS 401-recovery live on a genuinely new Telegram account/device: home feed usable immediately (no prompt), "+" FAB works right away, Competitors resolves normally
+- [x] **[E8-S8]** — retest D38's auto-project-creation + iOS 401-recovery live on a genuinely new Telegram account/device: home feed usable immediately (no prompt), "+" FAB works right away, Competitors resolves normally
 - [ ] **[E8-S3]** — a real DEV purchase via actual Telegram Stars (test mode): quick-pick and custom amount, confirm `token_balance` increases correctly and a previously-blocked run unblocks; also the first live check of D37's still-unconfirmed per-invoice Stars ceiling
 - [ ] **[E4-S3]** — a deliberate twice-back-to-back run comparison confirming the image-resize/skip/batch cost optimizations actually reduce token usage as designed
 ### Definition of Done
 - [ ] All AC items confirmed live, or explicitly closed by direct user choice with a documented reason (same pattern E19-S1 used for its one deprioritized item)
-- [ ] Each closed item's original DONE.md entry updated from `DEFERRED` to `PASSED` (or left `DEFERRED` with an explicit "still open" note if genuinely not resolvable this sprint)
-- [ ] DONE.md updated with this story's own entry
-- [ ] BACKLOG.md updated
+- [x] Each closed item's original DONE.md entry updated from `DEFERRED` to `PASSED` (2 of 6 so far — E20-S2, E8-S8)
+- [ ] DONE.md updated with this story's own (closing) entry — not yet, story stays open
+- [x] BACKLOG.md updated
 ### Smoke test
 This story *is* the smoke test — user-executed on real DEV, not agent-verified.
 ### Files to read
@@ -141,7 +141,7 @@ DONE.md's `[E20-S3]`, `[E20-S2]`, `[E17-S10]`, `[E8-S8]`, `[E8-S3]`, `[E4-S3]` e
 ### Files to create or modify
 None expected (verification only) unless an item surfaces a real bug
 ### Handover
-—
+- 2026-08-04: 2 of 6 items confirmed live on DEV this session (E20-S2's memory pin + queueing, E8-S8's new-account iOS flow) — DONE.md updated for both. **Remaining 4 items (E20-S3, E17-S10, E8-S3, E4-S3) explicitly paused by direct user choice**, not deprioritized: the user wasn't sure how to exercise them live (concurrent-run triggering, forcing a job timeout, a real Stars test purchase, a controlled twice-back-to-back cost comparison) and asked to continue with Sprint 12 development instead, returning to finish this story after Sprint 12 closes. Story stays `in-progress` rather than closing/splitting — pick this back up explicitly rather than treating Sprint 12's next stories as having closed it.
 
 ## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
 **Epic:** Foundation & Auth
@@ -1773,6 +1773,64 @@ backend/src/models/analysis_run.py, backend/alembic/versions/b8c4d5e6f7a1_run_it
 - `RunRequestIn` uses a `model_validator(mode="after")` to enforce exactly-one-of at the API layer, mirroring the DB constraint.
 - Commit: `9468564` (shipped together with E12-S3's frontend polish in the same push), fixed up in `7679080` after CI caught a stale constraint-name assertion in `test_run_duration_check_rejected`.
 
+## [E3-S8] Run-creation estimate: explain the methodology and when balance is deducted
+**Epic:** Analysis Pipeline
+**Sprint:** unassigned (proposed Sprint 12, 2026-08-04 PBR)
+**Status:** backlog
+**Priority:** high
+**Depends on:** none
+### Goal
+Opened directly from the 2026-08-04 PBR session: the Review run-dialog's cost estimate (`costEstimateLabel`/`costEstimateValue`, "≈ N ток.") is a bare number with no explanation. The underlying math (`estimator.py:estimate_run`, confirmed during PBR) is already exactly 1 token per unit analyzed (`apify_units = accounts_count × items`) — the complaint isn't that the number is wrong, it's that nothing tells the user what it means or when it's actually charged. Users need a short note: the estimate is based on units analyzed (e.g. 10 publications selected → ≈10 tokens), and the real balance deduction happens after the run completes, not at confirmation time.
+### Acceptance Criteria
+- [ ] The Review run-dialog's cost-estimate block (`frontend/app/(app)/projects/[id]/run-dialog.tsx` or wherever it now lives post-E18-S2 — confirm current location) gains a short explanatory line beneath the number, e.g. "Расчёт по количеству анализируемых публикаций. Баланс списывается после завершения запуска." (exact RU copy to be finalized, keep it to 1–2 short sentences per CLAUDE.md's UI guidelines)
+- [ ] Confirm this note is accurate against actual Review charging behavior (when in the pipeline `token_balance` is actually debited) before finalizing the copy — don't assert "after completion" if the real debit timing differs
+- [ ] Scope is Review's `run-dialog.tsx` only — the Analysis creation flow (`deep-analysis-sheet.tsx`) is being rebuilt by `[E21-S2]`, which already carries an AC for the same messaging on its new UI; don't duplicate that work here
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing (or N/A if pure copy — confirm with CONVENTIONS.md's frontend test bar)
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Open the run-creation dialog on DEV, confirm the estimate note renders clearly at 375px and reads correctly against a real run's actual token deduction.
+### Files to read
+CLAUDE.md, frontend/app/(app)/projects/[id]/run-dialog.tsx (or current location), backend/src/services/estimator.py, backend/src/worker.py (token debit timing)
+### Files to create or modify
+frontend/app/(app)/projects/[id]/run-dialog.tsx (or current location), frontend/messages/ru.json
+### Handover
+Opened 2026-08-04 (PBR session) alongside `[E15-S5]`'s priority bump and `[E21-S2]`'s scope resolution (D49) — all three grouped under the same "billing/run transparency before paying customers" motivation.
+
+## [E18-S6] Notification drawer: show task type/time/status instead of stale project name
+**Epic:** Run-Centric Navigation & Redesign
+**Sprint:** unassigned (proposed Sprint 12, 2026-08-04 PBR)
+**Status:** backlog
+**Priority:** medium
+**Depends on:** none
+### Goal
+The top-bar notification bell's drawer (`frontend/app/(app)/layout.tsx`, the `SideDrawer` with `notifOpen`) renders each tracked run's `tracked.projectName` as its title line. Since D38 made projects an invisible one-per-user implementation detail (all runs happen "within the account," no user-facing project concept), this line is stale — it shows the same value repeated across every entry (confirmed live, screenshot shared during the 2026-08-04 PBR session shows the same account handle on every row), giving the user no way to tell entries apart. Replace it with the task type (Review/Analysis), start time, and current status — the three things that actually distinguish one run from another now.
+### Acceptance Criteria
+- [ ] Each entry in the notification drawer (`layout.tsx`'s `trackedRuns.map(...)` block, ~[layout.tsx:222](frontend/app/(app)/layout.tsx:222)) shows task type (Review/Analysis, same naming convention as the home feed/Balance ledger post-E18-S1/E18-S5) instead of `tracked.projectName`
+- [ ] Start time shown (relative or absolute, match whatever convention the home-feed run cards already use)
+- [ ] Status line (`tRun(STATUS_KEYS[tracked.run.status])`) stays as-is
+- [ ] Confirm whether `tracked` already carries the run's `run_type`/`created_at` or needs a small addition to whatever feeds this drawer (likely the same tracked-runs polling hook the home feed uses)
+- [ ] The `scheduleAlerts` block above it (still shows `alert.project_name`) gets the same treatment for consistency, unless schedules are confirmed to still need project framing (check against E14-S6/E18-S3's current schedule-card copy first)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV/Mini App, trigger a couple of runs of different types, open the notification bell, confirm each entry is distinguishable by type/time/status rather than showing a repeated stale project/account line.
+### Files to read
+CLAUDE.md, frontend/app/(app)/layout.tsx, frontend/messages/ru.json
+### Files to create or modify
+frontend/app/(app)/layout.tsx, frontend/messages/ru.json
+### Handover
+Opened 2026-08-04 (PBR session) from a direct screenshot of the live drawer showing the same value on every row — a leftover from the pre-D38 project-centric model, never updated when E18-S1's run-centric redesign landed.
+
 ## [E13-S1] Bottom nav restructure: Детали / Результаты / Анализ
 **Epic:** Navigation & Details Restructure
 **Sprint:** 8 (locked 2026-07-22 execution plan)
@@ -2236,9 +2294,9 @@ Opened 2026-08-03 from E21-S1's scoping discussion (see BACKLOG.md's `[E21-S1]` 
 
 ## [E15-S5] Run results: settings + competitor drill-down modal (Review and Analysis)
 **Epic:** Run Detail View
-**Sprint:** unassigned
+**Sprint:** unassigned (proposed Sprint 12, 2026-08-04 PBR)
 **Status:** backlog
-**Priority:** medium
+**Priority:** high (bumped from medium, 2026-08-04 PBR — pre-launch billing-trust item, "show the user what a run actually did/cost")
 **Depends on:** none
 ### Goal
 Originally opened 2026-08-03 (E21-S1's scoping session) scoped to just a competitor drill-down; **broadened 2026-08-04** after a direct user request made while debugging two real DEV Analysis runs together — having just spent that session cross-referencing Apify/Railway logs to reconstruct what a run's actual settings were (item_limit vs duration_days, which accounts), the user asked for this to be visible in the app itself: a settings icon on a run's summary card opening a read-only bottom sheet with the run's configuration (scope: N дней / последние N публикаций, plus which accounts were included) — no more guessing or log-diving to answer "what did this run actually run with." Applies to **both** Review (`runs/[runId]`) and Analysis (`deep-analyses/[analysisId]`) result pages — the Analysis report page is exactly where this session's confusion started (its summary card shows counts but not scope).
@@ -3118,6 +3176,38 @@ TBD — depends on where the 50-limit is currently enforced (not yet located)
 ### Handover
 Not started — explicitly gated on user confirmation per the Goal section. The 50→20 change itself is small; the grandfathering decision for existing projects is the part that needs a real answer before writing code.
 
+## [E20-S5] Resolve Apify Free Plan comment-count ceiling
+**Epic:** Performance & Scale
+**Sprint:** unassigned
+**Status:** backlog — pending product/business decision, not yet approved
+**Priority:** medium (blocks re-enabling a shipped-but-disabled feature, not a live bug)
+**Depends on:** none; blocks re-enabling the disabled comment-limit options `[E21-S2]` shipped
+### Goal
+Found live on DEV 2026-08-04 while smoke-testing `[E21-S2]`'s publication-mode Analysis: `apidojo/instagram-comments-scraper-api` — the primary comment-scraping vendor — silently caps its real output at **10 comments per post** on the account's current Apify **Free Plan**, no matter what `resultsLimit` the API call requests. The actor logs the restriction explicitly ("Users with the Free Plan can retrieve a maximum of 10 items... doesn't allow the use of API in the Free Plan") but still reports the overall run status as `SUCCEEDED`, so our code has no way to detect this as a failure — it just silently gets fewer comments than requested. The `BrightDataCommentsClient` fallback vendor (`comment_scraper.py`, D32) exists specifically for primary-vendor failures, but doesn't help here since the primary "succeeds," and separately isn't even configured on DEV right now (`railway variables --service worker --environment dev` shows no `BRIGHTDATA_API_TOKEN`/`BRIGHTDATA_IG_COMMENTS_DATASET_ID` set at all).
+
+This needs a business/account decision, not a code fix: either (a) upgrade the Apify account to a paid plan that lifts this actor's 10-item ceiling, or (b) provision real BrightData credentials as a working fallback and consider having the fetch path treat "fewer items than requested" as a soft-failure worth trying the fallback for (today only an outright exception triggers it). Until one of these happens, `[E21-S2]`'s comments_limit options above 10 (15/25/50/100) are shipped but intentionally disabled as greyed-out teaser chips in `run-dialog.tsx`/`scheduled-run-dialog.tsx` — real, not a bug, just gated on this story.
+### Acceptance Criteria
+- [ ] Explicit user/product decision: upgrade the Apify plan for the comments actor, configure a working BrightData fallback, both, or neither (accept the 10-comment ceiling as permanent and remove the teaser UI instead)
+- [ ] If upgrading Apify: confirm live on DEV that a `comments_limit` above 10 (e.g. 25) actually returns more than 10 real comments post-upgrade
+- [ ] If provisioning BrightData: set `BRIGHTDATA_API_TOKEN`/`BRIGHTDATA_IG_COMMENTS_DATASET_ID` on the DEV/PROD worker services (Railway), confirm a forced primary-vendor failure actually falls through to a working Bright Data fetch
+- [ ] Consider (needs its own sign-off, not assumed): should `fetch_comments` treat "returned fewer comments than requested" as a soft-failure worth trying the fallback vendor for, given the primary vendor's Free Plan behavior returns `SUCCEEDED` with silently-truncated data rather than raising?
+- [ ] Once resolved, re-enable the disabled options: `ACTIVE_COMMENTS_LIMIT_OPTIONS` in `frontend/components/run-dialog.tsx` and `frontend/components/scheduled-run-dialog.tsx` (currently hardcoded to `{5, 10}`)
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing (if the soft-failure/fallback-trigger behavior changes)
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV, run a publication-mode Analysis with `comments_limit` set above 10 and confirm the analyzed-comments count actually reflects the requested limit (not silently capped at 10).
+### Files to read
+CLAUDE.md, backend/src/services/comment_scraper.py, ENV.md (`BRIGHTDATA_API_TOKEN`/`BRIGHTDATA_IG_COMMENTS_DATASET_ID`), frontend/components/run-dialog.tsx, frontend/components/scheduled-run-dialog.tsx
+### Files to create or modify
+Depends on the decision — likely `backend/src/services/comment_scraper.py` (soft-failure/fallback trigger logic) and both frontend dialog files (`ACTIVE_COMMENTS_LIMIT_OPTIONS`), plus Railway env vars if provisioning BrightData
+### Handover
+Opened 2026-08-04 from `[E21-S2]`'s second smoke-test round — see that story's Changelog for the full `railway logs` trace that found this. Not a code bug; genuinely blocked on an account-level decision the user needs to make (and likely a real cost trade-off between an Apify plan upgrade and a BrightData subscription) before more code can usefully be written here.
+
 ## [E21-S1] Scope standalone Analysis pipeline: Apify usage audit + worker capacity
 **Epic:** Standalone Analysis Pipeline (new, D40)
 **Sprint:** unassigned — scoping complete, follow-on stories unassigned
@@ -3168,40 +3258,59 @@ Opened 2026-07-31 directly from D40; closed 2026-08-03 after a scoping conversat
 - `[E21-S3]` Analysis publications tab (depends on E21-S2)
 - `[E20-S2]`/`[E20-S3]` unchanged — still the right home for worker capacity/rate-limiting, still blocked on real Apify/Anthropic account limits neither session could check
 
-## [E21-S2] Standalone Analysis pipeline: own scraping, own competitor cap, incremental token charging
+## [E21-S2] Standalone Analysis pipeline: own scraping, single-account/post scope, incremental token charging
 **Epic:** Standalone Analysis Pipeline
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 12
+**Status:** done (2026-08-04)
 **Priority:** high
-**Depends on:** E21-S1 (this story's own proposal/sign-off, D42/D43); overlaps E20-S1 (comment-scraping call site) and E20-S2/S3 (worker capacity) — don't duplicate either
+**Depends on:** E21-S1 (this story's own proposal/sign-off, D42/D43/D49); overlaps E20-S1 (comment-scraping call site) and E20-S2/S3 (worker capacity) — don't duplicate either
 ### Goal
-Per D40/D42, remove Analysis's auto-chain off Review (`worker.py:maybe_start_deep_analysis`) and give a `DeepAnalysis` its own end-to-end scrape → extract → synthesize pipeline instead of reading a Review run's already-scraped `content_items`. Analysis becomes a fully independent run type the user launches directly — the FAB already has the entry point (E18-S1), it currently just means "chain onto a Review run" instead of "start your own."
-### Acceptance Criteria
-- [ ] `DeepAnalysis` creation gets its own account-selection step (reusing `resolve_target_accounts`/`InstagramPlatform` the same way `process_run` does), fully decoupled from any `AnalysisRun` — an Analysis run is not "attached to" a Review run anymore
-- [ ] Analysis run creation enforces a **20-competitor cap** (D42) — separate from and independent of the account list's existing 50-account cap (D13); a user with 50 competitors selects up to 20 per Analysis run and can launch multiple runs in parallel to cover the rest
-- [ ] `maybe_start_deep_analysis`'s auto-chain call in `run_analysis` is removed; confirm with product whether `run_type="deep_analysis"` on `AnalysisRun`/`ScheduledRun` (E18-S1) is still meaningful post-decoupling, or whether Analysis stops being "a kind of run" and becomes its own top-level entity
-- [ ] Token charging becomes **incremental, not up-front**: charge per item as extraction actually happens (mirroring `process_run`'s existing per-batch debit against `token_balance`), instead of `start_deep_analysis`'s current lump-sum charge based on a pre-known item count (which won't be knowable at creation time anymore, since scraping hasn't happened yet)
-- [ ] On failure (cancellation, exception, or token exhaustion) mid-pipeline: refund only the **unprocessed** portion of tokens, not the full charge (`fail_deep_analysis`'s current "always refund `tokens_charged` in full" no longer matches an incremental-charge model); leave whatever was already extracted/synthesized visible to the user with a disclaimer (D43, same spirit as `[E15-S4]`)
-- [ ] Comment-scraping call site inherits whatever `[E20-S1]` ships (batched calls, 15-comment cap, `maxItems` fix) — don't duplicate that work here, build on top of it
-- [ ] Frontend: the FAB's "Анализ публикаций и комментариев" flow gets its own competitor-picker step (same UI pattern as Review's run-creation dialog) instead of implicitly reusing whatever a chained Review run picked
-### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
-- [ ] DECISIONS.md updated if the `run_type`/entity-relationship question above lands on a schema change
-### Smoke test
-On DEV: launch a standalone Analysis run without ever running a Review first, confirm it scrapes its own posts+comments, confirm the 20-competitor cap blocks a 21st selection, and force a mid-run failure to confirm partial results + proportional token charge.
-### Files to read
-CLAUDE.md, backend/src/worker.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_extraction.py, backend/src/platforms/instagram.py, backend/src/services/comment_scraper.py, backend/src/services/runs.py, backend/src/api/deep_analyses.py, backend/src/api/runs.py, frontend/components/run-dialog.tsx, frontend/components/run-type-picker-sheet.tsx, DECISIONS.md (D40, D42, D43, D26)
-### Files to create or modify
-backend/src/worker.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_extraction.py, backend/src/api/deep_analyses.py, backend/src/models/ (possible schema change, new migration), frontend/components/run-dialog.tsx, frontend/components/run-type-picker-sheet.tsx, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, frontend/messages/ru.json, DECISIONS.md
-### Handover
-Opened 2026-08-03 from `[E21-S1]`'s scoping session. This is the largest piece of E21 — likely worth its own further breakdown (schema/migration first, then worker pipeline, then frontend) once picked up, same pattern E14/E17 used for their own multi-step epics. Land `[E20-S1]` first (or at minimum coordinate closely) to avoid duplicating the comment-scraping call-site work.
+Per D40, remove Analysis's auto-chain off Review (`worker.py:maybe_start_deep_analysis`) and give a `DeepAnalysis` its own end-to-end scrape → extract → synthesize pipeline instead of reading a Review run's already-scraped `content_items`. Analysis becomes a fully independent run type the user launches directly — the FAB already has the entry point (E18-S1), it currently just means "chain onto a Review run" instead of "start your own."
 
-**Scope-change note, 2026-08-04 (direct user request, not yet reconciled into the AC above):** while debugging two real Analysis runs, the user described a different entry flow than this story's current "own account-selection step, up to 20 competitors" AC assumes — Analysis would instead offer two distinct starting modes: **(1)** pick a single account, then set scope (N days or N publications), or **(2)** paste the URL of one specific publication, then set the same scope. Read literally this replaces "select up to 20 competitors, multi-select" with "one account (or one anchor post) per Analysis run" — a materially different shape than the 20-competitor-cap AC above, not an additive tweak. Exactly what "scope" means for mode (2) (does pasting one post's URL mean analyze just that post, or that post's account starting from it?) wasn't nailed down in this conversation and needs its own quick scoping pass, the same way `[E21-S1]` resolved D40/D42 before this story's current AC was written. **Recommendation on timing:** resolve this in a short scoping conversation *before* E21-S2 is picked up for implementation — cheapest time to change course is now, before any of the 20-competitor-cap code exists. E21-S2 is already next-up-but-unscheduled behind Sprint 11's current items (E20-S1, then E8-S7); this scoping conversation should happen at whichever point E21-S2 would otherwise start, not as a separate standalone session.
+**Entry flow, per D49 (resolved 2026-08-04 PBR session, supersedes D42's 20-competitor cap):** Analysis creation is not a multi-select competitor picker. It's exactly one of two modes:
+1. **Pick a single account**, then set scope as last N days or last N publications — same phrasing/mechanism E3-S7 already established for Review. Analyzes comments across every publication in that scope.
+2. **Paste the URL of one specific publication** — analyzes only that post's comments. No account-wide scope applies, no further scope selection shown.
+
+No competitor multi-select, no 20-cap — the cap is inherently 1 account (or 1 post) per run. A user wanting to check several competitors launches several separate Analysis runs.
+### Acceptance Criteria
+- [x] `DeepAnalysis` creation gets its own entry step implementing the two modes above — account+scope, or post-URL-only — fully decoupled from any `AnalysisRun`; an Analysis run is not "attached to" a Review run anymore
+- [x] Mode 1 (account): reuses `resolve_target_accounts`/`InstagramPlatform` the same way `process_run` does, scoped to exactly one account; scope input reuses E3-S7's existing last-N-days/last-N-publications UI pattern
+- [x] Mode 2 (post URL): resolves the pasted URL to a single post via new `InstagramPlatform.fetch_post`, fetches only that post's comments, no scope step shown
+- [x] `maybe_start_deep_analysis`'s auto-chain call in `run_analysis` is removed; `run_type="deep_analysis"` on `AnalysisRun`/`ScheduledRun` stays meaningful post-decoupling (D50 kept `AnalysisRun` as the single scrape container for both run types rather than introducing a new entity)
+- [x] Token charging becomes **incremental, not up-front**: `DeepAnalysis` starts at `tokens_charged=0`, extraction charges `1 + comments_analyzed_count` per item as each one actually completes, balance-checked before each batch
+- [x] On failure mid-pipeline: incremental charging means there's nothing to refund — `tokens_charged` always already equals real completed work (D50 supersedes the AC's original "refund the unprocessed portion" framing, which assumed an up-front charge that no longer exists). Partial results still synthesize with an `error_message` disclaimer (D43)
+- [x] Comment-scraping call site — **note:** `[E20-S1]` (batched calls/maxItems fix) had not shipped when this story landed, so this call site uses the existing single-post `fetch_comments` unchanged rather than "inheriting" anything; nothing was duplicated, and it's unmodified so `[E20-S1]` can land on top of it later
+- [x] Frontend: `deep-analysis-sheet.tsx` deleted; `run-dialog.tsx` extended with the two entry modes (account/post), plus a dedicated mode-picker screen added after initial ship per direct UX feedback (see Changelog)
+- [x] Frontend: the estimate copy (`deepEstimateExplanation`) states plainly it's an estimate and that the real charge lands after completion — written against D50's incremental-charge model directly (D48's up-front-charge-then-reconcile framing this AC originally referenced was superseded by D50 before this story's own implementation began); `[E3-S8]` (Review-side equivalent) remains separately unshipped
+### Definition of Done
+- [x] All AC checked
+- [x] Tests written and passing (350 backend tests; `tsc`/`eslint`/`next build` clean)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed (see Smoke test below)
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+- [x] DECISIONS.md updated — D50 (architecture), D49 (entry-flow scope, landed same PBR session this story opened from)
+### Smoke test
+On DEV: launch a standalone Analysis run in account mode without ever running a Review first, confirm it scrapes its own posts+comments for the chosen scope; separately launch one in post-URL mode and confirm it analyzes only that post; force a mid-run failure to confirm partial results + proportional token charge; confirm the estimate copy reads clearly before confirming either mode.
+
+**PASSED, 2026-08-04, user-executed on DEV across several rounds:** account mode confirmed working end-to-end (own scrape, no Review dependency). Post-URL mode initially failed synthesis (`Не удалось сформировать отчёт`) on a single-post/zero-comment run — Sonnet was reliably omitting the required `stats` object for that thin a dataset; fixed with an explicit prompt instruction, re-tested and confirmed working. User also found and this story fixed: `/me/usage` showing a phantom duplicate "Review" line per Analysis; a real overcharge where extraction billed for all fetched comments but only ever analyzed the first 25; and requested UX changes (mode-picker as its own screen instead of an inline toggle, account-before-scope step order, comment-limit options above what the Apify account can currently deliver shown as disabled teasers rather than live choices) — all shipped and deployed same day. See Changelog for the full sequence.
+### Files to read
+CLAUDE.md, backend/src/worker.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_extraction.py, backend/src/platforms/instagram.py, backend/src/services/comment_scraper.py, backend/src/services/runs.py, backend/src/api/deep_analyses.py, backend/src/api/runs.py, frontend/components/deep-analysis-sheet.tsx, frontend/components/run-type-picker-sheet.tsx, DECISIONS.md (D40, D43, D48, D49, D26)
+### Files to create or modify
+backend/src/worker.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_extraction.py, backend/src/api/deep_analyses.py, backend/src/models/ (possible schema change, new migration), frontend/components/deep-analysis-sheet.tsx, frontend/components/run-type-picker-sheet.tsx, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, frontend/messages/ru.json, DECISIONS.md
+### Changelog
+- **2026-08-04, implementation:** full pipeline built per D50 (see DECISIONS.md) — migration adding `analysis_mode`/`target_post_url`/`comments_limit` to `analysis_runs`/`scheduled_runs`; `InstagramPlatform.fetch_post`; `worker.py` rewritten so `run_type="deep_analysis"` runs scrape→extract→synthesize as one continuous job with its own account-resolution-from-post-author path; incremental per-item/per-comment charging replacing the old lump-sum-then-refund model; `deep-analysis-sheet.tsx` deleted, `run-dialog.tsx`/`scheduled-run-dialog.tsx` extended with the two entry modes. 349 backend tests, ruff/mypy/tsc/eslint/build all clean, pushed and confirmed live on DEV same session, ahead of any user smoke test.
+- **2026-08-04, smoke-test round 1:** user tested both modes live. Account mode worked. Post mode failed synthesis — root-caused via `railway logs` to Sonnet omitting the required `stats` tool-use key on a 1-post/0-comment input (systematic, not flaky — both retry attempts failed identically). Fixed with an explicit "always populate both objects, use empty defaults if data is thin" system-prompt instruction (mirrored into `docs/PROMPTS.md`). Also fixed in the same round, found by re-reading the worker logs and the usage-page code rather than by the user: `/me/usage` unioning `AnalysisRun` and `DeepAnalysis` rows without excluding `run_type="deep_analysis"`, so every standalone Analysis showed a phantom second "Review" line for its own (non-billable) scrape step. UX changes also shipped this round: `run-dialog.tsx` gained a dedicated mode-picker screen (mirroring the existing Review/Analysis `RunTypePickerSheet` card style) instead of an inline segmented toggle buried in the settings form, and the account-mode step order flipped to account-then-scope (was scope-then-account) per direct feedback; `scheduled-run-dialog.tsx` got the same step reorder for consistency. All re-verified via `pytest`/`ruff`/`mypy`/`tsc`/`eslint`/`next build`, pushed, DEV health-checked.
+- **2026-08-04, smoke-test round 2:** user ran post mode again — synthesis succeeded, but `comments_limit=25` only yielded 10 analyzed comments. Traced via `railway logs`: the Apify account is on a **Free Plan** for `apidojo/instagram-comments-scraper-api`, which silently caps real output at 10 items regardless of the requested `resultsLimit` and still reports the run `SUCCEEDED` (not an exception), so the BrightData fallback vendor never triggers — and BrightData isn't configured on DEV at all (`railway variables` shows no `BRIGHTDATA_*` set), so that fallback is currently non-functional regardless. This is an account/billing limitation, not fixable in code — promoted to a new backlog story, `[E20-S5]`, below. While investigating, found and fixed a real overcharge bug in the same path: `deep_analysis_extraction.py` charged 1 token per comment *fetched* but only ever fed the first 25 into the actual Haiku extraction prompt (`_MAX_COMMENTS_IN_PROMPT`, a stale constant from before `comments_limit` was user-configurable) — any run charging for more than 25 comments was billing for analysis that never happened. Removed the redundant cap. Also raised the `comments_limit` ceiling from 50 to 100 (new migration + model/API validators) and added 50/100 option chips, per direct request.
+- **2026-08-04, polish round:** per direct feedback, the 15/25/50/100 comment-limit chips (now meaningless until `[E20-S5]` is resolved) were changed from live options to disabled/greyed-out teaser chips — only 5/10 stay selectable, matching the real current ceiling; default `commentsLimit` moved from 15 to 10. The mode-picker screen's "Analyze publication" card also had its dark (`bg-ink`) styling dropped to match "Analyze account"'s light card style, since the two options aren't different tiers.
+### Handover
+Opened 2026-08-03 from `[E21-S1]`'s scoping session. Implemented and shipped 2026-08-04 per direct user request to deliver the full story in one session ("Go ahead. Deliver the complete story automatically with no my intervention, i will do the smoke test once deployed to DEV") — the confirm-before-coding step that's normally required before writing code was explicitly waived by this instruction for this story only.
+
+**Scope resolved 2026-08-04 (PBR session, D49):** the 2026-08-04 scope-change note previously here (single-account-or-post-URL entry flow, ambiguous on what "scope" means for the URL mode) is now resolved and folded directly into this story's Goal/AC above — see D49.
+
+**Real bugs found via the user's own smoke test, not caught by the test suite:** the synthesis thin-data prompt gap, the usage-page phantom double-line, and the comments-charged-vs-analyzed mismatch were all correctness bugs that 350 passing unit tests didn't catch, since they only manifest against real Apify/Claude responses to specific data shapes (a genuinely thin single-post run; the new run_type=deep_analysis row shape; comments_limit above 25). Worth remembering next time a story's automated tests all pass but the feature is genuinely new — a live DEV pass still finds real gaps.
+
+**Handed to `[E20-S5]`** (new, below): the Apify Free Plan comment-count ceiling. Re-enabling the 15/25/50/100 comment-limit options is a one-line change (`ACTIVE_COMMENTS_LIMIT_OPTIONS` in `run-dialog.tsx`/`scheduled-run-dialog.tsx`) once that story's blocker is resolved.
 
 ## [E21-S3] Analysis publications tab
 **Epic:** Standalone Analysis Pipeline
@@ -3230,3 +3339,57 @@ CLAUDE.md, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx,
 frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, frontend/messages/ru.json
 ### Handover
 Opened 2026-08-03 from `[E21-S1]`'s scoping session. Blocked on `[E21-S2]` landing first — until Analysis has its own `ContentItem`s independent of a chained Review run, there's nothing distinct for this tab to show beyond what E21-S2 leaves behind.
+
+## [E22-S1] Review Telegram completion message: condensed formatting + quantified summary
+**Epic:** Report & Notification Messaging (new)
+**Sprint:** unassigned (proposed Sprint 12, next after E18-S6, 2026-08-04 PBR)
+**Status:** backlog
+**Priority:** high
+**Depends on:** none
+### Goal
+User supplied an exact target format for the Review run's Telegram completion DM (`notify_run_complete` in `telegram_notify.py`), replacing today's message. Two kinds of change: (1) **formatting** — bulleted stat lines instead of an inline `·`-joined line, bold section headers instead of the user's `##`-style sketch (Telegram's HTML `parse_mode` doesn't render Markdown, so `##Резюме##` has to become `<b>Резюме</b>` — the one interpretive call this story makes), no `•` bullet prefix on top-publication lines (each already opens with `@handle`, visually distinct enough on its own), and a "Потрачено токенов" line that's currently missing from this message entirely (only the Analysis completion DM has an equivalent line today); (2) **content** — the AI-generated Резюме should back its claims with real counts wherever possible ("карусели (32), Reels (25)"), not just qualitative description.
+### Target format (user-supplied 2026-08-04, RU spelling corrected: "завершёна" → "завершена")
+```
+✅ Задача «Ревью» завершена!
+- Аккаунтов проверено: 9
+- Публикаций найдено: 73
+
+Резюме
+<2–4 предложения, форматные/тематические утверждения подкреплены реальными цифрами>
+
+Топ публикации по виральности
+@handle: <краткое резюме> (пост)
+@handle: <краткое резюме> (пост)
+@handle: <краткое резюме> (пост)
+
+Открыть результаты →
+
+Потрачено токенов: XXX
+Баланс токенов: 15606
+```
+### Acceptance Criteria
+- [ ] `notify_run_complete`'s header line becomes "✅ Задача «Ревью» завершена!" (was "✅ Анализ завершён!" — ambiguous against the Analysis/«Разбор» task type, this also fixes that)
+- [ ] Account/publication counts render as two bullet lines (`- Аккаунтов проверено: N`, `- Публикаций найдено: M`), replacing the current single `·`-joined inline line
+- [ ] Резюме and Топ-публикации sections get bold (`<b>...</b>`) headers instead of the current bare paragraph breaks
+- [ ] Top-publication lines (`_top_items_lines`) drop the `•` prefix — confirmed fine by the user since every line already opens with `@handle`
+- [ ] Link formatting stays exactly as today for both the per-post `(пост)` link and the "Открыть результаты →" link — user confirmed no change needed there
+- [ ] New "Потрачено токенов: N" line added before the balance line. Confirm `run.progress_items` is a reliable stand-in for tokens actually charged this run (worker.py's 1-token-per-item batch debit at `worker.py:210`) before using it directly — if a batch was truncated by mid-run token exhaustion, `progress_items` should already reflect only what was charged, but verify this holds rather than assume it
+- [ ] `run_summary.py`'s `SYSTEM_PROMPT`/`generate_run_summary` updated so content-format claims are backed by real counts: compute per-`ContentType` counts deterministically from the already-loaded `ContentItem` rows (structured data, zero hallucination risk) and feed them into the prompt as facts the model must cite, not estimate
+- [ ] Thematic/topic claims (e.g. "спортивные новости") get a real count too. Topics aren't structured data today, so extend the prompt's existing text protocol (mirrors the deterministic РЕЗЮМЕ:/ТЕМЫ: parsing pattern already in `parse_summary_response`) with a third block tagging each input item line with one of the 5 chosen topics, then aggregate real counts server-side from those tags — don't trust a number the model writes freehand into the summary text
+- [ ] `parse_summary_response` (and its regex pair) extended for the new tagging block; confirm whether the per-item tag data needs persisting anywhere or can be discarded once the notification's counts are computed
+- [ ] Confirm the web app's own run-detail Резюме display (`runs/[runId]/page.tsx`, reads the same `summary_text`) picks up the richer, count-backed text automatically — no separate frontend change expected, verify during implementation
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing (prompt-response parsing especially — mock the Claude response, assert counts land correctly, matching the existing `test_run_summary.py` mocking style)
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run a real Review on DEV against several accounts with a mixed content-type spread, confirm the Telegram DM matches the target format above (bold headers render correctly, no literal `##`, no bullet on top-publication lines, a correct "Потрачено токенов" line present), and confirm the summary's format/topic claims cite real counts matching the run's actual content.
+### Files to read
+CLAUDE.md, backend/src/services/telegram_notify.py, backend/src/services/run_summary.py, docs/PROMPTS.md ("Run summary (E15-S1)" section — keep in sync per the existing header comment in `run_summary.py`), backend/src/worker.py (token debit, `progress_items`)
+### Files to create or modify
+backend/src/services/telegram_notify.py, backend/src/services/run_summary.py, docs/PROMPTS.md, backend/tests/test_telegram_notify.py, backend/tests/test_run_summary.py
+### Handover
+Opened 2026-08-04 (PBR session) — user supplied an exact target message for **Review** only. The Analysis (Разбор) completion DM and either run type's in-app report page are explicitly out of scope here, still waiting on the user's input (see SPRINT.md's "not yet a story" note on item 6 of the PBR list). Once this ships, ask whether `notify_deep_analysis_complete` should adopt the same visual structure (bold headers, bulleted stats) even before it has its own separate content spec.

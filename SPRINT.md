@@ -228,23 +228,34 @@ Full story definitions live in `BACKLOG.md`.
 
 **Sprint 11 complete, closed at the 2026-08-04 `/sprint-review`.** Planned: E19-S1, E20-S2, E20-S3 (all done), E20-S1 and E8-S7 (both carried to Sprint 12). Unplanned but landed: E21-S1 (scoping, no code), E2-S4 (backfilled competitor-list bugfixes), and E17-S11 (new — backfills the three untracked `fix:` commits from 2026-08-03/04's deep-analysis pipeline investigation: synthesis truncation, root-logger visibility, timeout headroom, notification timing, and D48's usage-based token-charging redesign). Untracked-fix scan (`git log a9e7a66..HEAD`) found no untracked epic — the sprint's `feat:` commits both carry story IDs. Deferred-smoke-test count at review time: 6 genuinely open (of 7 `DEFERRED` entries in DONE.md; the 7th was already explicitly deprioritized) — triggers the ≥3 mandatory-sweep rule again, closed by new story **E19-S3**.
 
-## Sprint 12 — Mandatory smoke sweep + deep-analysis speed + ledger visibility (planned 2026-08-04 `/sprint-review`)
+## Sprint 12 — Mandatory smoke sweep + deep-analysis speed + ledger visibility (planned 2026-08-04 `/sprint-review`, re-ordered same day by PBR)
 
-**Goal:** close the 6 deferred-smoke-test items Sprint 11 left open, then continue Sprint 11's carried-over performance/monetization work.
+**Goal:** originally, close the 6 deferred-smoke-test items Sprint 11 left open, then continue Sprint 11's carried-over performance/monetization work. **Re-ordered 2026-08-04 (PBR session, direct user request):** the user wants to release to paying customers ASAP and walked through 6 pre-launch gaps; four map to backlog stories (one — `[E21-S2]` — was sitting on exactly the scoping question the user just answered, resolved as **D49**), two are new. These now lead the sprint; the original mandatory-first item (`[E19-S3]`) and the two previously-next items (`[E20-S1]`, `[E8-S7]`) are pushed after, per explicit user choice on sequencing.
 
 **Stories (in order):**
 
 | # | Story | Title | Status |
 |---|---|---|---|
-| 0 | E19-S3 | DEV smoke sweep for Sprint 11's deferred items (mandatory — do first) | backlog |
-| 1 | E20-S1 | Batch deep-analysis comment scraping (expanded scope, D41) | backlog |
-| 2 | E8-S7 | Surface token purchases in the Balance ledger | backlog |
+| 0 | E21-S2 | Standalone Analysis pipeline: own scraping, single-account/post scope, incremental token charging (D49 unblocked it) | done |
+| 1 | E3-S8 | Run-creation estimate: explain methodology + when balance is deducted (Review) | backlog |
+| 2 | E15-S5 | Run results: settings + competitor drill-down modal (Review and Analysis) — bumped to high priority | backlog |
+| 3 | E18-S6 | Notification drawer: show task type/time/status instead of stale project name | backlog |
+| 4 | E22-S1 | Review Telegram completion message: condensed formatting + quantified summary (new epic E22) | backlog |
+| 5 | E19-S3 | DEV smoke sweep for Sprint 11's deferred items (was mandatory-first, now resumes here — already `in-progress`, paused mid-way 2026-08-04 by user choice) | in-progress |
+| 6 | E20-S1 | Batch deep-analysis comment scraping (expanded scope, D41) | backlog |
+| 7 | E8-S7 | Surface token purchases in the Balance ledger | backlog |
 
-**Explicitly not scheduled:** E20-S4 (50→20 competitor cap, pending product-decision confirmation), E21-S2 (Standalone Analysis pipeline implementation — blocked on its own short scoping pass per the 2026-08-04 scope-change note in its Handover, same E21-S1-style gate D40/D42 already went through once).
+**Item 6 of the PBR list, partially scoped 2026-08-04:** the user supplied an exact target Telegram-message format for **Review** completions, opened as `[E22-S1]` above (new epic **E22 Report & Notification Messaging**). Still open and **not yet a story**: the equivalent Analysis (Разбор) completion DM, and either run type's in-app report *page* structure — get the same level of concrete detail from the user for those before opening more E22 stories.
 
-**Human touchpoint:** E19-S3 is a hands-on DEV pass by design; E20-S1's speedup is directly timeable by running a deep analysis before/after.
+**Explicitly not scheduled:** E20-S4 (50→20 competitor cap, pending product-decision confirmation — unrelated to E21-S2's now-resolved 1-account-or-post cap, D49 is Analysis-specific and doesn't touch the account list's own 50-cap, D13).
+
+**Human touchpoint:** E19-S3 is a hands-on DEV pass by design; E20-S1's speedup is directly timeable by running a deep analysis before/after; E21-S2/E3-S8/E15-S5/E18-S6 all benefit from a real DEV click-through once shipped (this project's established deferred-smoke-test pattern still applies).
 
 **Untracked fix, 2026-08-04 (Sprint 12 start): synthesis retry on malformed tool_use output.** First real DEV run after the previous session's notification-timing/D48 fixes hit a new, distinct failure — `Не удалось сформировать отчёт`. Root-caused via `railway logs`: the Sonnet synthesis call completed normally (`stop_reason=tool_use`, not `max_tokens` — the earlier truncation fix held) but the model's tool-call arguments contained only a `recommendations` key, omitting the required `stats` key entirely, despite `tool_choice` forcing the `submit_deep_analysis_report` tool. Confirmed as a new failure mode, not a recurrence: `tool_choice` guarantees a tool call happens, not that its arguments satisfy the schema's `required` list. Fix: `synthesize_report` now retries the Sonnet call once (`_MAX_SYNTHESIS_ATTEMPTS = 2`) when the tool_use output is missing or fails to include both `stats` and `recommendations`, before failing the analysis; every attempt is recorded as its own `usage_events` row (each is a real billed Anthropic call regardless of whether it parses). Also reconfirmed live: the notification-timing fix from the prior session worked correctly (Telegram DM fired right after `run_deep_analysis` completed, not after the base scrape). Full suite 340 passed (added 1), `ruff`/`ruff format --check`/`mypy src` clean. Untracked (direct chat request) — flagged for `/sprint-review` backfill.
+
+**E19-S3 partially closed, 2026-08-04 (`/start-story E19-S3`):** 2 of 6 AC items confirmed live on DEV (E20-S2's memory pin + queueing behavior, E8-S8's new-account iOS flow) — both DONE.md entries updated `DEFERRED`→`PASSED`. The remaining 4 items (E20-S3 concurrency-governor load test, E17-S10 forced job-timeout, E8-S3 real Stars purchase, E4-S3 cost-optimization comparison) need live DEV interaction the user wasn't sure how to exercise; **by direct user choice, verification is paused here and picked back up after Sprint 12 closes** rather than continuing now. `[E19-S3]` stays `in-progress`, not split or closed. **Proceeding to `[E20-S1]` next**, per Sprint 12's declared order.
+
+**`[E21-S2]` closed, 2026-08-04 (`/start-story E21-S2`, delivered end-to-end same session per direct user request, no intermediate check-ins).** Full implementation per D50/D49, then three further rounds of fixes driven entirely by the user's own DEV smoke test (each round: user reports a live issue → root-caused via `railway logs`/code reading → fixed → 350-test suite + ruff/mypy/tsc/eslint/build → pushed → DEV health-checked): (1) synthesis dropping the required `stats` object on thin single-post data, plus a `/me/usage` phantom double-line bug found while investigating; (2) a real comments-charged-vs-analyzed overcharge bug, found while chasing why `comments_limit=25` only yielded 10 analyzed comments — root cause turned out to be the Apify account's Free Plan silently capping that actor at 10 items, an account-level limitation promoted to new story `[E20-S5]`, not fixable in code; (3) UI polish (mode-picker screen restyle, comments_limit teaser chips) per direct feedback after the above were confirmed working. Full blow-by-blow in BACKLOG.md's `[E21-S2]` Changelog. **Proceeding to `[E3-S8]` next**, per Sprint 12's declared order (row 1).
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 
