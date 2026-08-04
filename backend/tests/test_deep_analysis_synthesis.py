@@ -1,5 +1,6 @@
 import copy
 import logging
+from decimal import Decimal
 from types import SimpleNamespace
 
 from sqlalchemy import select
@@ -134,6 +135,10 @@ async def test_synthesize_report_stores_stats_and_recommendations_and_usage(
     kinds = {u.kind: u.quantity for u in usage}
     assert kinds[KIND_CLAUDE_INPUT_TOKENS] == 500
     assert kinds[KIND_CLAUDE_OUTPUT_TOKENS] == 300
+    # D51: Sonnet's real per-token rate, not the Haiku rate every other Claude call uses.
+    unit_costs = {u.kind: u.unit_cost_usd for u in usage}
+    assert unit_costs[KIND_CLAUDE_INPUT_TOKENS] == Decimal("0.000003")
+    assert unit_costs[KIND_CLAUDE_OUTPUT_TOKENS] == Decimal("0.000015")
 
     # Prompt sent to Claude reflects the extraction's content + comment signals
     sent = fake_client.messages.calls[0]["messages"][0]["content"]
@@ -176,7 +181,9 @@ async def test_synthesize_report_api_error_marks_failed(session: AsyncSession) -
     assert analysis.status == DeepAnalysisStatus.failed
     assert analysis.error_message
     assert analysis.report_stats is None
-    # D50: no refund on a synthesis-stage failure — nothing artificial to give back.
+    # D50: no refund on a synthesis-stage failure — nothing artificial to give back. D51's base
+    # charge also does not apply here: the call raised before any response came back, so no
+    # real Anthropic cost was ever incurred.
     assert analysis.tokens_charged == 10
     assert user.token_balance == 100
 
@@ -280,18 +287,18 @@ async def test_synthesize_report_thin_coverage_strips_sections(session: AsyncSes
         == _VALID_REPORT["recommendations"]["content_ideas"]
     )
 
-    # D50: synthesis never touches tokens_charged/token_balance at all — charging happens
-    # entirely during extraction, incrementally per item, not reconciled here afterward.
-    assert analysis.tokens_charged == 100
+    # D50: synthesis doesn't reconcile against extraction's per-item/per-comment charges — those
+    # stay whatever extraction left them at. D51 adds exactly the flat base charge on top.
+    assert analysis.tokens_charged == 100 + 5
     await session.refresh(user)
-    assert user.token_balance == 1000
+    assert user.token_balance == 1000 - 5
 
 
-async def test_synthesize_report_never_charges_or_refunds(session: AsyncSession) -> None:
+async def test_synthesize_report_charges_only_the_flat_base_fee(session: AsyncSession) -> None:
     """D50 supersedes the old post-hoc reconciliation (D48): extraction already charges the
-    real per-item/per-comment cost incrementally as it happens, so synthesis has nothing left
-    to true up — tokens_charged/token_balance must be exactly whatever they were beforehand,
-    regardless of how many items/comments the report actually covers."""
+    real per-item/per-comment cost incrementally as it happens, so synthesis never reconciles
+    against how many items/comments the report actually covers. D51 adds exactly one flat base
+    charge on top, regardless of item/comment count."""
     user = await make_user(session, token_balance=1000)
     run = await make_run(session, requested_by=user)
     analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=6)
@@ -307,10 +314,55 @@ async def test_synthesize_report_never_charges_or_refunds(session: AsyncSession)
     await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
     await session.commit()
 
-    assert analysis.tokens_charged == 6
+    assert analysis.tokens_charged == 6 + 5
     assert "comment_coverage_degraded" not in analysis.report_stats
     await session.refresh(user)
-    assert user.token_balance == 1000
+    assert user.token_balance == 1000 - 5
+
+
+async def test_synthesize_report_base_charge_applied_once_despite_retry(
+    session: AsyncSession,
+) -> None:
+    """D51: a retry after a malformed-but-billed first response must not double the base
+    charge — it's a flat per-run fee, not a per-attempt one."""
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(session, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=0)
+    await _make_done_extraction_item(session, run, deep_analysis_id=analysis.id)
+    await session.commit()
+
+    responses = [
+        _tool_use_response({"recommendations": _VALID_REPORT["recommendations"]}),
+        _tool_use_response(_VALID_REPORT),
+    ]
+    fake_client = _FakeClient(responses=responses)
+    await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert len(fake_client.messages.calls) == 2
+    assert analysis.tokens_charged == 5
+    await session.refresh(user)
+    assert user.token_balance == 995
+
+
+async def test_synthesize_report_base_charge_floors_at_remaining_balance(
+    session: AsyncSession,
+) -> None:
+    """Mirrors charge_tokens_for_item's floor-at-balance pattern — never drives token_balance
+    negative even though the real Sonnet cost was still incurred."""
+    user = await make_user(session, token_balance=2)
+    run = await make_run(session, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=0)
+    await _make_done_extraction_item(session, run, deep_analysis_id=analysis.id)
+    await session.commit()
+
+    fake_client = _FakeClient(_tool_use_response(_VALID_REPORT))
+    await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert analysis.tokens_charged == 2
+    await session.refresh(user)
+    assert user.token_balance == 0
 
 
 async def test_synthesize_report_uses_configured_sonnet_model(session: AsyncSession) -> None:

@@ -40,7 +40,7 @@ def test_estimate_tokens_account_mode_item_limit() -> None:
         estimate_deep_analysis_tokens(
             settings, analysis_mode="account", duration_days=None, item_limit=3, comments_limit=None
         )
-        == 15  # 3 items * (1 + 4)
+        == 20  # D51 base (5) + 3 items * (1 + 4)
     )
 
 
@@ -50,7 +50,7 @@ def test_estimate_tokens_account_mode_duration_days() -> None:
         estimate_deep_analysis_tokens(
             settings, analysis_mode="account", duration_days=5, item_limit=None, comments_limit=None
         )
-        == 25  # ceil(5 * 1.0) items * (1 + 4)
+        == 30  # D51 base (5) + ceil(5 * 1.0) items * (1 + 4)
     )
 
 
@@ -60,14 +60,14 @@ def test_estimate_tokens_post_mode_is_always_one_item() -> None:
         estimate_deep_analysis_tokens(
             settings, analysis_mode="post", duration_days=None, item_limit=None, comments_limit=None
         )
-        == 26  # 1 + 25
+        == 31  # D51 base (5) + 1 + 25
     )
     # post mode's own comments_limit overrides the account-mode default.
     assert (
         estimate_deep_analysis_tokens(
             settings, analysis_mode="post", duration_days=None, item_limit=None, comments_limit=10
         )
-        == 11
+        == 16  # D51 base (5) + 1 + 10
     )
 
 

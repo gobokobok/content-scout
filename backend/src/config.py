@@ -108,6 +108,22 @@ class Settings(BaseSettings):
     brightdata_ig_comments_dataset_id: str = ""
     brightdata_comment_request_cost_usd: float = 0.00075
 
+    # D51: Sonnet 5 is ~3x Haiku's per-token cost on both axes — the synthesis call below was
+    # previously recorded in usage_events at the Haiku rates above, under-counting its real USD
+    # cost. Priced at standard (non-intro) Sonnet 5 rates ($3/$15 per 1M) rather than the
+    # $2/$10 intro rate that runs through 2026-08-31, so this constant doesn't go stale a few
+    # weeks after being added.
+    claude_sonnet_input_token_cost_usd: float = 0.000003
+    claude_sonnet_output_token_cost_usd: float = 0.000015
+
+    # D51: base token charge per Analysis run, covering the one fixed-cost Sonnet synthesis call
+    # (D33/E17-S4) that D50's incremental per-item charging never accounted for — that call's
+    # real cost doesn't shrink with fewer items, so a thin run (e.g. single-post mode) could
+    # otherwise cost more in real Anthropic spend than the per-item charge collects. Charged
+    # once, up front of the synthesis attempt (see deep_analysis_synthesis.py:synthesize_report),
+    # distinct from charge_tokens_for_item's per-item/per-comment charges.
+    deep_analysis_base_charge_tokens: int = 5
+
     # E17-S4: synthesis is the one non-Haiku call in the pipeline (D33).
     deep_analysis_synthesis_model: str = "claude-sonnet-5"
     # Was hardcoded at 4096 — a live DEV failure (2026-08-03) surfaced no other error signal

@@ -90,7 +90,8 @@ async def test_estimate_deep_analysis_post_mode_is_flat(session: AsyncSession) -
             headers=auth_headers(owner.id),
         )
         assert default_resp.status_code == overridden_resp.status_code == 200
-        assert overridden_resp.json()["tokens"] == 6  # 1 + 5, overriding the account-wide default
+        # D51 base charge (5) + 1 + comments_limit(5), overriding the account-wide default
+        assert overridden_resp.json()["tokens"] == 11
         assert overridden_resp.json()["tokens"] < default_resp.json()["tokens"]
 
 

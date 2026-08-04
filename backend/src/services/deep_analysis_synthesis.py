@@ -21,6 +21,7 @@ from src.models import (
     DeepAnalysisItemStatus,
     DeepAnalysisStatus,
     UsageEvent,
+    User,
 )
 from src.services.deep_analysis import fail_deep_analysis
 from src.services.metrics import bucket_virality, virality_baseline_subquery, virality_ratio
@@ -272,9 +273,11 @@ async def synthesize_report(
         prompt_lines = _build_prompt_lines(rows)
 
         _client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
+        user = await session.get(User, user_id)
 
         stats: dict[str, Any] | None = None
         recommendations: dict[str, Any] | None = None
+        base_charge_applied = False
         for attempt in range(1, _MAX_SYNTHESIS_ATTEMPTS + 1):
             response = await _client.messages.create(  # type: ignore[call-overload]
                 model=settings.deep_analysis_synthesis_model,
@@ -289,6 +292,19 @@ async def synthesize_report(
                     }
                 ],
             )
+            # D51: base charge is applied exactly once, on the first response actually received
+            # — a call that raises before returning (network/API error, no UsageEvent below)
+            # incurred no real Anthropic cost, so it must not be charged either. A retry after a
+            # malformed-but-billed response does not double the charge — it's a flat per-run fee,
+            # not a per-attempt one.
+            if user is not None and not base_charge_applied:
+                base_charge_applied = True
+                base_charge = min(
+                    settings.deep_analysis_base_charge_tokens, max(user.token_balance, 0)
+                )
+                user.token_balance -= base_charge
+                analysis.tokens_charged += base_charge
+
             # Every attempt is a billed Anthropic call, regardless of whether its output parses.
             session.add(
                 UsageEvent(
@@ -296,7 +312,9 @@ async def synthesize_report(
                     run_id=analysis.run_id,
                     kind=KIND_CLAUDE_INPUT_TOKENS,
                     quantity=response.usage.input_tokens,
-                    unit_cost_usd=Decimal(str(settings.claude_input_token_cost_usd)),
+                    # D51: Sonnet's real rate, not Haiku's — this call is the one non-Haiku
+                    # step in the pipeline (D33).
+                    unit_cost_usd=Decimal(str(settings.claude_sonnet_input_token_cost_usd)),
                 )
             )
             session.add(
@@ -305,7 +323,7 @@ async def synthesize_report(
                     run_id=analysis.run_id,
                     kind=KIND_CLAUDE_OUTPUT_TOKENS,
                     quantity=response.usage.output_tokens,
-                    unit_cost_usd=Decimal(str(settings.claude_output_token_cost_usd)),
+                    unit_cost_usd=Decimal(str(settings.claude_sonnet_output_token_cost_usd)),
                 )
             )
 
