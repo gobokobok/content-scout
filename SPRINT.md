@@ -226,6 +226,24 @@ Full story definitions live in `BACKLOG.md`.
 - **Scope-change note logged, not implemented:** the user described a materially different future Analysis entry flow (single account or single-post-URL, not up-to-20 multi-select) — flagged in `[E21-S2]`'s Handover as needing its own short scoping pass (E21-S1-style) before E21-S2 is picked up, since it changes that story's core AC, not just adds to it.
 - Full suite 339 passed. `ruff`/`ruff format --check`/`mypy src` clean. All untracked (direct chat requests) — flagged for `/sprint-review` backfill, same pattern as this session's earlier fixes.
 
+**Sprint 11 complete, closed at the 2026-08-04 `/sprint-review`.** Planned: E19-S1, E20-S2, E20-S3 (all done), E20-S1 and E8-S7 (both carried to Sprint 12). Unplanned but landed: E21-S1 (scoping, no code), E2-S4 (backfilled competitor-list bugfixes), and E17-S11 (new — backfills the three untracked `fix:` commits from 2026-08-03/04's deep-analysis pipeline investigation: synthesis truncation, root-logger visibility, timeout headroom, notification timing, and D48's usage-based token-charging redesign). Untracked-fix scan (`git log a9e7a66..HEAD`) found no untracked epic — the sprint's `feat:` commits both carry story IDs. Deferred-smoke-test count at review time: 6 genuinely open (of 7 `DEFERRED` entries in DONE.md; the 7th was already explicitly deprioritized) — triggers the ≥3 mandatory-sweep rule again, closed by new story **E19-S3**.
+
+## Sprint 12 — Mandatory smoke sweep + deep-analysis speed + ledger visibility (planned 2026-08-04 `/sprint-review`)
+
+**Goal:** close the 6 deferred-smoke-test items Sprint 11 left open, then continue Sprint 11's carried-over performance/monetization work.
+
+**Stories (in order):**
+
+| # | Story | Title | Status |
+|---|---|---|---|
+| 0 | E19-S3 | DEV smoke sweep for Sprint 11's deferred items (mandatory — do first) | backlog |
+| 1 | E20-S1 | Batch deep-analysis comment scraping (expanded scope, D41) | backlog |
+| 2 | E8-S7 | Surface token purchases in the Balance ledger | backlog |
+
+**Explicitly not scheduled:** E20-S4 (50→20 competitor cap, pending product-decision confirmation), E21-S2 (Standalone Analysis pipeline implementation — blocked on its own short scoping pass per the 2026-08-04 scope-change note in its Handover, same E21-S1-style gate D40/D42 already went through once).
+
+**Human touchpoint:** E19-S3 is a hands-on DEV pass by design; E20-S1's speedup is directly timeable by running a deep analysis before/after.
+
 ## Sprint plan (projection, adjust at each /sprint-review)
 
 - **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)

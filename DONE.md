@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E17-S11] Deep-analysis pipeline hardening: synthesis truncation, logging visibility, timeout headroom, notification timing, usage-based charging (D48)
+**Completed:** 2026-08-04
+**Handover:**
+- Backfilled at the 2026-08-04 `/sprint-review`, same pattern as `[E2-S4]`/`[E8-S8]`/`[E17-S10]` — three real bugs found live via `railway logs` diagnosis across two DEV Analysis run investigations (2026-08-03, 2026-08-04), fixed same-session each time, no story ID until now. Full per-session detail lives in SPRINT.md's three "Untracked fix" narrative blocks and BACKLOG.md's `[E17-S11]` entry (AC/DoD); summarized here.
+- **Synthesis truncation** (`df61614`): Sonnet's `max_tokens` was hardcoded at 4096 in `deep_analysis_synthesis.py` — too small for `REPORT_TOOL`'s multi-array Russian-language schema at real item counts, silently truncating the `tool_use` block with no exception raised. Now `Settings.deep_analysis_synthesis_max_tokens` (default 8192); both silent fail-branches now `logger.warning` with `stop_reason`.
+- **Root logger never configured**, found while chasing why the above produced zero log output anywhere: neither `main.py` nor `worker.py` called `logging.basicConfig`, so arq's and uvicorn's own-namespace-only logging configs meant every `logger.*` call project-wide was going nowhere in Railway. Fixed in both entrypoints — systemic, not incident-specific.
+- **Timeout headroom + diagnostics** (`1ae1205`): `apify_content_scrape_timeout_secs` 180s→240s after a real account's retry landed within 14s of the old timeout; added `logger.info`/`logger.warning` for run scope (account count/`duration_days`/`item_limit`), Apify retry attempts, and the 50-item scrape-ceiling case.
+- **Notification timing + D48 token-charging redesign** (`f683a3c`): `notify_run_complete` was firing a "done" DM for `deep_analysis` runs right after the base scrape finished, 12 minutes before the real Analysis result existed — split into a deep-analysis-aware skip, a new `notify_deep_analysis_complete` (fires on real completion, success or failure), and a `_notify_base_scrape_only` fallback so every run still gets exactly one DM. **D48**: token charging moved from a flat 15-tokens/item estimate to 1 token/publication + 1/comment actually analyzed, reconciled post-hoc against real `DeepAnalysisItem` counts (`_reconcile_real_usage`) — two real runs showed Apify's Free Plan silently capping comments at 10/post regardless of the configured 25 target, so the flat charge was billing for coverage never delivered. `deep_analysis_thin_coverage_multiplier` (E17-S9) removed as redundant under usage-based billing.
+- New test `test_synthesize_report_truncated_response_marks_failed_and_logs_stop_reason`. Full suite 339 passed, `ruff`/`ruff format --check`/`mypy src` clean throughout. Deployed to DEV across all three pushes, CI green each time.
+**Smoke test:** PASSED (partial) — synthesis-truncation and timeout fixes each confirmed by the very next real DEV run succeeding/landing with margin. Notification-timing correctness and D48's reconciled charge amount on a real run not yet independently re-verified — folded into `[E19-S3]`.
+**Promoted to backlog:** none new — `[E19-S3]` (new, this session) already covers the two open verification items above alongside Sprint 11's other deferred smoke tests.
+
 ## [E20-S3] Baseline rate limiting & provider-quota guardrails
 **Completed:** 2026-08-03
 **Handover:**

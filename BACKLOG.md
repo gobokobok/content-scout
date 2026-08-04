@@ -114,6 +114,35 @@ None expected (verification only) unless timing reveals a real regression
 ### Handover
 —
 
+## [E19-S3] DEV smoke sweep for Sprint 11's deferred items
+**Epic:** Pilot Verification Sweep
+**Sprint:** 12
+**Status:** backlog
+**Priority:** high
+**Depends on:** none
+### Goal
+Sprint 11's `/sprint-review` found 6 genuinely open `Smoke test: DEFERRED` entries in DONE.md (of 7 total — the 7th, E14's zero-balance-badge edge case, was explicitly deprioritized by direct user choice during E19-S1 and isn't in scope here). Same mandatory-sweep pattern as E19-S1: ≥3 deferred entries triggers a dedicated verification story rather than letting them accumulate further.
+### Acceptance Criteria
+- [ ] **[E20-S3]** — observe the Apify concurrency governor under real concurrent load: live Apify console pull during real concurrent DEV runs, or trigger several genuinely concurrent runs and confirm the 25-slot cap holds
+- [ ] **[E20-S2]** — confirm `Memory: 256 MB` actually lands on post-fix Apify run-detail pages; enqueue >5 concurrent runs and confirm queueing behavior matches `max_jobs=5`
+- [ ] **[E17-S10]** — force a real `asyncio` job-timeout cancellation live (e.g. a deliberately low `worker_job_timeout_secs` test run) and confirm the analysis lands in `failed` with a full token refund, not stuck
+- [ ] **[E8-S8]** — retest D38's auto-project-creation + iOS 401-recovery live on a genuinely new Telegram account/device: home feed usable immediately (no prompt), "+" FAB works right away, Competitors resolves normally
+- [ ] **[E8-S3]** — a real DEV purchase via actual Telegram Stars (test mode): quick-pick and custom amount, confirm `token_balance` increases correctly and a previously-blocked run unblocks; also the first live check of D37's still-unconfirmed per-invoice Stars ceiling
+- [ ] **[E4-S3]** — a deliberate twice-back-to-back run comparison confirming the image-resize/skip/batch cost optimizations actually reduce token usage as designed
+### Definition of Done
+- [ ] All AC items confirmed live, or explicitly closed by direct user choice with a documented reason (same pattern E19-S1 used for its one deprioritized item)
+- [ ] Each closed item's original DONE.md entry updated from `DEFERRED` to `PASSED` (or left `DEFERRED` with an explicit "still open" note if genuinely not resolvable this sprint)
+- [ ] DONE.md updated with this story's own entry
+- [ ] BACKLOG.md updated
+### Smoke test
+This story *is* the smoke test — user-executed on real DEV, not agent-verified.
+### Files to read
+DONE.md's `[E20-S3]`, `[E20-S2]`, `[E17-S10]`, `[E8-S8]`, `[E8-S3]`, `[E4-S3]` entries for what each item needs
+### Files to create or modify
+None expected (verification only) unless an item surfaces a real bug
+### Handover
+—
+
 ## [E1-S1] Monorepo scaffold, local env, CI, DEV deploy
 **Epic:** Foundation & Auth
 **Sprint:** 1
@@ -2894,6 +2923,38 @@ backend/src/worker.py (`process_run`'s existing `except asyncio.CancelledError` 
 backend/src/worker.py, backend/tests/test_worker.py
 ### Handover
 Code and tests complete (`test_process_deep_analysis_cancellation_marks_failed`, 20/20 `test_worker.py` passing, ruff/mypy clean). Deploy hit 4 consecutive Railway-side transient failures via the GitHub Actions `railway up` step (500 upload error, "Not signed in" auth hiccup ×2, upload timeout — all different failure modes, none of them our code) before landing via a direct local `railway up backend --path-as-root --service api` (and worker/web) instead. Note for next time: a plain local `railway up` from within `backend/` silently uploads from wherever this machine's Railway project link is rooted (repo root here, per `~/.railway/config.json`), not the shell's cwd — `--path-as-root` is required for any monorepo subdirectory deploy run locally.
+
+## [E17-S11] Deep-analysis pipeline hardening: synthesis truncation, logging visibility, timeout headroom, notification timing, usage-based charging (D48)
+**Epic:** Run Deep Analysis
+**Sprint:** 11 (found + fixed 2026-08-03→04 during two real DEV Analysis run investigations, direct user requests, backfilled at `/sprint-review`)
+**Status:** done
+**Completed:** 2026-08-04
+**Priority:** high
+**Depends on:** none
+### Goal
+Three real, distinct bugs in the deep-analysis worker path, found by manually diagnosing live DEV runs via `railway logs` (the same investigation thread across two sessions) rather than any test failure — the same pattern as [E17-S10]/[E2-S4]/[E8-S8] before it. Bundled into one backfilled story per that established precedent, since all three touch the same subsystem and landed back-to-back.
+### Acceptance Criteria
+- [x] `deep_analysis_synthesis.py`'s Sonnet call `max_tokens` raised 4096→8192 (`Settings.deep_analysis_synthesis_max_tokens`) — the hardcoded value was plausibly too small for `REPORT_TOOL`'s multi-array Russian-language schema at real item counts, causing a truncated/absent `tool_use` block with no exception; both silent fail-branches now `logger.warning` with `stop_reason`
+- [x] Root cause of why nothing showed up in worker logs at all (including a pre-existing `logger.exception` call): neither `main.py` nor `worker.py` configured Python's root logger — arq's `dictConfig` and uvicorn's default config both only wire up their own namespace. Fixed with explicit `logging.basicConfig(...)` in both entrypoints — every future `logger.*` call project-wide is now actually visible in Railway
+- [x] `apify_content_scrape_timeout_secs` raised 180s→240s after a real account's content fetch landed within 14s of the old timeout on retry; added `logger.info`/`logger.warning` for run scope (account count/`duration_days`/`item_limit`), Apify retry attempts, and the 50-item scrape-ceiling case
+- [x] `notify_run_complete` no longer fires a "done" DM for `run_type=="deep_analysis"` runs right after the base scrape finishes (12 minutes before the real Analysis result exists) — new `notify_deep_analysis_complete` fires once `process_deep_analysis` actually finishes (success or failure); new `_notify_base_scrape_only` fallback covers the case where the auto-chain never starts, so every run still gets exactly one DM
+- [x] **D48**: deep-analysis token charging replaced — 1 token/publication + 1 token/comment actually analyzed, reconciled post-hoc via `_reconcile_real_usage` against real `DeepAnalysisItem` counts (refunds the difference), superseding the old flat 15-tokens/item estimate that was billing for comment coverage Apify's Free Plan (10-comment cap) never actually delivered; `deep_analysis_thin_coverage_multiplier`/`_apply_thin_coverage_pricing` (E17-S9) removed as redundant under usage-based billing
+- [x] New regression test `test_synthesize_report_truncated_response_marks_failed_and_logs_stop_reason` reproduces the incident shape (empty `content`, `stop_reason="max_tokens"`)
+### Definition of Done
+- [x] AC (code + tests) checked
+- [x] `ruff check`, `ruff format --check`, `mypy src` clean — full suite 339 passed
+- [x] Deployed to DEV across three pushes (`df61614`, `1ae1205`, `f683a3c`), CI green each time
+- [x] DECISIONS.md's D48 added
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+PASSED (partial) — the synthesis-truncation fix was confirmed by the very next real DEV Analysis run succeeding where the previous one had failed; the timeout/diagnostics fix was confirmed by a subsequent run's retry landing comfortably inside the new 240s window. Not yet independently re-verified: the notification-timing fix (need to confirm both the "done" DM suppression on `deep_analysis` runs and the new `notify_deep_analysis_complete` firing correctly on a completed run) and D48's reconciled charge amount on a real run with known comment counts — both folded into `[E19-S3]`.
+### Files to read
+backend/src/services/deep_analysis_synthesis.py, backend/src/main.py, backend/src/worker.py, backend/src/services/telegram_notify.py, backend/src/services/deep_analysis.py, DECISIONS.md (D34, D35, D48)
+### Files to create or modify
+backend/src/services/deep_analysis_synthesis.py, backend/src/main.py, backend/src/worker.py, backend/src/services/telegram_notify.py, backend/src/services/deep_analysis.py, backend/src/platforms/instagram.py, backend/src/config.py, backend/tests/test_deep_analysis_synthesis.py
+### Handover
+No new code beyond what already shipped in commits `df61614`/`1ae1205`/`f683a3c` (see SPRINT.md's three "Untracked fix" notes, 2026-08-03/04, for the full session-by-session investigation trail) — this entry is documentation backfill only, per CLAUDE.md's story-tracking discipline. Two loose ends folded into `[E19-S3]` rather than reopening this story: live confirmation of the notification-timing fix and of D48's reconciled charge on a real run.
 
 ## [E20-S1] Batch deep-analysis comment scraping
 **Epic:** Performance & Scale
