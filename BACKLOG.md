@@ -1808,25 +1808,26 @@ frontend/components/run-dialog.tsx, frontend/messages/ru.json
 
 ## [E18-S6] Notification drawer: show task type/time/status instead of stale project name
 **Epic:** Run-Centric Navigation & Redesign
-**Sprint:** unassigned (proposed Sprint 12, 2026-08-04 PBR)
-**Status:** backlog
+**Sprint:** 12
+**Status:** done
+**Completed:** 2026-08-04
 **Priority:** medium
 **Depends on:** none
 ### Goal
 The top-bar notification bell's drawer (`frontend/app/(app)/layout.tsx`, the `SideDrawer` with `notifOpen`) renders each tracked run's `tracked.projectName` as its title line. Since D38 made projects an invisible one-per-user implementation detail (all runs happen "within the account," no user-facing project concept), this line is stale — it shows the same value repeated across every entry (confirmed live, screenshot shared during the 2026-08-04 PBR session shows the same account handle on every row), giving the user no way to tell entries apart. Replace it with the task type (Review/Analysis), start time, and current status — the three things that actually distinguish one run from another now.
 ### Acceptance Criteria
-- [ ] Each entry in the notification drawer (`layout.tsx`'s `trackedRuns.map(...)` block, ~[layout.tsx:222](frontend/app/(app)/layout.tsx:222)) shows task type (Review/Analysis, same naming convention as the home feed/Balance ledger post-E18-S1/E18-S5) instead of `tracked.projectName`
-- [ ] Start time shown (relative or absolute, match whatever convention the home-feed run cards already use)
-- [ ] Status line (`tRun(STATUS_KEYS[tracked.run.status])`) stays as-is
-- [ ] Confirm whether `tracked` already carries the run's `run_type`/`created_at` or needs a small addition to whatever feeds this drawer (likely the same tracked-runs polling hook the home feed uses)
-- [ ] The `scheduleAlerts` block above it (still shows `alert.project_name`) gets the same treatment for consistency, unless schedules are confirmed to still need project framing (check against E14-S6/E18-S3's current schedule-card copy first)
+- [x] Each entry in the notification drawer (`layout.tsx`'s `trackedRuns.map(...)` block, ~[layout.tsx:222](frontend/app/(app)/layout.tsx:222)) shows task type (Review/Analysis, same naming convention as the home feed/Balance ledger post-E18-S1/E18-S5) instead of `tracked.projectName`
+- [x] Start time shown (relative or absolute, match whatever convention the home-feed run cards already use)
+- [x] Status line (`tRun(STATUS_KEYS[tracked.run.status])`) stays as-is
+- [x] Confirm whether `tracked` already carries the run's `run_type`/`created_at` or needs a small addition to whatever feeds this drawer (likely the same tracked-runs polling hook the home feed uses)
+- [x] The `scheduleAlerts` block above it (still shows `alert.project_name`) gets the same treatment for consistency, unless schedules are confirmed to still need project framing (check against E14-S6/E18-S3's current schedule-card copy first)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 On DEV/Mini App, trigger a couple of runs of different types, open the notification bell, confirm each entry is distinguishable by type/time/status rather than showing a repeated stale project/account line.
 ### Files to read
@@ -1834,7 +1835,11 @@ CLAUDE.md, frontend/app/(app)/layout.tsx, frontend/messages/ru.json
 ### Files to create or modify
 frontend/app/(app)/layout.tsx, frontend/messages/ru.json
 ### Handover
-Opened 2026-08-04 (PBR session) from a direct screenshot of the live drawer showing the same value on every row — a leftover from the pre-D38 project-centric model, never updated when E18-S1's run-centric redesign landed.
+- Opened 2026-08-04 (PBR session) from a direct screenshot of the live drawer showing the same value on every row — a leftover from the pre-D38 project-centric model, never updated when E18-S1's run-centric redesign landed.
+- Confirmed `tracked` (from `useRunTracker`) already carries the full `RunResponse` (`tracked.run`), which already has `run_type`/`created_at`/`started_at` — no hook/backend change needed, purely a `layout.tsx` render fix.
+- Tracked-run row now shows `{Ревью|Анализ} · {DD.MM.YYYY HH:MM}` (reusing `RunFeed.runTypeStat`/`runTypeDeep` — same keys the home feed already uses, per the AC's own naming-convention requirement — and `tracked.run.started_at ?? tracked.run.created_at`, same fallback `RunDetail`'s summary card uses) as the title line, status unchanged as the second line.
+- Schedule-alert row: checked the Scheduled Runs page and home feed's schedule cards first, per the AC's own instruction — neither shows `project_name` anywhere post-D38, confirming schedules don't need project framing either. `SkippedScheduleResponse` has no `run_type`/schedule-detail fields to show instead, so the title line is now the skip-reason message itself (already descriptive, e.g. "Запуск по расписанию не состоялся: недостаточно токенов" — previously shown as the *second* line under the now-removed stale project name) and the second line is now `skipped_at`, formatted the same way.
+- No backend changes, no new dependencies, no ENV vars. No test suite exists for this presentational layout component (CONVENTIONS.md's frontend test bar is typecheck + eslint, both clean); `next build` also clean.
 
 ## [E13-S1] Bottom nav restructure: Детали / Результаты / Анализ
 **Epic:** Navigation & Details Restructure

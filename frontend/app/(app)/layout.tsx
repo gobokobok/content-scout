@@ -26,6 +26,12 @@ import { useScheduleAlerts } from "@/lib/schedule-alerts";
 import { useHeader } from "@/lib/header-context";
 import { SideDrawer } from "@/components/ui/side-drawer";
 
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const STATUS_KEYS = {
   pending: "statusPending",
   scraping: "statusScraping",
@@ -49,6 +55,7 @@ function RunStatusIcon({ status }: { status: TrackedRun["run"]["status"] }) {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("App");
   const tRun = useTranslations("RunDialog");
+  const tFeed = useTranslations("RunFeed");
   const router = useRouter();
   const { user, loading, logout, telegramLogout, isTelegram } = useAuth();
   const { trackedRuns, unseenCount, markAllSeen } = useRunTracker();
@@ -214,8 +221,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <AlertTriangle className="h-4 w-4 shrink-0 text-danger" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-ink">{alert.project_name}</p>
-                <p className="text-xs text-secondary">{t(SKIP_REASON_KEYS[alert.reason])}</p>
+                <p className="truncate text-sm font-medium text-ink">
+                  {t(SKIP_REASON_KEYS[alert.reason])}
+                </p>
+                <p className="text-xs text-secondary">{formatDateTime(alert.skipped_at)}</p>
               </div>
             </button>
           ))}
@@ -230,7 +239,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             >
               <RunStatusIcon status={tracked.run.status} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-ink">{tracked.projectName}</p>
+                <p className="truncate text-sm font-medium text-ink">
+                  {tracked.run.run_type === "deep_analysis" ? tFeed("runTypeDeep") : tFeed("runTypeStat")}
+                  {" · "}
+                  {formatDateTime(tracked.run.started_at ?? tracked.run.created_at)}
+                </p>
                 <p className="text-xs text-secondary">{tRun(STATUS_KEYS[tracked.run.status])}</p>
               </div>
             </button>

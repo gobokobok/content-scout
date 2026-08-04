@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E18-S6] Notification drawer: show task type/time/status instead of stale project name
+**Completed:** 2026-08-04
+**Handover:**
+- Pure frontend render fix, `frontend/app/(app)/layout.tsx` — `tracked.run` (from `useRunTracker`) already carried `run_type`/`created_at`/`started_at`, so no hook or backend change was needed.
+- Tracked-run drawer row now reads `{Ревью|Анализ} · {дата и время}` instead of the stale repeated `tracked.projectName` — reuses `RunFeed.runTypeStat`/`runTypeDeep`, the same keys the home feed already uses.
+- Schedule-alert row: checked first (per the story's own AC) whether schedules still need project framing post-D38 — they don't, neither the Scheduled Runs page nor the home feed's schedule cards show `project_name` anymore. Replaced the stale project-name title with the skip-reason message itself (previously the second line) and moved `skipped_at` into the second line.
+- No backend changes, no new dependencies, no ENV vars, no migration. `tsc --noEmit`/`next lint`/`next build` all clean; no test suite exists for this presentational component (CONVENTIONS.md's frontend bar).
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. Needs a real DEV/Mini App pass: trigger a Review and an Analysis run, open the bell, confirm both are distinguishable by type/time/status.
+**Promoted to backlog:**
+- (none)
+
 ## [E15-S5] Run results: settings + competitor drill-down modal (Review and Analysis)
 **Completed:** 2026-08-04
 **Handover:**
