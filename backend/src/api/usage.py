@@ -87,6 +87,12 @@ async def get_my_runs(
         .where(WorkspaceMember.user_id == user.id)
         .where(AnalysisRun.created_at >= from_)
         .where(AnalysisRun.created_at < to)
+        # D50: standalone Analysis (run_type=deep_analysis) does its own scrape on the same
+        # AnalysisRun row instead of chaining off a separate Review — that scrape isn't a
+        # distinct billable event (_finish_run skips summarization/charging for it entirely),
+        # so it must not also appear as a "Review" line here. Its only ledger line comes from
+        # the deep_analysis_rows query below.
+        .where(AnalysisRun.run_type != "deep_analysis")
     )
     entries = [
         RunSummaryOut(
@@ -109,8 +115,8 @@ async def get_my_runs(
 
     # E17: deep-analysis token charges must appear in the same ledger view — they're deducted
     # from the same token_balance but weren't previously surfaced anywhere in this list.
-    # progress_items comes from the underlying review run: a deep analysis re-analyzes the
-    # same publications it was chained from, it does not scrape its own set.
+    # progress_items comes from the run's own scrape (D50: Analysis scrapes its own set now,
+    # account or single post — this is display-only, not a separate charge).
     deep_analysis_rows = (
         await session.execute(
             select(

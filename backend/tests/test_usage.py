@@ -330,6 +330,47 @@ async def test_my_runs_includes_both_runs_and_deep_analyses(session: AsyncSessio
     assert [e["id"] for e in body] == [str(analysis.id), str(run.id)]
 
 
+async def test_my_runs_standalone_deep_analysis_shows_one_line_not_two(
+    session: AsyncSession,
+) -> None:
+    """D50: a standalone Analysis run (run_type=deep_analysis) does its own scrape on the same
+    AnalysisRun row instead of chaining off a separate Review — it must not also surface a
+    "Review" line for that same scrape (regression: every Analysis showed up as two ledger
+    lines post-E21-S2, one real "Analysis" charge and one phantom "Review" line)."""
+    user = await make_user(session)
+    ws = await make_workspace(session, owner=user)
+    project = await make_project(session, workspace=ws)
+    now = datetime.now(UTC)
+
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        status="done",
+        run_type="deep_analysis",
+        analysis_mode="post",
+        duration_days=None,
+        progress_items=1,
+        created_at=now - timedelta(hours=1),
+    )
+    analysis = await make_deep_analysis(
+        session, run=run, requested_by=user, tokens_charged=3, created_at=now
+    )
+    await session.commit()
+
+    async with await _client(session) as c:
+        resp = await c.get(
+            _runs_url(now - timedelta(days=1), now + timedelta(days=1)),
+            headers=auth_headers(user.id),
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+
+    assert [e["id"] for e in body] == [str(analysis.id)]
+    assert body[0]["kind"] == "deep_analysis"
+    assert body[0]["tokens_charged"] == 3
+
+
 async def test_my_runs_sums_comments_analyzed_count_for_deep_analysis(
     session: AsyncSession,
 ) -> None:

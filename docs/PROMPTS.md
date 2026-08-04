@@ -118,6 +118,10 @@ Parameters: max_tokens=500, temperature=0.2. Reuses `summarizer.py`'s cover-imag
 шаблоны зацепок, пакет частых вопросов из комментариев без ответа, предложение по расписанию публикаций,
 подборка «украсть эту идею» со ссылкой на content_item_id лучших постов.
 - Используй только переданные данные, не выдумывай публикации или цифры.
+- Даже если публикация всего одна или данных мало, ОБЯЗАТЕЛЬНО заполни оба объекта — stats и
+recommendations — в вызове инструмента. Если каких-то данных недостаточно для содержательного
+вывода (например, частоты или трендов не вывести по одной публикации), верни соответствующее
+поле пустым (пустой массив/строка), но не опускай сам объект целиком.
 - Ответь вызовом инструмента submit_deep_analysis_report — не отвечай обычным текстом.
 ```
 
@@ -134,7 +138,7 @@ One call per deep analysis, fed every `done`-status `DeepAnalysisItem` (E17-S3) 
 
 **E17-S9 post-processing (not a prompt change):** when fewer than `deep_analysis_comment_coverage_threshold` (default 50%) of synthesized items had any fetched comments, the comment-derived fields (`stats.sentiment_summary`, `stats.representative_quotes`, `recommendations.faq_pack`) are stripped from the response **after** it comes back, regardless of what the model actually produced — this guarantees no fabricated sentiment/quotes/FAQ on a thin-data run rather than relying on prompt instructions to keep the model honest. A `comment_coverage_degraded: true` flag is added to both `stats` and `recommendations` for the frontend to key its degraded-state note off of.
 
-**Token charging (D48, supersedes the old thin-coverage discount):** the up-front charge (E17-S1) is an estimate/ceiling — 1 token per publication + 1 token per comment, assuming every item reaches the configured `deep_analysis_comments_per_post` target. Once extraction finishes and the real per-item comment counts are known, the charge is reconciled down to the real usage — 1 token per publication actually analyzed + 1 token per comment actually fetched — and the difference refunded. A thin-coverage run naturally ends up charged less under this model (fewer real comments = fewer tokens), so no separate discount multiplier is needed. See `services/deep_analysis.py:compute_tokens_charged` (the estimate) and `services/deep_analysis_synthesis.py:_reconcile_real_usage` (the real charge).
+**Token charging (D50, supersedes D48's up-front-charge-then-reconcile model):** charging is incremental, not up-front — `DeepAnalysis` starts at `tokens_charged=0`, and each item charges `1 + comments_analyzed_count` the moment it actually completes extraction (batched, balance-checked before each batch). A mid-run balance exhaustion or partial extraction still synthesizes a report from whatever completed, so `tokens_charged` always already equals real completed work — nothing to refund or reconcile afterward. See `services/deep_analysis.py:charge_tokens_for_item` and `services/deep_analysis_extraction.py:extract_deep_analysis_items`.
 
 Parameters: max_tokens=8192 (`deep_analysis_synthesis_max_tokens`, raised from 4096 after a live truncation incident), temperature=0.3, forced `tool_choice`. The only non-Haiku call in the E17 pipeline (D33).
 
