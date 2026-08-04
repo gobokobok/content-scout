@@ -57,21 +57,35 @@ def _tool_use_response(
 
 
 class _FakeMessages:
-    def __init__(self, response=None, exc: Exception | None = None) -> None:
+    def __init__(
+        self,
+        response=None,
+        exc: Exception | None = None,
+        responses: list | None = None,
+    ) -> None:
         self._response = response
         self._exc = exc
+        self._responses = responses
         self.calls: list[dict] = []
 
     async def create(self, **kwargs):
         self.calls.append(kwargs)
         if self._exc is not None:
             raise self._exc
+        if self._responses is not None:
+            idx = min(len(self.calls) - 1, len(self._responses) - 1)
+            return self._responses[idx]
         return self._response
 
 
 class _FakeClient:
-    def __init__(self, response=None, exc: Exception | None = None) -> None:
-        self.messages = _FakeMessages(response, exc)
+    def __init__(
+        self,
+        response=None,
+        exc: Exception | None = None,
+        responses: list | None = None,
+    ) -> None:
+        self.messages = _FakeMessages(response, exc, responses)
 
 
 async def _make_done_extraction_item(session, run, **kw):
@@ -185,6 +199,8 @@ async def test_synthesize_report_missing_tool_use_marks_failed(session: AsyncSes
     await session.commit()
 
     assert analysis.status == DeepAnalysisStatus.failed
+    # Retried once before giving up — every failing attempt gets the same malformed response.
+    assert len(fake_client.messages.calls) == 2
 
 
 async def test_synthesize_report_malformed_tool_input_marks_failed(session: AsyncSession) -> None:
@@ -199,6 +215,37 @@ async def test_synthesize_report_malformed_tool_input_marks_failed(session: Asyn
     await session.commit()
 
     assert analysis.status == DeepAnalysisStatus.failed
+    assert len(fake_client.messages.calls) == 2
+
+
+async def test_synthesize_report_retries_once_after_malformed_tool_input(
+    session: AsyncSession,
+) -> None:
+    """Reproduces the 2026-08-04 DEV incident: Sonnet returned stop_reason=tool_use with only a
+    "recommendations" key, no "stats", despite tool_choice forcing the call. One retry recovers."""
+    user = await make_user(session)
+    run = await make_run(session, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    await _make_done_extraction_item(session, run, deep_analysis_id=analysis.id)
+    await session.commit()
+
+    responses = [
+        _tool_use_response({"recommendations": _VALID_REPORT["recommendations"]}),
+        _tool_use_response(_VALID_REPORT),
+    ]
+    fake_client = _FakeClient(responses=responses)
+    await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert analysis.status == DeepAnalysisStatus.done
+    assert analysis.report_stats == _VALID_REPORT["stats"]
+    assert analysis.report_recommendations == _VALID_REPORT["recommendations"]
+    assert len(fake_client.messages.calls) == 2
+
+    # Both attempts were billed Anthropic calls, not just the successful one.
+    usage = (await session.scalars(select(UsageEvent).where(UsageEvent.run_id == run.id))).all()
+    assert len([u for u in usage if u.kind == KIND_CLAUDE_INPUT_TOKENS]) == 2
+    assert len([u for u in usage if u.kind == KIND_CLAUDE_OUTPUT_TOKENS]) == 2
 
 
 async def test_synthesize_report_thin_coverage_strips_sections(session: AsyncSession) -> None:
@@ -331,3 +378,4 @@ async def test_synthesize_report_truncated_response_marks_failed_and_logs_stop_r
     assert analysis.status == DeepAnalysisStatus.failed
     assert "max_tokens" in caplog.text
     assert str(analysis.id) in caplog.text
+    assert len(fake_client.messages.calls) == 2

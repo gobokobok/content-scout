@@ -244,6 +244,8 @@ Full story definitions live in `BACKLOG.md`.
 
 **Human touchpoint:** E19-S3 is a hands-on DEV pass by design; E20-S1's speedup is directly timeable by running a deep analysis before/after.
 
+**Untracked fix, 2026-08-04 (Sprint 12 start): synthesis retry on malformed tool_use output.** First real DEV run after the previous session's notification-timing/D48 fixes hit a new, distinct failure — `Не удалось сформировать отчёт`. Root-caused via `railway logs`: the Sonnet synthesis call completed normally (`stop_reason=tool_use`, not `max_tokens` — the earlier truncation fix held) but the model's tool-call arguments contained only a `recommendations` key, omitting the required `stats` key entirely, despite `tool_choice` forcing the `submit_deep_analysis_report` tool. Confirmed as a new failure mode, not a recurrence: `tool_choice` guarantees a tool call happens, not that its arguments satisfy the schema's `required` list. Fix: `synthesize_report` now retries the Sonnet call once (`_MAX_SYNTHESIS_ATTEMPTS = 2`) when the tool_use output is missing or fails to include both `stats` and `recommendations`, before failing the analysis; every attempt is recorded as its own `usage_events` row (each is a real billed Anthropic call regardless of whether it parses). Also reconfirmed live: the notification-timing fix from the prior session worked correctly (Telegram DM fired right after `run_deep_analysis` completed, not after the base scrape). Full suite 340 passed (added 1), `ruff`/`ruff format --check`/`mypy src` clean. Untracked (direct chat request) — flagged for `/sprint-review` backfill.
+
 ## Sprint plan (projection, adjust at each /sprint-review)
 
 - **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)

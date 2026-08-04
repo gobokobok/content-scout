@@ -39,6 +39,11 @@ _TYPE_LABELS_RU = {
 _UNPARSEABLE_MESSAGE_RU = "Не удалось сформировать отчёт. Попробуйте запустить анализ ещё раз."
 _NO_DATA_MESSAGE_RU = "В запуске нет публикаций для анализа."
 
+# tool_choice forces *a* tool call but not schema compliance — Sonnet occasionally omits a
+# required top-level key (seen live: a response with only "recommendations", no "stats") despite
+# a normal stop_reason=tool_use. One retry clears this without a second flaky response usually.
+_MAX_SYNTHESIS_ATTEMPTS = 2
+
 # Mirrors docs/PROMPTS.md "Deep analysis synthesis (E17-S4)" — change there first.
 SYSTEM_PROMPT = """\
 Ты — маркетинговый аналитик социальных сетей. По списку публикаций конкурентов (метрики, \
@@ -293,46 +298,81 @@ async def synthesize_report(
         prompt_lines = _build_prompt_lines(rows)
 
         _client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
-        response = await _client.messages.create(  # type: ignore[call-overload]
-            model=settings.deep_analysis_synthesis_model,
-            max_tokens=settings.deep_analysis_synthesis_max_tokens,
-            system=SYSTEM_PROMPT,
-            tools=[REPORT_TOOL],
-            tool_choice={"type": "tool", "name": "submit_deep_analysis_report"},
-            messages=[
-                {
-                    "role": "user",
-                    "content": "Публикации для анализа:\n" + "\n".join(prompt_lines),
-                }
-            ],
-        )
 
-        tool_use = next((b for b in response.content if b.type == "tool_use"), None)
-        if tool_use is None or not isinstance(tool_use.input, dict):
-            # No exception was raised, so the except-Exception branch below (which does log)
-            # never fires for this path — log explicitly, since stop_reason="max_tokens" here
-            # is the fingerprint of a truncated tool call (see deep_analysis_synthesis_max_tokens).
-            logger.warning(
-                "deep analysis synthesis: no usable tool_use block for analysis_id=%s "
-                "(stop_reason=%s, content_types=%s)",
-                analysis.id,
-                response.stop_reason,
-                [b.type for b in response.content],
+        stats: dict[str, Any] | None = None
+        recommendations: dict[str, Any] | None = None
+        for attempt in range(1, _MAX_SYNTHESIS_ATTEMPTS + 1):
+            response = await _client.messages.create(  # type: ignore[call-overload]
+                model=settings.deep_analysis_synthesis_model,
+                max_tokens=settings.deep_analysis_synthesis_max_tokens,
+                system=SYSTEM_PROMPT,
+                tools=[REPORT_TOOL],
+                tool_choice={"type": "tool", "name": "submit_deep_analysis_report"},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "Публикации для анализа:\n" + "\n".join(prompt_lines),
+                    }
+                ],
             )
-            await fail_deep_analysis(session, analysis, _UNPARSEABLE_MESSAGE_RU, user_id=user_id)
-            return
+            # Every attempt is a billed Anthropic call, regardless of whether its output parses.
+            session.add(
+                UsageEvent(
+                    user_id=user_id,
+                    run_id=analysis.run_id,
+                    kind=KIND_CLAUDE_INPUT_TOKENS,
+                    quantity=response.usage.input_tokens,
+                    unit_cost_usd=Decimal(str(settings.claude_input_token_cost_usd)),
+                )
+            )
+            session.add(
+                UsageEvent(
+                    user_id=user_id,
+                    run_id=analysis.run_id,
+                    kind=KIND_CLAUDE_OUTPUT_TOKENS,
+                    quantity=response.usage.output_tokens,
+                    unit_cost_usd=Decimal(str(settings.claude_output_token_cost_usd)),
+                )
+            )
 
-        data = tool_use.input
-        stats = data.get("stats")
-        recommendations = data.get("recommendations")
-        if not isinstance(stats, dict) or not isinstance(recommendations, dict):
-            logger.warning(
-                "deep analysis synthesis: tool_use missing stats/recommendations for "
-                "analysis_id=%s (stop_reason=%s, keys=%s)",
-                analysis.id,
-                response.stop_reason,
-                list(data.keys()),
-            )
+            tool_use = next((b for b in response.content if b.type == "tool_use"), None)
+            if tool_use is None or not isinstance(tool_use.input, dict):
+                # No exception was raised, so the except-Exception branch below (which does log)
+                # never fires for this path — log explicitly. stop_reason="max_tokens" is the
+                # fingerprint of a truncated tool call (deep_analysis_synthesis_max_tokens);
+                # stop_reason="tool_use" means the model just omitted a required field.
+                logger.warning(
+                    "deep analysis synthesis: no usable tool_use block for analysis_id=%s "
+                    "attempt=%s/%s (stop_reason=%s, content_types=%s)",
+                    analysis.id,
+                    attempt,
+                    _MAX_SYNTHESIS_ATTEMPTS,
+                    response.stop_reason,
+                    [b.type for b in response.content],
+                )
+                continue
+
+            data = tool_use.input
+            candidate_stats = data.get("stats")
+            candidate_recommendations = data.get("recommendations")
+            if not isinstance(candidate_stats, dict) or not isinstance(
+                candidate_recommendations, dict
+            ):
+                logger.warning(
+                    "deep analysis synthesis: tool_use missing stats/recommendations for "
+                    "analysis_id=%s attempt=%s/%s (stop_reason=%s, keys=%s)",
+                    analysis.id,
+                    attempt,
+                    _MAX_SYNTHESIS_ATTEMPTS,
+                    response.stop_reason,
+                    list(data.keys()),
+                )
+                continue
+
+            stats, recommendations = candidate_stats, candidate_recommendations
+            break
+
+        if stats is None or recommendations is None:
             await fail_deep_analysis(session, analysis, _UNPARSEABLE_MESSAGE_RU, user_id=user_id)
             return
 
@@ -345,25 +385,6 @@ async def synthesize_report(
         analysis.report_recommendations = recommendations
         analysis.status = DeepAnalysisStatus.done
         analysis.completed_at = datetime.now(UTC)
-
-        session.add(
-            UsageEvent(
-                user_id=user_id,
-                run_id=analysis.run_id,
-                kind=KIND_CLAUDE_INPUT_TOKENS,
-                quantity=response.usage.input_tokens,
-                unit_cost_usd=Decimal(str(settings.claude_input_token_cost_usd)),
-            )
-        )
-        session.add(
-            UsageEvent(
-                user_id=user_id,
-                run_id=analysis.run_id,
-                kind=KIND_CLAUDE_OUTPUT_TOKENS,
-                quantity=response.usage.output_tokens,
-                unit_cost_usd=Decimal(str(settings.claude_output_token_cost_usd)),
-            )
-        )
     except Exception:  # noqa: BLE001 — never fails the caller (mirrors generate_run_summary)
         logger.exception("deep analysis synthesis failed for analysis_id=%s", analysis.id)
         await fail_deep_analysis(session, analysis, _UNPARSEABLE_MESSAGE_RU, user_id=user_id)
