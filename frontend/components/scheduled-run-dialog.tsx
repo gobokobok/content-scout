@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Check, Plus, Users } from "lucide-react";
-import { api, ApiError, type AccountResponse, type ScheduledRunResponse } from "@/lib/api";
+import { ArrowLeft, Check, Link2, Plus, Users } from "lucide-react";
+import {
+  api,
+  ApiError,
+  type AccountResponse,
+  type AnalysisMode,
+  type ScheduledRunResponse,
+} from "@/lib/api";
 import { useToast } from "@/components/ui/toast";
 import { formatFollowers } from "@/lib/format";
 import { detectLocalTimezone } from "@/lib/telegram-webapp";
@@ -12,6 +18,7 @@ import { Segmented } from "@/components/ui";
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
+const COMMENTS_LIMIT_OPTIONS = [5, 10, 15, 25];
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 type ScopeMode = "days" | "count";
 type RepeatMode = "once" | "recurring";
@@ -72,10 +79,18 @@ export function ScheduledRunDialog({
   onSaved: () => void;
 }) {
   const t = useTranslations("ScheduledRuns");
+  const tRunDialog = useTranslations("RunDialog");
   const tCompetitors = useTranslations("Competitors");
   const { addToast } = useToast();
 
+  // New schedules are always created as stat_collection here (this page's own "+" button has
+  // no mode picker) — deep_analysis schedules only ever originate from RunDialog's own
+  // schedule option. This dialog still needs to correctly *edit* one, though.
+  const isDeepAnalysis = existing?.run_type === "deep_analysis";
   const [view, setView] = useState<View>("form");
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>(existing?.analysis_mode ?? "account");
+  const [postUrl, setPostUrl] = useState(existing?.target_post_url ?? "");
+  const [commentsLimit, setCommentsLimit] = useState(existing?.comments_limit ?? 15);
   const [scopeMode, setScopeMode] = useState<ScopeMode>(
     existing?.item_limit != null ? "count" : "days",
   );
@@ -83,7 +98,7 @@ export function ScheduledRunDialog({
   const [itemLimit, setItemLimit] = useState(existing?.item_limit ?? 10);
   const [localAccounts, setLocalAccounts] = useState<AccountResponse[]>(accounts);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(
-    existing?.account_ids ?? accounts.map((a) => a.id),
+    existing?.account_ids ?? (isDeepAnalysis ? [] : accounts.map((a) => a.id)),
   );
   const [addText, setAddText] = useState("");
   const [addSubmitting, setAddSubmitting] = useState(false);
@@ -109,6 +124,10 @@ export function ScheduledRunDialog({
   }, []);
 
   function toggleAccount(id: string) {
+    if (isDeepAnalysis && analysisMode === "account") {
+      setSelectedAccountIds((prev) => (prev.includes(id) ? [] : [id]));
+      return;
+    }
     setSelectedAccountIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
@@ -126,7 +145,11 @@ export function ScheduledRunDialog({
       setAddText("");
       if (result.added.length > 0) {
         setLocalAccounts((prev) => [...prev, ...result.added]);
-        setSelectedAccountIds((prev) => [...prev, ...result.added.map((a) => a.id)]);
+        setSelectedAccountIds((prev) =>
+          isDeepAnalysis && analysisMode === "account"
+            ? [result.added[0].id]
+            : [...prev, ...result.added.map((a) => a.id)],
+        );
         addToast(tCompetitors("addedCount", { count: result.added.length }));
         setView("pickCompetitors");
       }
@@ -158,15 +181,42 @@ export function ScheduledRunDialog({
       setError(t("selectDayError"));
       return;
     }
-    if (selectedAccountIds.length === 0) {
+    if (isDeepAnalysis && analysisMode === "account" && selectedAccountIds.length !== 1) {
+      setError(tRunDialog("selectAccountError"));
+      return;
+    }
+    if (isDeepAnalysis && analysisMode === "post" && !postUrl.trim()) {
+      setError(tRunDialog("postUrlRequiredError"));
+      return;
+    }
+    if (!isDeepAnalysis && selectedAccountIds.length === 0) {
       setError(t("selectCompetitorsError"));
       return;
     }
     setSaving(true);
+    const scopeFields =
+      isDeepAnalysis && analysisMode === "post"
+        ? {
+            duration_days: undefined,
+            item_limit: undefined,
+            account_ids: undefined,
+            analysis_mode: "post" as const,
+            target_post_url: postUrl.trim(),
+            comments_limit: commentsLimit,
+          }
+        : {
+            duration_days: scopeMode === "days" ? duration : undefined,
+            item_limit: scopeMode === "count" ? itemLimit : undefined,
+            account_ids: selectedAccountIds,
+            analysis_mode: isDeepAnalysis ? ("account" as const) : undefined,
+            target_post_url: undefined,
+            comments_limit: undefined,
+          };
     const base = {
-      duration_days: scopeMode === "days" ? duration : undefined,
-      item_limit: scopeMode === "count" ? itemLimit : undefined,
-      account_ids: selectedAccountIds,
+      ...scopeFields,
+      // Bug fix: this dialog never sent run_type on save, so ScheduledRunIn's default
+      // ("stat_collection") silently overwrote a deep_analysis schedule's type on every edit.
+      run_type: existing?.run_type ?? "stat_collection",
       mode: repeatMode,
       days_of_week: selectedDays,
       time_of_day: `${timeOfDay}:00`,
@@ -313,61 +363,123 @@ export function ScheduledRunDialog({
   return (
     <BottomSheet open onClose={onClose} title={existing ? t("editTitle") : t("createTitle")}>
       <div className="flex flex-col gap-5 p-4">
-        {/* Period */}
-        <div className="flex flex-col gap-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
-            {t("step1Title")}
-          </span>
-          <Segmented
-            value={scopeMode}
-            onChange={setScopeMode}
-            options={[
-              { value: "days", label: t("scopeModeDays") },
-              { value: "count", label: t("scopeModeCount") },
-            ]}
-          />
-          {scopeMode === "days" ? (
-            <div className="grid grid-cols-7 gap-1.5">
-              {DAY_OPTIONS.map((d) => (
-                <button key={d} onClick={() => setDuration(d)} className={chipClass(duration === d)}>
-                  {d}
-                </button>
-              ))}
+        {/* Analysis mode (Analysis schedules only) */}
+        {isDeepAnalysis && (
+          <div className="flex flex-col gap-2.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+              {tRunDialog("analysisModeLabel")}
+            </span>
+            <Segmented
+              value={analysisMode}
+              onChange={(mode) => {
+                setAnalysisMode(mode);
+                setSelectedAccountIds([]);
+              }}
+              options={[
+                { value: "account", label: tRunDialog("analysisModeAccount") },
+                { value: "post", label: tRunDialog("analysisModePost") },
+              ]}
+            />
+          </div>
+        )}
+
+        {/* Period (account mode only) */}
+        {(!isDeepAnalysis || analysisMode === "account") && (
+          <div className="flex flex-col gap-2.5 pt-7 first:pt-0">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+              {t("step1Title")}
+            </span>
+            <Segmented
+              value={scopeMode}
+              onChange={setScopeMode}
+              options={[
+                { value: "days", label: t("scopeModeDays") },
+                { value: "count", label: t("scopeModeCount") },
+              ]}
+            />
+            {scopeMode === "days" ? (
+              <div className="grid grid-cols-7 gap-1.5">
+                {DAY_OPTIONS.map((d) => (
+                  <button key={d} onClick={() => setDuration(d)} className={chipClass(duration === d)}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {ITEM_LIMIT_OPTIONS.map((n) => (
+                  <button key={n} onClick={() => setItemLimit(n)} className={chipClass(itemLimit === n)}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-secondary">
+              {scopeMode === "days"
+                ? t("scopeDaysExplanation", { count: duration })
+                : t("scopeCountExplanation", { count: itemLimit })}
+            </p>
+          </div>
+        )}
+
+        {/* Competitors (account mode: pick exactly one for Analysis) */}
+        {(!isDeepAnalysis || analysisMode === "account") && (
+          <div className="flex flex-col gap-2.5 pt-7">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+              {isDeepAnalysis ? tRunDialog("accountStepLabel") : t("step2Title")}
+            </span>
+            <button
+              onClick={() => setView("pickCompetitors")}
+              className="flex items-center justify-between gap-2 rounded-control border border-border px-3.5 py-3 text-left transition-colors hover:bg-bg"
+            >
+              <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                <Users className="h-4 w-4 text-secondary" />
+                {isDeepAnalysis ? tRunDialog("chooseAccountButton") : t("addCompetitorsButton")}
+              </span>
+              <span className="text-xs text-secondary">
+                {isDeepAnalysis
+                  ? (localAccounts.find((a) => a.id === selectedAccountIds[0])?.display_name ??
+                    (selectedAccountIds[0]
+                      ? `@${localAccounts.find((a) => a.id === selectedAccountIds[0])?.handle}`
+                      : tRunDialog("noAccountSelected")))
+                  : t("selectedCompetitorsCount", { count: selectedAccountIds.length })}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Publication URL (post mode only) */}
+        {isDeepAnalysis && analysisMode === "post" && (
+          <div className="flex flex-col gap-2.5 pt-7">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+              {tRunDialog("postUrlLabel")}
+            </span>
+            <div className="flex items-center gap-2 rounded-control border border-border px-3.5 py-2.5">
+              <Link2 className="h-4 w-4 shrink-0 text-secondary" />
+              <input
+                type="url"
+                value={postUrl}
+                onChange={(e) => setPostUrl(e.target.value)}
+                placeholder={tRunDialog("postUrlPlaceholder")}
+                className="w-full bg-transparent text-sm text-ink placeholder:text-secondary focus:outline-none"
+              />
             </div>
-          ) : (
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+              {tRunDialog("commentsLimitLabel")}
+            </span>
             <div className="flex flex-wrap gap-1.5">
-              {ITEM_LIMIT_OPTIONS.map((n) => (
-                <button key={n} onClick={() => setItemLimit(n)} className={chipClass(itemLimit === n)}>
+              {COMMENTS_LIMIT_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setCommentsLimit(n)}
+                  className={chipClass(commentsLimit === n)}
+                >
                   {n}
                 </button>
               ))}
             </div>
-          )}
-          <p className="text-xs text-secondary">
-            {scopeMode === "days"
-              ? t("scopeDaysExplanation", { count: duration })
-              : t("scopeCountExplanation", { count: itemLimit })}
-          </p>
-        </div>
-
-        {/* Competitors */}
-        <div className="flex flex-col gap-2.5 pt-7">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
-            {t("step2Title")}
-          </span>
-          <button
-            onClick={() => setView("pickCompetitors")}
-            className="flex items-center justify-between gap-2 rounded-control border border-border px-3.5 py-3 text-left transition-colors hover:bg-bg"
-          >
-            <span className="flex items-center gap-2 text-sm font-medium text-ink">
-              <Users className="h-4 w-4 text-secondary" />
-              {t("addCompetitorsButton")}
-            </span>
-            <span className="text-xs text-secondary">
-              {t("selectedCompetitorsCount", { count: selectedAccountIds.length })}
-            </span>
-          </button>
-        </div>
+          </div>
+        )}
 
         {/* Schedule */}
         <div className="flex flex-col gap-2.5 pt-7">

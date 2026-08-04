@@ -368,13 +368,6 @@ export default function RunFeedPage() {
                         </span>
                       )}
                     </div>
-                    {run.deep_analysis_skip_reason && (
-                      <p className="text-xs font-medium text-danger">
-                        {run.deep_analysis_skip_reason === "insufficient_tokens"
-                          ? t("deepAnalysisSkipInsufficientTokens")
-                          : t("deepAnalysisSkipError")}
-                      </p>
-                    )}
                   </button>
                 </div>
                 );

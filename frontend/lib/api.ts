@@ -138,6 +138,8 @@ export interface EstimateResponse {
   accounts_count: number;
 }
 
+export type AnalysisMode = "account" | "post";
+
 export interface RunResponse {
   id: string;
   project_id: string;
@@ -159,7 +161,10 @@ export interface RunResponse {
   summary_status: "pending" | "done" | "failed";
   summary_text: string | null;
   summary_topics: string[] | null;
-  deep_analysis_skip_reason: "insufficient_tokens" | "error" | null;
+  // D49/D50: only set for run_type="deep_analysis".
+  analysis_mode: AnalysisMode | null;
+  target_post_url: string | null;
+  comments_limit: number | null;
 }
 
 export interface RunFeedItem {
@@ -173,7 +178,6 @@ export interface RunFeedItem {
   comments_count: number | null;
   deep_analysis_id: string | null;
   deep_analysis_status: "pending" | "extracting" | "synthesizing" | "done" | "failed" | null;
-  deep_analysis_skip_reason: "insufficient_tokens" | "error" | null;
   created_at: string;
   finished_at: string | null;
 }
@@ -190,6 +194,10 @@ export interface RunRequest {
   item_limit?: number;
   account_ids?: string[];
   run_type?: "stat_collection" | "deep_analysis";
+  // D49/D50: only meaningful for run_type="deep_analysis".
+  analysis_mode?: AnalysisMode;
+  target_post_url?: string;
+  comments_limit?: number;
 }
 
 export interface ContentItemResponse {
@@ -222,6 +230,9 @@ export interface ScheduledRunResponse {
   account_ids: string[] | null;
   duration_days: number | null;
   item_limit: number | null;
+  analysis_mode: AnalysisMode | null;
+  target_post_url: string | null;
+  comments_limit: number | null;
   mode: ScheduleMode;
   days_of_week: number[];
   time_of_day: string;
@@ -247,6 +258,9 @@ export interface ScheduledRunRequest {
   item_limit?: number;
   account_ids?: string[];
   run_type?: "stat_collection" | "deep_analysis";
+  analysis_mode?: AnalysisMode;
+  target_post_url?: string;
+  comments_limit?: number;
   mode: ScheduleMode;
   days_of_week: number[];
   time_of_day: string;
@@ -432,6 +446,15 @@ export interface DeepAnalysisEstimateResponse {
   tokens: number;
 }
 
+// D49/D50: a pre-confirm token estimate for the standalone Analysis creation flow — no run_id
+// anymore, Analysis no longer attaches to an existing Review run.
+export interface DeepAnalysisEstimateRequest {
+  analysis_mode: AnalysisMode;
+  duration_days?: number;
+  item_limit?: number;
+  comments_limit?: number;
+}
+
 export const api = {
   getRegisterConfig: () =>
     request<{ require_invite: boolean }>("/auth/register/config"),
@@ -523,13 +546,10 @@ export const api = {
   listSkippedSchedules: () => request<SkippedScheduleResponse[]>("/scheduled-runs/skipped"),
   listDeepAnalyses: (projectId: string) =>
     request<DeepAnalysisResponse[]>(`/projects/${projectId}/deep-analyses`),
-  estimateDeepAnalysis: (projectId: string, runId: string) =>
-    request<DeepAnalysisEstimateResponse>(
-      `/projects/${projectId}/runs/${runId}/deep-analyses/estimate`,
-    ),
-  createDeepAnalysis: (projectId: string, runId: string) =>
-    request<DeepAnalysisResponse>(`/projects/${projectId}/runs/${runId}/deep-analyses`, {
+  estimateDeepAnalysis: (projectId: string, body: DeepAnalysisEstimateRequest) =>
+    request<DeepAnalysisEstimateResponse>(`/projects/${projectId}/deep-analyses/estimate`, {
       method: "POST",
+      body: JSON.stringify(body),
     }),
   getDeepAnalysis: (analysisId: string) =>
     request<DeepAnalysisResponse>(`/deep-analyses/${analysisId}`),

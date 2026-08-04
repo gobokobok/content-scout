@@ -136,6 +136,13 @@ export default function DeepAnalysisReportPage() {
             ))}
           </div>
 
+          {analysis.error_message && (
+            <div className="flex items-start gap-2 rounded-card border border-warning/30 bg-accent-soft px-3.5 py-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+              <p className="text-sm text-accent">{analysis.error_message}</p>
+            </div>
+          )}
+
           {stats?.comment_coverage_degraded && (
             <div className="flex items-start gap-2 rounded-card border border-warning/30 bg-accent-soft px-3.5 py-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
