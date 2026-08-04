@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Check, Coins, Link2, Plus, Users, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Coins, Link2, Plus, Users, X } from "lucide-react";
 import {
   api,
   ApiError,
@@ -23,7 +23,7 @@ const COMMENTS_LIMIT_OPTIONS = [5, 10, 15, 25];
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 type ScopeMode = "days" | "count";
 type LaunchMode = "now" | "schedule";
-type View = "form" | "pickCompetitors" | "addCompetitor";
+type View = "pickMode" | "form" | "pickCompetitors" | "addCompetitor";
 type RepeatMode = "once" | "recurring";
 
 function chipClass(active: boolean): string {
@@ -81,7 +81,7 @@ export function RunDialog({
   const { trackedRuns, track } = useRunTracker();
   const { addToast } = useToast();
   const isDeepAnalysis = runType === "deep_analysis";
-  const [view, setView] = useState<View>("form");
+  const [view, setView] = useState<View>(isDeepAnalysis ? "pickMode" : "form");
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("account");
   const [postUrl, setPostUrl] = useState("");
   const [commentsLimit, setCommentsLimit] = useState(15);
@@ -318,6 +318,81 @@ export function RunDialog({
 
   const dialogTitle = runType === "deep_analysis" ? t("deepTitle") : t("title");
 
+  if (view === "pickMode") {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-0 md:p-4"
+        onClick={onClose}
+      >
+        <div
+          className="relative flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-[22px] bg-card shadow-2xl md:max-w-md md:rounded-[22px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex shrink-0 justify-center px-4 pt-3 pb-2 md:hidden">
+            <div className="h-1 w-10 rounded-full bg-border" />
+          </div>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 pb-3">
+            <p className="text-sm font-semibold text-ink">{dialogTitle}</p>
+            <button
+              onClick={onClose}
+              aria-label={t("minimize")}
+              className="rounded-control p-1 text-secondary hover:bg-bg transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div
+            className="flex flex-col gap-2 p-4"
+            style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+          >
+            <button
+              onClick={() => {
+                setAnalysisMode("account");
+                setSelectedAccountIds([]);
+                setView("form");
+              }}
+              className="flex items-center gap-3.5 rounded-card border border-border bg-bg px-4 py-3.5 text-left transition-all active:scale-[0.99] hover:bg-bg/80"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lime text-ink">
+                <Users className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-base font-semibold text-ink">
+                  {t("analysisModeAccountTitle")}
+                </span>
+                <span className="mt-0.5 block text-xs text-secondary">
+                  {t("analysisModeAccountDescription")}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-secondary" />
+            </button>
+
+            <button
+              onClick={() => {
+                setAnalysisMode("post");
+                setView("form");
+              }}
+              className="flex items-center gap-3.5 rounded-card border border-border bg-ink px-4 py-3.5 text-left transition-all active:scale-[0.99]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lime/15 text-lime">
+                <Link2 className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-base font-semibold text-white">
+                  {t("analysisModePostTitle")}
+                </span>
+                <span className="mt-0.5 block text-xs text-[#9BA1AB]">
+                  {t("analysisModePostDescription")}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[#9BA1AB]" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (view === "pickCompetitors") {
     return (
       <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40 p-0 md:p-4">
@@ -472,7 +547,18 @@ export function RunDialog({
           <div className="h-1 w-10 rounded-full bg-border" />
         </div>
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 pb-3">
-          <p className="text-sm font-semibold text-ink">{dialogTitle}</p>
+          <div className="flex items-center gap-1.5">
+            {isDeepAnalysis && !run && !scheduled && (
+              <button
+                onClick={() => setView("pickMode")}
+                aria-label={t("backToForm")}
+                className="-ml-1 rounded-control p-1 text-secondary hover:bg-bg transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
+            <p className="text-sm font-semibold text-ink">{dialogTitle}</p>
+          </div>
           <button
             onClick={onClose}
             aria-label={t("minimize")}
@@ -487,90 +573,96 @@ export function RunDialog({
         >
           {!run && !scheduled && (
             <div className="flex flex-col gap-5 p-4">
-              {/* Step 0 — analysis mode (Analysis only) */}
-              {isDeepAnalysis && (
-                <div className="flex flex-col gap-2.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
-                    {t("analysisModeLabel")}
-                  </span>
-                  <Segmented
-                    value={analysisMode}
-                    onChange={(mode) => {
-                      setAnalysisMode(mode);
-                      setSelectedAccountIds([]);
-                    }}
-                    options={[
-                      { value: "account", label: t("analysisModeAccount") },
-                      { value: "post", label: t("analysisModePost") },
-                    ]}
-                  />
-                </div>
-              )}
-
-              {/* Step 1 — analysis scope (account mode only) */}
-              {(!isDeepAnalysis || analysisMode === "account") && (
-                <div className="flex flex-col gap-2.5 border-t border-border pt-6 first:border-t-0 first:pt-0">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
-                    {t("scopeStepLabel")}
-                  </span>
-                  <Segmented
-                    value={scopeMode}
-                    onChange={setScopeMode}
-                    options={[
-                      { value: "days", label: t("scopeModeDays") },
-                      { value: "count", label: t("scopeModeCount") },
-                    ]}
-                  />
-                  {scopeMode === "days" ? (
-                    <div className="grid grid-cols-7 gap-1.5">
-                      {DAY_OPTIONS.map((d) => (
-                        <button key={d} onClick={() => setDuration(d)} className={chipClass(duration === d)}>
-                          {d}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {ITEM_LIMIT_OPTIONS.map((n) => (
-                        <button key={n} onClick={() => setItemLimit(n)} className={chipClass(itemLimit === n)}>
-                          {n}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-xs text-secondary">
-                    {scopeMode === "days"
-                      ? t("scopeDaysExplanation", { count: duration })
-                      : t("scopeCountExplanation", { count: itemLimit })}
-                  </p>
-                </div>
-              )}
-
-              {/* Step 2 — competitors (account mode: pick exactly one for Analysis) */}
-              {(!isDeepAnalysis || analysisMode === "account") && (
-                <div className="flex flex-col gap-2.5 border-t border-border pt-6">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
-                    {isDeepAnalysis ? t("accountStepLabel") : t("competitorsStepLabel")}
-                  </span>
-                  <button
-                    onClick={() => setView("pickCompetitors")}
-                    className="flex items-center justify-between gap-2 rounded-control border border-border px-3.5 py-3 text-left transition-colors hover:bg-bg"
+              {(() => {
+                const scopeStep = (
+                  <div
+                    key="scope"
+                    className="flex flex-col gap-2.5 border-t border-border pt-6 first:border-t-0 first:pt-0"
                   >
-                    <span className="flex items-center gap-2 text-sm font-medium text-ink">
-                      <Users className="h-4 w-4 text-secondary" />
-                      {isDeepAnalysis ? t("chooseAccountButton") : t("addCompetitorsButton")}
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+                      {t("scopeStepLabel")}
                     </span>
-                    <span className="text-xs text-secondary">
-                      {isDeepAnalysis
-                        ? (localAccounts.find((a) => a.id === selectedAccountIds[0])?.display_name ??
-                          (selectedAccountIds[0]
-                            ? `@${localAccounts.find((a) => a.id === selectedAccountIds[0])?.handle}`
-                            : t("noAccountSelected")))
-                        : t("selectedCompetitorsCount", { count: selectedAccountIds.length })}
+                    <Segmented
+                      value={scopeMode}
+                      onChange={setScopeMode}
+                      options={[
+                        { value: "days", label: t("scopeModeDays") },
+                        { value: "count", label: t("scopeModeCount") },
+                      ]}
+                    />
+                    {scopeMode === "days" ? (
+                      <div className="grid grid-cols-7 gap-1.5">
+                        {DAY_OPTIONS.map((d) => (
+                          <button key={d} onClick={() => setDuration(d)} className={chipClass(duration === d)}>
+                            {d}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {ITEM_LIMIT_OPTIONS.map((n) => (
+                          <button key={n} onClick={() => setItemLimit(n)} className={chipClass(itemLimit === n)}>
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-secondary">
+                      {scopeMode === "days"
+                        ? t("scopeDaysExplanation", { count: duration })
+                        : t("scopeCountExplanation", { count: itemLimit })}
+                    </p>
+                  </div>
+                );
+
+                const accountStep = (
+                  <div
+                    key="account"
+                    className="flex flex-col gap-2.5 border-t border-border pt-6 first:border-t-0 first:pt-0"
+                  >
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+                      {isDeepAnalysis ? t("accountStepLabel") : t("competitorsStepLabel")}
                     </span>
-                  </button>
-                </div>
-              )}
+                    <button
+                      onClick={() => setView("pickCompetitors")}
+                      className="flex items-center justify-between gap-2 rounded-control border border-border px-3.5 py-3 text-left transition-colors hover:bg-bg"
+                    >
+                      <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                        <Users className="h-4 w-4 text-secondary" />
+                        {isDeepAnalysis ? t("chooseAccountButton") : t("addCompetitorsButton")}
+                      </span>
+                      <span className="text-xs text-secondary">
+                        {isDeepAnalysis
+                          ? (localAccounts.find((a) => a.id === selectedAccountIds[0])?.display_name ??
+                            (selectedAccountIds[0]
+                              ? `@${localAccounts.find((a) => a.id === selectedAccountIds[0])?.handle}`
+                              : t("noAccountSelected")))
+                          : t("selectedCompetitorsCount", { count: selectedAccountIds.length })}
+                      </span>
+                    </button>
+                  </div>
+                );
+
+                if (isDeepAnalysis && analysisMode === "account") {
+                  // Analysis account mode: pick the account first, then scope it (per UX
+                  // feedback — scoping a not-yet-chosen account reads backwards).
+                  return (
+                    <>
+                      {accountStep}
+                      {scopeStep}
+                    </>
+                  );
+                }
+                if (!isDeepAnalysis) {
+                  return (
+                    <>
+                      {scopeStep}
+                      {accountStep}
+                    </>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Step 2 alt — publication URL (post mode only) */}
               {isDeepAnalysis && analysisMode === "post" && (

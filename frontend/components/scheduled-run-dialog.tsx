@@ -383,70 +383,91 @@ export function ScheduledRunDialog({
           </div>
         )}
 
-        {/* Period (account mode only) */}
-        {(!isDeepAnalysis || analysisMode === "account") && (
-          <div className="flex flex-col gap-2.5 pt-7 first:pt-0">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
-              {t("step1Title")}
-            </span>
-            <Segmented
-              value={scopeMode}
-              onChange={setScopeMode}
-              options={[
-                { value: "days", label: t("scopeModeDays") },
-                { value: "count", label: t("scopeModeCount") },
-              ]}
-            />
-            {scopeMode === "days" ? (
-              <div className="grid grid-cols-7 gap-1.5">
-                {DAY_OPTIONS.map((d) => (
-                  <button key={d} onClick={() => setDuration(d)} className={chipClass(duration === d)}>
-                    {d}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {ITEM_LIMIT_OPTIONS.map((n) => (
-                  <button key={n} onClick={() => setItemLimit(n)} className={chipClass(itemLimit === n)}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-            )}
-            <p className="text-xs text-secondary">
-              {scopeMode === "days"
-                ? t("scopeDaysExplanation", { count: duration })
-                : t("scopeCountExplanation", { count: itemLimit })}
-            </p>
-          </div>
-        )}
+        {(() => {
+          const scopeStep = (
+            <div key="scope" className="flex flex-col gap-2.5 pt-7 first:pt-0">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+                {t("step1Title")}
+              </span>
+              <Segmented
+                value={scopeMode}
+                onChange={setScopeMode}
+                options={[
+                  { value: "days", label: t("scopeModeDays") },
+                  { value: "count", label: t("scopeModeCount") },
+                ]}
+              />
+              {scopeMode === "days" ? (
+                <div className="grid grid-cols-7 gap-1.5">
+                  {DAY_OPTIONS.map((d) => (
+                    <button key={d} onClick={() => setDuration(d)} className={chipClass(duration === d)}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {ITEM_LIMIT_OPTIONS.map((n) => (
+                    <button key={n} onClick={() => setItemLimit(n)} className={chipClass(itemLimit === n)}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-secondary">
+                {scopeMode === "days"
+                  ? t("scopeDaysExplanation", { count: duration })
+                  : t("scopeCountExplanation", { count: itemLimit })}
+              </p>
+            </div>
+          );
 
-        {/* Competitors (account mode: pick exactly one for Analysis) */}
-        {(!isDeepAnalysis || analysisMode === "account") && (
-          <div className="flex flex-col gap-2.5 pt-7">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
-              {isDeepAnalysis ? tRunDialog("accountStepLabel") : t("step2Title")}
-            </span>
-            <button
-              onClick={() => setView("pickCompetitors")}
-              className="flex items-center justify-between gap-2 rounded-control border border-border px-3.5 py-3 text-left transition-colors hover:bg-bg"
-            >
-              <span className="flex items-center gap-2 text-sm font-medium text-ink">
-                <Users className="h-4 w-4 text-secondary" />
-                {isDeepAnalysis ? tRunDialog("chooseAccountButton") : t("addCompetitorsButton")}
+          const accountStep = (
+            <div key="account" className="flex flex-col gap-2.5 pt-7 first:pt-0">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+                {isDeepAnalysis ? tRunDialog("accountStepLabel") : t("step2Title")}
               </span>
-              <span className="text-xs text-secondary">
-                {isDeepAnalysis
-                  ? (localAccounts.find((a) => a.id === selectedAccountIds[0])?.display_name ??
-                    (selectedAccountIds[0]
-                      ? `@${localAccounts.find((a) => a.id === selectedAccountIds[0])?.handle}`
-                      : tRunDialog("noAccountSelected")))
-                  : t("selectedCompetitorsCount", { count: selectedAccountIds.length })}
-              </span>
-            </button>
-          </div>
-        )}
+              <button
+                onClick={() => setView("pickCompetitors")}
+                className="flex items-center justify-between gap-2 rounded-control border border-border px-3.5 py-3 text-left transition-colors hover:bg-bg"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                  <Users className="h-4 w-4 text-secondary" />
+                  {isDeepAnalysis ? tRunDialog("chooseAccountButton") : t("addCompetitorsButton")}
+                </span>
+                <span className="text-xs text-secondary">
+                  {isDeepAnalysis
+                    ? (localAccounts.find((a) => a.id === selectedAccountIds[0])?.display_name ??
+                      (selectedAccountIds[0]
+                        ? `@${localAccounts.find((a) => a.id === selectedAccountIds[0])?.handle}`
+                        : tRunDialog("noAccountSelected")))
+                    : t("selectedCompetitorsCount", { count: selectedAccountIds.length })}
+                </span>
+              </button>
+            </div>
+          );
+
+          if (isDeepAnalysis && analysisMode === "account") {
+            // Analysis account mode: pick the account first, then scope it — matches
+            // run-dialog.tsx's ordering (per UX feedback, scoping a not-yet-chosen
+            // account read backwards).
+            return (
+              <>
+                {accountStep}
+                {scopeStep}
+              </>
+            );
+          }
+          if (!isDeepAnalysis) {
+            return (
+              <>
+                {scopeStep}
+                {accountStep}
+              </>
+            );
+          }
+          return null;
+        })()}
 
         {/* Publication URL (post mode only) */}
         {isDeepAnalysis && analysisMode === "post" && (
