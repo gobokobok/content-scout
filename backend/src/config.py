@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     use_mock_platform: bool = True
     apify_api_token: str = ""
     apify_ig_actor_id: str = ""
+    # Was hardcoded at 180 in platforms/instagram.py — a live DEV run (2026-08-03/04) showed a
+    # single account's content fetch land at 47/50 desired items right at the 180s cutoff,
+    # forcing an automatic retry (services/instagram.py's own retry logic) that then barely
+    # succeeded at 166s on the second attempt. 240s gives real headroom for large accounts
+    # instead of relying on a lucky second try.
+    apify_content_scrape_timeout_secs: int = 240
     # Apify's pay-per-event pricing auto-caps each run's `maxTotalChargeUsd` at the account's
     # entire remaining monthly balance when we don't set one ourselves. With 2+ runs in flight
     # those uncapped reservations can together exceed the real balance, and every run past the

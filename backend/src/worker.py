@@ -69,6 +69,14 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         # Exactly one of duration_days/item_limit is set on the run (see AnalysisRun) — a day
         # window (since, no limit override) or the last N publications (no date cutoff, limit=N).
         since = run.started_at - timedelta(days=run.duration_days) if run.duration_days else None
+        logger.info(
+            "run_id=%s scope: accounts=%d duration_days=%s item_limit=%s run_type=%s",
+            run.id,
+            len(accounts),
+            run.duration_days,
+            run.item_limit,
+            run.run_type,
+        )
         platform = get_platform(PlatformSlug.instagram)
         settings = get_settings()
         semaphore = asyncio.Semaphore(settings.scrape_concurrency)
@@ -108,7 +116,21 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             if exc is not None:
                 account.status = AccountStatus.failed
                 account.fail_reason = str(exc)[:500]
+                logger.warning(
+                    "run_id=%s account_id=%s content fetch failed: %s", run.id, account.id, exc
+                )
             else:
+                if len(raw_items) >= 50:
+                    # 50 is InstagramPlatform's hardcoded resultsLimit fallback when item_limit
+                    # is unset (duration_days mode) — landing exactly there is a signal the
+                    # account may have posted more than 50 times in the window and got silently
+                    # truncated, not that it genuinely posted exactly 50.
+                    logger.info(
+                        "run_id=%s account_id=%s hit the 50-item scrape ceiling — actual post "
+                        "count in the requested window may be higher",
+                        run.id,
+                        account.id,
+                    )
                 for raw in raw_items:
                     await session.execute(
                         pg_insert(ContentItem)

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -10,6 +11,8 @@ from src.config import get_settings
 from src.models import Account, ContentType
 from src.platforms.base import ProfileInfo, RawContentItem
 from src.services.apify_governor import acquire_apify_slot
+
+logger = logging.getLogger(__name__)
 
 
 class ApifyRunFailedError(Exception):
@@ -25,7 +28,6 @@ _TYPE_MAP = {
 
 _MAX_ATTEMPTS = 3
 _RESULTS_LIMIT = 50
-_RUN_TIMEOUT_SECS = 180
 
 
 class InstagramPlatform:
@@ -40,6 +42,7 @@ class InstagramPlatform:
         self._max_charge_usd = Decimal(str(settings.apify_max_charge_per_fetch_usd))
         self._memory_mbytes = settings.apify_actor_memory_mbytes
         self._max_concurrent_actor_runs = settings.apify_max_concurrent_actor_runs
+        self._run_timeout_secs = settings.apify_content_scrape_timeout_secs
 
     async def fetch_content(
         self, account: Account, *, since: datetime | None, limit: int | None = None
@@ -57,6 +60,12 @@ class InstagramPlatform:
             except Exception as exc:  # noqa: BLE001 — retried here, re-raised to the caller
                 last_exc = exc
                 if attempt < _MAX_ATTEMPTS - 1:
+                    logger.warning(
+                        "Apify call failed on attempt %d/%d, retrying: %s",
+                        attempt + 1,
+                        _MAX_ATTEMPTS,
+                        exc,
+                    )
                     await asyncio.sleep(2**attempt)
         assert last_exc is not None
         raise last_exc
@@ -77,7 +86,7 @@ class InstagramPlatform:
         async with acquire_apify_slot(self._max_concurrent_actor_runs):
             run = await self._client.actor(self._actor_id).call(
                 run_input=run_input,
-                run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
+                run_timeout=timedelta(seconds=self._run_timeout_secs),
                 max_total_charge_usd=self._max_charge_usd,
                 memory_mbytes=self._memory_mbytes,
             )
@@ -110,7 +119,7 @@ class InstagramPlatform:
                     "directUrls": [account.normalized_url],
                     "resultsType": "details",
                 },
-                run_timeout=timedelta(seconds=_RUN_TIMEOUT_SECS),
+                run_timeout=timedelta(seconds=self._run_timeout_secs),
                 max_total_charge_usd=self._max_charge_usd,
                 memory_mbytes=self._memory_mbytes,
             )
