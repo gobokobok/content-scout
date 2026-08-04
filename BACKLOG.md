@@ -3358,8 +3358,9 @@ Opened 2026-08-03 from `[E21-S1]`'s scoping session. Blocked on `[E21-S2]` landi
 
 ## [E22-S1] Review Telegram completion message: condensed formatting + quantified summary
 **Epic:** Report & Notification Messaging (new)
-**Sprint:** unassigned (proposed Sprint 12, next after E18-S6, 2026-08-04 PBR)
-**Status:** backlog
+**Sprint:** 12
+**Status:** done
+**Completed:** 2026-08-04
 **Priority:** high
 **Depends on:** none
 ### Goal
@@ -3384,23 +3385,23 @@ User supplied an exact target format for the Review run's Telegram completion DM
 Баланс токенов: 15606
 ```
 ### Acceptance Criteria
-- [ ] `notify_run_complete`'s header line becomes "✅ Задача «Ревью» завершена!" (was "✅ Анализ завершён!" — ambiguous against the Analysis/«Разбор» task type, this also fixes that)
-- [ ] Account/publication counts render as two bullet lines (`- Аккаунтов проверено: N`, `- Публикаций найдено: M`), replacing the current single `·`-joined inline line
-- [ ] Резюме and Топ-публикации sections get bold (`<b>...</b>`) headers instead of the current bare paragraph breaks
-- [ ] Top-publication lines (`_top_items_lines`) drop the `•` prefix — confirmed fine by the user since every line already opens with `@handle`
-- [ ] Link formatting stays exactly as today for both the per-post `(пост)` link and the "Открыть результаты →" link — user confirmed no change needed there
-- [ ] New "Потрачено токенов: N" line added before the balance line. Confirm `run.progress_items` is a reliable stand-in for tokens actually charged this run (worker.py's 1-token-per-item batch debit at `worker.py:210`) before using it directly — if a batch was truncated by mid-run token exhaustion, `progress_items` should already reflect only what was charged, but verify this holds rather than assume it
-- [ ] `run_summary.py`'s `SYSTEM_PROMPT`/`generate_run_summary` updated so content-format claims are backed by real counts: compute per-`ContentType` counts deterministically from the already-loaded `ContentItem` rows (structured data, zero hallucination risk) and feed them into the prompt as facts the model must cite, not estimate
-- [ ] Thematic/topic claims (e.g. "спортивные новости") get a real count too. Topics aren't structured data today, so extend the prompt's existing text protocol (mirrors the deterministic РЕЗЮМЕ:/ТЕМЫ: parsing pattern already in `parse_summary_response`) with a third block tagging each input item line with one of the 5 chosen topics, then aggregate real counts server-side from those tags — don't trust a number the model writes freehand into the summary text
-- [ ] `parse_summary_response` (and its regex pair) extended for the new tagging block; confirm whether the per-item tag data needs persisting anywhere or can be discarded once the notification's counts are computed
-- [ ] Confirm the web app's own run-detail Резюме display (`runs/[runId]/page.tsx`, reads the same `summary_text`) picks up the richer, count-backed text automatically — no separate frontend change expected, verify during implementation
+- [x] `notify_run_complete`'s header line becomes "✅ Задача «Ревью» завершена!" (was "✅ Анализ завершён!" — ambiguous against the Analysis/«Разбор» task type, this also fixes that)
+- [x] Account/publication counts render as two bullet lines (`- Аккаунтов проверено: N`, `- Публикаций найдено: M`), replacing the current single `·`-joined inline line
+- [x] Резюме and Топ-публикации sections get bold (`<b>...</b>`) headers instead of the current bare paragraph breaks
+- [x] Top-publication lines (`_top_items_lines`) drop the `•` prefix — confirmed fine by the user since every line already opens with `@handle`
+- [x] Link formatting stays exactly as today for both the per-post `(пост)` link and the "Открыть результаты →" link — user confirmed no change needed there
+- [x] New "Потрачено токенов: N" line added before the balance line. Confirm `run.progress_items` is a reliable stand-in for tokens actually charged this run (worker.py's 1-token-per-item batch debit at `worker.py:210`) before using it directly — if a batch was truncated by mid-run token exhaustion, `progress_items` should already reflect only what was charged, but verify this holds rather than assume it
+- [x] `run_summary.py`'s `SYSTEM_PROMPT`/`generate_run_summary` updated so content-format claims are backed by real counts: compute per-`ContentType` counts deterministically from the already-loaded `ContentItem` rows (structured data, zero hallucination risk) and feed them into the prompt as facts the model must cite, not estimate
+- [x] Thematic/topic claims (e.g. "спортивные новости") get a real count too. Topics aren't structured data today, so extend the prompt's existing text protocol (mirrors the deterministic РЕЗЮМЕ:/ТЕМЫ: parsing pattern already in `parse_summary_response`) with a third block tagging each input item line with one of the 5 chosen topics, then aggregate real counts server-side from those tags — don't trust a number the model writes freehand into the summary text
+- [x] `parse_summary_response` (and its regex pair) extended for the new tagging block; confirm whether the per-item tag data needs persisting anywhere or can be discarded once the notification's counts are computed
+- [x] Confirm the web app's own run-detail Резюме display (`runs/[runId]/page.tsx`, reads the same `summary_text`) picks up the richer, count-backed text automatically — no separate frontend change expected, verify during implementation
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing (prompt-response parsing especially — mock the Claude response, assert counts land correctly, matching the existing `test_run_summary.py` mocking style)
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing (prompt-response parsing especially — mock the Claude response, assert counts land correctly, matching the existing `test_run_summary.py` mocking style)
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Run a real Review on DEV against several accounts with a mixed content-type spread, confirm the Telegram DM matches the target format above (bold headers render correctly, no literal `##`, no bullet on top-publication lines, a correct "Потрачено токенов" line present), and confirm the summary's format/topic claims cite real counts matching the run's actual content.
 ### Files to read
@@ -3408,4 +3409,12 @@ CLAUDE.md, backend/src/services/telegram_notify.py, backend/src/services/run_sum
 ### Files to create or modify
 backend/src/services/telegram_notify.py, backend/src/services/run_summary.py, docs/PROMPTS.md, backend/tests/test_telegram_notify.py, backend/tests/test_run_summary.py
 ### Handover
-Opened 2026-08-04 (PBR session) — user supplied an exact target message for **Review** only. The Analysis (Разбор) completion DM and either run type's in-app report page are explicitly out of scope here, still waiting on the user's input (see SPRINT.md's "not yet a story" note on item 6 of the PBR list). Once this ships, ask whether `notify_deep_analysis_complete` should adopt the same visual structure (bold headers, bulleted stats) even before it has its own separate content spec.
+- Opened 2026-08-04 (PBR session) — user supplied an exact target message for **Review** only. The Analysis (Разбор) completion DM and either run type's in-app report page are explicitly out of scope here, still waiting on the user's input (see SPRINT.md's "not yet a story" note on item 6 of the PBR list). Once this ships, ask whether `notify_deep_analysis_complete` should adopt the same visual structure (bold headers, bulleted stats) even before it has its own separate content spec.
+- **Real bug found and fixed per the AC's own "verify, don't assume" instruction**: `run.progress_items` is **not** a reliable stand-in for tokens charged — it's set once during scraping to the total scraped-item count and is never adjusted down when `_finish_run`'s per-batch summarization loop stops early on token-balance exhaustion (`worker.py`). `run.progress_summarized` is the field that actually tracks the per-batch-debited count and was used instead. New regression test proves the divergence (`items=50, progress_summarized=30` → message shows "Потрачено токенов: 30", not 50).
+- `telegram_notify.py`: new header "✅ Задача «Ревью» завершена!" (done) / "❌ Задача «Ревью» завершилась с ошибкой." (failed, updated for the same disambiguation reason even though not explicitly in the target format). Bulleted account/publication lines, bold `<b>Резюме</b>`/`<b>Топ публикации по виральности</b>` section headers, no `•` prefix on top-item lines, "Потрачено токенов: N" line (same paragraph as the balance line, no blank line between them, matching the user's exact target spacing) added before it.
+- `run_summary.py`: `SYSTEM_PROMPT` extended with a ТЕГИ block (publication index → topic number 1-5) so per-topic counts can be aggregated server-side (`_parse_topic_counts`) rather than trusting the model's arithmetic — topics gain a real `"(N)"` suffix when a parseable ТЕГИ block is present, unchanged plain strings otherwise (fully backward compatible with the pre-E22-S1 prompt shape, all 3 original `parse_summary_response` unit tests pass unmodified). Format counts (`_format_counts_line`, real `ContentType` tally over the exact items sent to the model) are computed before the call and handed to the model as a "Форматы: …" fact line in the user message, with an explicit system-prompt instruction to cite them verbatim rather than estimate. Publications are now numbered (`1. @handle (...)`) so ТЕГИ can reference them by index. Fixed a latent bug this introduced: `_TOPICS_RE`'s old greedy `.+` would have swallowed the new ТЕГИ block as bogus extra "topics" — changed to a non-greedy stop-before-ТЕГИ pattern, mirroring `_SUMMARY_RE`'s existing stop-before-ТЕМЫ pattern.
+- Per-item ТЕГИ tag data is discarded once the aggregate counts are computed — only `summary_topics` (with counts folded in) is persisted, nothing new added to the schema.
+- Confirmed (reading `runs/[runId]/page.tsx`, already read this session for `[E15-S5]`) that both `summary_text` and `summary_topics` render exactly as returned, with no frontend change needed — the richer topic strings (e.g. "Путешествия (12)") just render as-is inside the existing chip markup.
+- `docs/PROMPTS.md`'s "Run summary" section updated to match, per `run_summary.py`'s own "change there first" header comment (updated together this time since the fix was chat-driven, not a docs-first change).
+- 8 new/extended backend tests across `test_run_summary.py` (ТЕГИ parsing: real counts, no-block backward compat, malformed/out-of-range lines ignored, untagged topics stay plain, `_format_counts_line` unit tests, numbered-prompt-lines integration test) and `test_telegram_notify.py` (new target-format assertions, the progress_items-vs-progress_summarized regression test, updated failed-message header). Full suite 362 passed (up from 354). ruff/ruff format/mypy clean.
+- No frontend changes, no new dependencies, no ENV vars, no migration.

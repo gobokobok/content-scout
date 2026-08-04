@@ -64,7 +64,9 @@ async def _top_items_lines(session: AsyncSession, run: AnalysisRun) -> list[str]
     lines = []
     for summary, url, handle in rows:
         caption = _esc(summary) if summary else "—"
-        line = f"• <b>@{_esc(handle)}</b>: {caption}"
+        # No leading bullet (E22-S1, user-confirmed) — each line already opens with @handle,
+        # visually distinct enough on its own.
+        line = f"<b>@{_esc(handle)}</b>: {caption}"
         if url:
             line += f' (<a href="{html.escape(url, quote=True)}">пост</a>)'
         lines.append(line)
@@ -82,25 +84,30 @@ async def notify_run_complete(run: AnalysisRun, user: User, session: AsyncSessio
     if run.status == RunStatus.done:
         accounts = run.progress_accounts or 0
         items = run.progress_items or 0
+        # progress_items is the total scraped count, not what actually got charged — a
+        # token-balance exhaustion mid-run can summarize (and charge) fewer items than were
+        # scraped, and progress_items is never adjusted down to reflect that. progress_summarized
+        # is the real per-batch-debited count (worker.py's _finish_run), the correct field here.
+        tokens_spent = run.progress_summarized or 0
         link = f"{settings.web_url.rstrip('/')}/projects/{run.project_id}/runs/{run.id}"
 
         parts = [
-            "✅ Анализ завершён!",
-            f"Аккаунтов проверено: <b>{accounts}</b> · публикаций найдено: <b>{items}</b>",
+            "✅ Задача «Ревью» завершена!",
+            f"- Аккаунтов проверено: <b>{accounts}</b>\n- Публикаций найдено: <b>{items}</b>",
         ]
         if run.summary_text:
-            parts.append(_esc(run.summary_text))
+            parts.append(f"<b>Резюме</b>\n{_esc(run.summary_text)}")
 
         top_lines = await _top_items_lines(session, run)
         if top_lines:
-            parts.append("Топ публикации:\n" + "\n".join(top_lines))
+            parts.append("<b>Топ публикации по виральности</b>\n" + "\n".join(top_lines))
 
         parts.append(f'<a href="{link}">Открыть результаты →</a>')
-        parts.append(balance_line)
+        parts.append(f"Потрачено токенов: <b>{tokens_spent}</b>\n{balance_line}")
         text = "\n\n".join(parts)
     else:
         error = _esc((run.error_message or "—")[:200])
-        text = f"❌ Анализ завершился с ошибкой.\n\n{error}\n\n{balance_line}"
+        text = f"❌ Задача «Ревью» завершилась с ошибкой.\n\n{error}\n\n{balance_line}"
 
     await _send(settings, user, text)
 

@@ -24,13 +24,22 @@ from tests.conftest import (
 )
 
 
-def _make_run(status: RunStatus, items: int = 5, error: str | None = None) -> AnalysisRun:
+def _make_run(
+    status: RunStatus,
+    items: int = 5,
+    error: str | None = None,
+    progress_summarized: int | None = None,
+) -> AnalysisRun:
     run = MagicMock(spec=AnalysisRun)
     run.id = uuid.uuid4()
     run.project_id = uuid.uuid4()
     run.status = status
     run.progress_accounts = 2
     run.progress_items = items
+    # Defaults to items (the common case: nothing truncated) unless a test wants to prove the
+    # two counters diverge (E22-S1 — progress_items is never adjusted down on a mid-run
+    # token-balance exhaustion, so it's the wrong field for "tokens actually spent").
+    run.progress_summarized = progress_summarized if progress_summarized is not None else items
     run.error_message = error
     run.summary_text = None
     return run
@@ -98,20 +107,56 @@ async def test_notify_done_sends_message_with_link():
     ):
         mock_settings.return_value.telegram_bot_token = "token123"
         mock_settings.return_value.web_url = "https://example.com"
-        mock_top.return_value = ["• <b>@natgeo</b>: Отличный ролик про океан"]
+        mock_top.return_value = ["<b>@natgeo</b>: Отличный ролик про океан"]
         await notify_run_complete(run, user, MagicMock())
 
     mock_post.assert_called_once()
     call_kwargs = mock_post.call_args[1]
     payload = call_kwargs["json"]
     assert payload["chat_id"] == 99999
-    assert "42" in payload["text"]
-    assert "2" in payload["text"]  # progress_accounts
-    assert run.summary_text in payload["text"]
-    assert "natgeo" in payload["text"]
+    text = payload["text"]
+    # E22-S1 target format
+    assert "✅ Задача «Ревью» завершена!" in text
+    assert "- Аккаунтов проверено: <b>2</b>" in text
+    assert "- Публикаций найдено: <b>42</b>" in text
+    assert "<b>Резюме</b>" in text
+    assert run.summary_text in text
+    assert "<b>Топ публикации по виральности</b>" in text
+    assert "natgeo" in text
     # E15-S3: links to the run detail page, not the old /results?run=... query param
-    assert f"https://example.com/projects/{run.project_id}/runs/{run.id}" in payload["text"]
-    assert "358" in payload["text"]
+    assert f"https://example.com/projects/{run.project_id}/runs/{run.id}" in text
+    assert "Потрачено токенов: <b>42</b>" in text
+    assert "358" in text
+
+
+@pytest.mark.asyncio
+async def test_notify_done_tokens_spent_uses_progress_summarized_not_progress_items():
+    """E22-S1 real finding: progress_items is the total scraped count, never adjusted down when
+    a mid-run token-balance exhaustion summarizes (and charges) fewer items than were scraped —
+    progress_summarized is the field that actually tracks what got charged."""
+    run = _make_run(RunStatus.done, items=50, progress_summarized=30)
+    user = _make_user(telegram_id=99999, token_balance=0)
+
+    mock_post = AsyncMock()
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = mock_post
+
+    with (
+        patch("src.services.telegram_notify.get_settings") as mock_settings,
+        patch("src.services.telegram_notify.httpx.AsyncClient", return_value=mock_http),
+        patch("src.services.telegram_notify._top_items_lines", new_callable=AsyncMock) as mock_top,
+    ):
+        mock_settings.return_value.telegram_bot_token = "token123"
+        mock_settings.return_value.web_url = "https://example.com"
+        mock_top.return_value = []
+        await notify_run_complete(run, user, MagicMock())
+
+    payload = mock_post.call_args[1]["json"]
+    text = payload["text"]
+    assert "- Публикаций найдено: <b>50</b>" in text
+    assert "Потрачено токенов: <b>30</b>" in text
 
 
 @pytest.mark.asyncio
@@ -136,6 +181,7 @@ async def test_notify_failed_sends_error_message():
 
     mock_post.assert_called_once()
     payload = mock_post.call_args[1]["json"]
+    assert "❌ Задача «Ревью» завершилась с ошибкой." in payload["text"]
     assert "Тестовая ошибка" in payload["text"]
     assert "12" in payload["text"]
 

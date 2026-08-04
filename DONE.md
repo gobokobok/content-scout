@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E22-S1] Review Telegram completion message: condensed formatting + quantified summary
+**Completed:** 2026-08-04
+**Handover:**
+- User-supplied exact target format for the Review completion DM, replacing the old inline `·`-joined line and bare-paragraph sections: bulleted account/publication counts, bold `<b>Резюме</b>`/`<b>Топ публикации по виральности</b>` headers, no `•` prefix on top-item lines, a new "Потрачено токенов: N" line, and a header disambiguated against Analysis ("Задача «Ревью»" instead of the old, ambiguous "Анализ завершён!").
+- **Real bug found via the AC's own "verify, don't assume" instruction**: `run.progress_items` (total scraped count) is not what the run actually charged — it's never adjusted down when a mid-run token-balance exhaustion truncates `_finish_run`'s summarization batches. Used `run.progress_summarized` (the real per-batch-debited counter) instead; new regression test proves the two diverge.
+- `run_summary.py`'s prompt extended with a ТЕГИ block (publication index → topic 1-5) so per-topic counts are aggregated server-side from real tags, not trusted from model arithmetic — topics gain a `"(N)"` suffix when parseable, plain strings otherwise (fully backward compatible, all pre-existing `parse_summary_response` tests unchanged). A deterministic per-`ContentType` fact line ("Форматы: Reels: 25, Карусель: 32…") is now handed to the model before it writes the Резюме, so format claims cite real counts instead of estimating. Fixed a latent regex bug the new ТЕГИ block would have triggered (`_TOPICS_RE`'s old greedy match would've swallowed it as bogus topics).
+- Confirmed no frontend change needed — `runs/[runId]/page.tsx` already renders `summary_text`/`summary_topics` as-is, so the richer count-suffixed topic strings show up automatically.
+- `docs/PROMPTS.md`'s "Run summary" section updated to match the new prompt/protocol.
+- 8 new/extended backend tests; full suite 362 passed (up from 354). ruff/ruff format/mypy clean. No frontend changes, no new dependencies, no ENV vars, no migration.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint (this is a backend/Telegram-content story with no local way to trigger a real Telegram DM). Needs a real DEV Review run against a mixed content-type spread to confirm the DM renders correctly in Telegram's HTML `parse_mode` and that the summary's cited counts match reality.
+**Promoted to backlog:**
+- (none)
+
 ## [E18-S6] Notification drawer: show task type/time/status instead of stale project name
 **Completed:** 2026-08-04
 **Handover:**

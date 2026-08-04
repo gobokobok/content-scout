@@ -1,3 +1,4 @@
+from collections import Counter
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -7,10 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models import (
     KIND_CLAUDE_INPUT_TOKENS,
     KIND_CLAUDE_OUTPUT_TOKENS,
+    ContentType,
     RunSummaryStatus,
     UsageEvent,
 )
-from src.services.run_summary import generate_run_summary, parse_summary_response
+from src.services.run_summary import (
+    _format_counts_line,
+    generate_run_summary,
+    parse_summary_response,
+)
 from tests.conftest import make_account, make_content_item, make_run, make_user
 
 
@@ -77,6 +83,61 @@ def test_parse_summary_response_more_than_five_topics_truncated() -> None:
 
 
 # ---------------------------------------------------------------------------
+# E22-S1: ТЕГИ block -> real per-topic counts, and the format-counts fact line
+# ---------------------------------------------------------------------------
+
+
+def test_parse_summary_response_tags_block_adds_real_topic_counts() -> None:
+    text = (
+        "РЕЗЮМЕ: Конкуренты публикуют в основном путешествия.\n"
+        "ТЕМЫ:\n1. Путешествия\n2. Еда\n"
+        "ТЕГИ:\n1: 1\n2: 1\n3: 2\n4: 1"
+    )
+
+    _, topics = parse_summary_response(text)
+
+    assert topics == ["Путешествия (3)", "Еда (1)"]
+
+
+def test_parse_summary_response_no_tags_block_leaves_topics_plain() -> None:
+    """Backward compatible: a response without a ТЕГИ section (older prompt shape, or the
+    model just not complying) still yields plain topic strings, no "(0)" noise."""
+    text = "РЕЗЮМЕ: Что-то.\nТЕМЫ:\n1. Путешествия\n2. Еда"
+
+    _, topics = parse_summary_response(text)
+
+    assert topics == ["Путешествия", "Еда"]
+
+
+def test_parse_summary_response_tags_block_ignores_malformed_and_out_of_range_lines() -> None:
+    text = "РЕЗЮМЕ: Что-то.\nТЕМЫ:\n1. Путешествия\n2. Еда\nТЕГИ:\n1: 1\nне число\n2: 9\n3: 1"
+
+    _, topics = parse_summary_response(text)
+
+    assert topics == ["Путешествия (2)", "Еда"]
+
+
+def test_parse_summary_response_topics_with_no_tags_stay_plain_even_when_others_have_counts() -> (
+    None
+):
+    text = "РЕЗЮМЕ: Что-то.\nТЕМЫ:\n1. Путешествия\n2. Еда\nТЕГИ:\n1: 1\n2: 1"
+
+    _, topics = parse_summary_response(text)
+
+    assert topics == ["Путешествия (2)", "Еда"]
+
+
+def test_format_counts_line_lists_only_present_types() -> None:
+    line = _format_counts_line(Counter({ContentType.reel: 25, ContentType.carousel: 32}))
+
+    assert line == "Reels: 25, Карусель: 32"
+
+
+def test_format_counts_line_empty_returns_placeholder() -> None:
+    assert _format_counts_line(Counter()) == "—"
+
+
+# ---------------------------------------------------------------------------
 # generate_run_summary — integration against the DB
 # ---------------------------------------------------------------------------
 
@@ -107,6 +168,35 @@ async def test_generate_run_summary_writes_fields_and_usage(session: AsyncSessio
     kinds = {u.kind: u.quantity for u in usage}
     assert kinds[KIND_CLAUDE_INPUT_TOKENS] == 300
     assert kinds[KIND_CLAUDE_OUTPUT_TOKENS] == 80
+
+
+async def test_generate_run_summary_prompt_includes_numbered_lines_and_format_counts(
+    session: AsyncSession,
+) -> None:
+    """E22-S1: publications are numbered (so the model's ТЕГИ block can reference them) and a
+    deterministic per-format fact line is prepended — real structured counts, not a model guess."""
+    user = await make_user(session)
+    run = await make_run(session, requested_by=user)
+    account = await make_account(session, handle="travel_blog")
+    await make_content_item(
+        session, run=run, account=account, type=ContentType.reel, summary="Ролик про пляж"
+    )
+    await make_content_item(
+        session, run=run, account=account, type=ContentType.carousel, summary="Подборка фото"
+    )
+    await session.commit()
+
+    fake_client = _FakeClient(_fake_response(_VALID_RESPONSE))
+    await generate_run_summary(session, run, user_id=user.id, client=fake_client)
+
+    user_message = fake_client.messages.create.await_args.kwargs["messages"][0]["content"]
+    assert "Форматы (точное количество, используй как есть):" in user_message
+    assert "Reels: 1" in user_message
+    assert "Карусель: 1" in user_message
+    assert "1. @travel_blog (Reels): Ролик про пляж" in user_message or (
+        "1. @travel_blog (Карусель): Подборка фото" in user_message
+    )
+    assert "2. @travel_blog" in user_message
 
 
 async def test_generate_run_summary_falls_back_to_caption(session: AsyncSession) -> None:

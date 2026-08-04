@@ -27,39 +27,50 @@ Fallbacks: no caption → summarize from image alone; no image → from caption 
 
 Parameters: max_tokens=150, temperature=0.2. Cover image resized to ≤512px longest side before sending (`summary_image_max_side` config). Image skipped entirely when caption > `summary_skip_image_caption_chars` (default 200) chars.
 
-## Run summary (E15-S1) — model: claude-haiku-4-5
+## Run summary (E15-S1, extended E22-S1) — model: claude-haiku-4-5
 
 **System:**
 ```
 Ты — аналитик контента социальных сетей. По списку публикаций аккаунтов-конкурентов
-(аккаунт, тип, краткое описание) составь общий обзор запуска анализа.
+(номер, аккаунт, тип, краткое описание) составь общий обзор запуска анализа.
+
+Тебе также дано точное количество публикаций по форматам — используй эти числа дословно, если
+упоминаешь формат в резюме, не оценивай на глаз.
 
 Правила:
 - Ответ строго в следующем формате, на русском языке:
-РЕЗЮМЕ: <2–4 предложения о том, какой контент публикуют конкуренты в этой подборке
-и какие темы или форматы встречаются чаще всего>
+РЕЗЮМЕ: <2–4 предложения о том, какой контент публикуют конкуренты в этой подборке и какие темы
+или форматы встречаются чаще всего; форматные утверждения подкрепляй точными числами из блока
+«Форматы», например «карусели (32), Reels (25)»>
 ТЕМЫ:
 1. <тема>
 2. <тема>
 3. <тема>
 4. <тема>
 5. <тема>
+ТЕГИ:
+<номер публикации>: <номер темы 1-5>
+<номер публикации>: <номер темы 1-5>
+... (по одной строке на каждую публикацию из списка, в том же порядке, без пропусков)
 - Резюме описывает контент, а не оценивает его успех и не даёт рекомендаций.
 - Темы — короткие (2–4 слова) названия тем/форматов, без нумерации внутри текста темы.
+- В блоке ТЕГИ присвой каждой публикации ровно одну наиболее подходящую тему из списка ТЕМЫ.
 - Не пересказывай хэштеги.
 ```
 
 **User:**
 ```
+Форматы (точное количество, используй как есть): Reels: 25, Карусель: 32, Пост: 16
+
 Публикации запуска:
-- @{handle} ({type_ru}): {summary or caption}
-- @{handle} ({type_ru}): {summary or caption}
+1. @{handle} ({type_ru}): {summary or caption}
+2. @{handle} ({type_ru}): {summary or caption}
 ...
 ```
 
-Fed with every content item's stored `summary` (fallback to `caption` if summary is unavailable), newest published first, capped at 150 items to bound token cost. Triggered once at the end of `process_run`, after per-item summarization completes — never re-run on page view. Failure (no items, API error, or unparseable response) is non-fatal: `summary_status` is set to `failed` and the run still completes normally (mirrors `notify_run_complete`'s never-raises pattern).
+Fed with every content item's stored `summary` (fallback to `caption` if summary is unavailable), newest published first, capped at 150 items to bound token cost. Publications are numbered so the model's ТЕГИ block can reference them by index. The «Форматы» line is computed deterministically from the same items' `ContentType` before the call — structured data, zero hallucination risk — and handed to the model as a fact to cite rather than estimate. Triggered once at the end of `process_run`, after per-item summarization completes — never re-run on page view. Failure (no items, API error, or unparseable response) is non-fatal: `summary_status` is set to `failed` and the run still completes normally (mirrors `notify_run_complete`'s never-raises pattern).
 
-Parameters: max_tokens=500, temperature=0.3. Output is deterministically parsed for `РЕЗЮМЕ:`/`ТЕМЫ:` markers; unparseable text falls back to storing the full raw response as the summary with an empty topics list rather than failing outright.
+Parameters: max_tokens=500, temperature=0.3. Output is deterministically parsed for `РЕЗЮМЕ:`/`ТЕМЫ:`/`ТЕГИ:` markers (`parse_summary_response`); unparseable text falls back to storing the full raw response as the summary with an empty topics list rather than failing outright. **E22-S1:** the ТЕГИ block (publication index → topic number 1-5) is aggregated server-side into real per-topic counts, appended to each topic string as `"<тема> (N)"` — a response with no parseable ТЕГИ block (older shape, or the model not complying) just yields plain topic strings, same as before this story. Tag data itself is discarded once counts are computed; only the aggregate survives into `summary_topics`.
 
 ## Deep analysis item extraction (E17-S3) — model: claude-haiku-4-5
 
