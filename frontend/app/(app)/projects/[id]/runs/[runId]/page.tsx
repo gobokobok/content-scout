@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, Film, ImageIcon, Images } from "lucide-react";
+import { ArrowLeft, Film, ImageIcon, Images, Settings2 } from "lucide-react";
 import {
   api,
   downloadXlsx,
@@ -19,6 +19,7 @@ import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { TabChip } from "@/components/ui";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { RunSettingsSheet } from "@/components/run-settings-sheet";
 import { VIRALITY_STYLE } from "@/lib/format";
 
 const DEFAULT_SORT: ItemSortField = "likes_per_day";
@@ -46,6 +47,7 @@ function formatRunDate(iso: string): string {
 export default function RunDetailPage() {
   const t = useTranslations("RunDetail");
   const tCards = useTranslations("ResultsCards");
+  const tSettings = useTranslations("RunSettingsSheet");
   const params = useParams<{ id: string; runId: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -65,6 +67,7 @@ export default function RunDetailPage() {
   const [itemsPage, setItemsPage] = useState<{ items: ContentItemResponse[]; total: number } | null>(null);
   const [starredOnly, setStarredOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const TYPE_LABEL: Record<ContentItemResponse["type"], string> = {
     reel: tCards("typeReel"),
@@ -224,9 +227,18 @@ export default function RunDetailPage() {
               <div className="flex flex-col divide-y divide-border rounded-card border border-border bg-card px-4">
                 <div className="flex items-center justify-between gap-2 py-3">
                   <span className="text-sm text-secondary">{t("dateLabel")}</span>
-                  <span className="text-sm font-medium text-ink">
-                    {formatRunDate(run.started_at ?? run.created_at)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-ink">
+                      {formatRunDate(run.started_at ?? run.created_at)}
+                    </span>
+                    <button
+                      onClick={() => setSettingsOpen(true)}
+                      aria-label={tSettings("openButtonLabel")}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control text-secondary transition-colors hover:bg-bg hover:text-ink"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between gap-2 py-3">
                   <span className="text-sm text-secondary">{t("accountsAnalyzed")}</span>
@@ -365,6 +377,10 @@ export default function RunDetailPage() {
           </div>
         )}
       </BottomSheet>
+
+      {run && (
+        <RunSettingsSheet run={run} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
   );
 }

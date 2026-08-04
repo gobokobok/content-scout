@@ -14,6 +14,7 @@ import {
   Lightbulb,
   MessageSquare,
   Quote,
+  Settings2,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
@@ -22,6 +23,7 @@ import { api, ApiError, type DeepAnalysisResponse, type RunResponse } from "@/li
 import { TabChip } from "@/components/ui";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { RunSettingsSheet } from "@/components/run-settings-sheet";
 import { DEEP_ANALYSIS_STATUS_DOT, DEEP_ANALYSIS_STATUS_PILL, VIRALITY_STYLE } from "@/lib/format";
 
 type Tab = "stats" | "recommendations";
@@ -36,6 +38,7 @@ function formatDate(iso: string): string {
 
 export default function DeepAnalysisReportPage() {
   const t = useTranslations("DeepAnalysis");
+  const tSettings = useTranslations("RunSettingsSheet");
   const params = useParams<{ id: string; analysisId: string }>();
   const router = useRouter();
   const { addToast } = useToast();
@@ -43,6 +46,7 @@ export default function DeepAnalysisReportPage() {
   const [tab, setTab] = useState<Tab>("stats");
   const [analysis, setAnalysis] = useState<DeepAnalysisResponse | null>(null);
   const [run, setRun] = useState<RunResponse | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -155,9 +159,18 @@ export default function DeepAnalysisReportPage() {
               <div className="flex flex-col divide-y divide-border rounded-card border border-border bg-card px-4">
                 <div className="flex items-center justify-between gap-2 py-3">
                   <span className="text-sm text-secondary">{t("dateLabel")}</span>
-                  <span className="text-sm font-medium text-ink">
-                    {formatDate(analysis.created_at)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-ink">
+                      {formatDate(analysis.created_at)}
+                    </span>
+                    <button
+                      onClick={() => setSettingsOpen(true)}
+                      aria-label={tSettings("openButtonLabel")}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control text-secondary transition-colors hover:bg-bg hover:text-ink"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between gap-2 py-3">
                   <span className="text-sm text-secondary">{t("accountsAnalyzed")}</span>
@@ -432,6 +445,10 @@ export default function DeepAnalysisReportPage() {
             </div>
           )}
         </div>
+      )}
+
+      {run && (
+        <RunSettingsSheet run={run} open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       )}
     </div>
   );

@@ -13,7 +13,18 @@ from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
 from src.middleware.rate_limit import check_rate_limit
-from src.models import AnalysisRun, DeepAnalysis, DeepAnalysisItem, Project, ScheduledRun, User
+from src.models import (
+    Account,
+    AccountList,
+    AnalysisRun,
+    ContentItem,
+    DeepAnalysis,
+    DeepAnalysisItem,
+    PlatformSlug,
+    Project,
+    ScheduledRun,
+    User,
+)
 from src.services.estimator import estimate_run
 from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.queue import enqueue_run
@@ -149,6 +160,22 @@ class RunOut(BaseModel):
             target_post_url=run.target_post_url,
             comments_limit=run.comments_limit,
         )
+
+
+class RunAccountOut(BaseModel):
+    """E15-S5: the settings drill-down sheet's account list — derived entirely from existing
+    data (Account rows + this run's ContentItem rows), no new columns needed. `succeeded` is
+    True iff this run actually produced at least one ContentItem for the account; `fail_reason`
+    mirrors Account.fail_reason (the account's own last-fetch-attempt reason, the only place
+    this project tracks a failure reason today) and is only surfaced when the run didn't
+    succeed for that account."""
+
+    id: uuid.UUID
+    handle: str
+    display_name: str | None
+    avatar_url: str | None
+    succeeded: bool
+    fail_reason: str | None
 
 
 class RunFeedItem(BaseModel):
@@ -306,6 +333,64 @@ async def get_run(run_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> 
     except ProjectNotFoundError:
         raise RUN_NOT_FOUND from None
     return RunOut.from_model(run)
+
+
+@router.get("/runs/{run_id}/accounts", response_model=list[RunAccountOut])
+async def get_run_accounts(
+    run_id: uuid.UUID, user: CurrentUser, session: SessionDep
+) -> list[RunAccountOut]:
+    """E15-S5: the settings sheet's account list, for both Review run-detail pages and (via
+    DeepAnalysisOut.run_id) the Analysis report page. Post-mode Analysis runs (analysis_mode=
+    "post") have no account scope — their one resolved author isn't a competitor-list entry."""
+    run = await session.get(AnalysisRun, run_id)
+    if run is None:
+        raise RUN_NOT_FOUND
+    try:
+        await get_owned_project(session, user, run.project_id)
+    except ProjectNotFoundError:
+        raise RUN_NOT_FOUND from None
+
+    if run.analysis_mode == "post":
+        return []
+
+    if run.account_ids is not None:
+        accounts_stmt = select(Account).where(Account.id.in_(run.account_ids))
+    else:
+        account_list = await session.scalar(
+            select(AccountList).where(
+                AccountList.project_id == run.project_id,
+                AccountList.platform == PlatformSlug.instagram,
+            )
+        )
+        if account_list is None:
+            return []
+        accounts_stmt = select(Account).where(
+            Account.account_list_id == account_list.id, Account.archived_at.is_(None)
+        )
+    accounts = list(await session.scalars(accounts_stmt))
+    if not accounts:
+        return []
+
+    succeeded_ids = set(
+        await session.scalars(
+            select(ContentItem.account_id)
+            .where(
+                ContentItem.run_id == run.id, ContentItem.account_id.in_([a.id for a in accounts])
+            )
+            .distinct()
+        )
+    )
+    return [
+        RunAccountOut(
+            id=account.id,
+            handle=account.handle,
+            display_name=account.display_name,
+            avatar_url=account.avatar_url,
+            succeeded=account.id in succeeded_ids,
+            fail_reason=None if account.id in succeeded_ids else account.fail_reason,
+        )
+        for account in accounts
+    ]
 
 
 # Cross-project feed — backs the unified home screen run feed.

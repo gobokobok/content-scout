@@ -523,6 +523,19 @@
   "pageInfo": "Стр. {page} из {totalPages}",
   "empty": "Публикаций нет."
  },
+ "RunSettingsSheet": {
+  "title": "Настройки запуска",
+  "openButtonLabel": "Настройки запуска",
+  "scopeLabel": "Период",
+  "scopeDays": "{count, plural, =1{# день} other{# дн.}}",
+  "scopeCount": "Последние {count, plural, =1{# публикацию} other{# публикаций}}",
+  "scopePost": "Одна публикация",
+  "scopeUnknown": "—",
+  "accountsLabel": "Аккаунты",
+  "accountsEmpty": "Нет данных об аккаунтах.",
+  "accountSucceeded": "Успешно",
+  "accountFailed": "Не удалось получить данные"
+ },
  "Settings": {
   "title": "Настройки",
   "displayNameSection": "Имя",

@@ -167,6 +167,16 @@ export interface RunResponse {
   comments_limit: number | null;
 }
 
+// E15-S5: the run-settings drill-down sheet's account list (Review + Analysis report pages).
+export interface RunAccountResponse {
+  id: string;
+  handle: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  succeeded: boolean;
+  fail_reason: string | null;
+}
+
 export interface RunFeedItem {
   id: string;
   project_id: string;
@@ -526,6 +536,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getRun: (runId: string) => request<RunResponse>(`/runs/${runId}`),
+  getRunAccounts: (runId: string) => request<RunAccountResponse[]>(`/runs/${runId}/accounts`),
   listRuns: (projectId: string) => request<RunResponse[]>(`/projects/${projectId}/runs`),
   listScheduledRuns: (projectId: string) =>
     request<ScheduledRunResponse[]>(`/projects/${projectId}/scheduled-runs`),

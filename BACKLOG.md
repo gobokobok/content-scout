@@ -2299,25 +2299,26 @@ Opened 2026-08-03 from E21-S1's scoping discussion (see BACKLOG.md's `[E21-S1]` 
 
 ## [E15-S5] Run results: settings + competitor drill-down modal (Review and Analysis)
 **Epic:** Run Detail View
-**Sprint:** unassigned (proposed Sprint 12, 2026-08-04 PBR)
-**Status:** backlog
+**Sprint:** 12
+**Status:** done
+**Completed:** 2026-08-04
 **Priority:** high (bumped from medium, 2026-08-04 PBR — pre-launch billing-trust item, "show the user what a run actually did/cost")
 **Depends on:** none
 ### Goal
 Originally opened 2026-08-03 (E21-S1's scoping session) scoped to just a competitor drill-down; **broadened 2026-08-04** after a direct user request made while debugging two real DEV Analysis runs together — having just spent that session cross-referencing Apify/Railway logs to reconstruct what a run's actual settings were (item_limit vs duration_days, which accounts), the user asked for this to be visible in the app itself: a settings icon on a run's summary card opening a read-only bottom sheet with the run's configuration (scope: N дней / последние N публикаций, plus which accounts were included) — no more guessing or log-diving to answer "what did this run actually run with." Applies to **both** Review (`runs/[runId]`) and Analysis (`deep-analyses/[analysisId]`) result pages — the Analysis report page is exactly where this session's confusion started (its summary card shows counts but not scope).
 ### Acceptance Criteria
-- [ ] A settings-icon affordance on the run summary card (both the Review run-detail page's Summary tab and the Analysis report page's summary card) opens a `BottomSheet` (reuse `components/ui/bottom-sheet.tsx`)
-- [ ] Sheet shows the run's scope in the same "N дней" / "последние N публикаций" phrasing E3-S7 already established elsewhere (`duration_days` vs `item_limit`, exactly one set)
-- [ ] Sheet also lists every account included in the run: handle, display name/avatar if available, scrollable — this is the original AC, unchanged
-- [ ] Read-only throughout — no remove/edit actions inside the sheet
-- [ ] Backend: confirm whether scope + account list can already be derived from existing data (`AnalysisRun.duration_days`/`item_limit`/`account_ids`, a join via `ContentItem.account_id` for accounts that returned data, `Account.status`/`fail_reason` for ones that failed) or needs a new small endpoint/field added to `RunOut`/`DeepAnalysisOut` — check before assuming new API surface is required
+- [x] A settings-icon affordance on the run summary card (both the Review run-detail page's Summary tab and the Analysis report page's summary card) opens a `BottomSheet` (reuse `components/ui/bottom-sheet.tsx`)
+- [x] Sheet shows the run's scope in the same "N дней" / "последние N публикаций" phrasing E3-S7 already established elsewhere (`duration_days` vs `item_limit`, exactly one set)
+- [x] Sheet also lists every account included in the run: handle, display name/avatar if available, scrollable — this is the original AC, unchanged
+- [x] Read-only throughout — no remove/edit actions inside the sheet
+- [x] Backend: confirm whether scope + account list can already be derived from existing data (`AnalysisRun.duration_days`/`item_limit`/`account_ids`, a join via `ContentItem.account_id` for accounts that returned data, `Account.status`/`fail_reason` for ones that failed) or needs a new small endpoint/field added to `RunOut`/`DeepAnalysisOut` — check before assuming new API surface is required
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Open a finished Review run and a finished Analysis run, each with several competitors (including at least one that failed to scrape) and a known scope setting, tap into the settings sheet on each, confirm scope phrasing matches what was actually configured and all accounts appear with a sensible failed/succeeded indication if that ends up in scope.
 ### Files to read
@@ -2325,7 +2326,12 @@ CLAUDE.md, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/app/
 ### Files to create or modify
 frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, possibly backend/src/api/runs.py, backend/src/api/deep_analyses.py, frontend/lib/api.ts, frontend/messages/ru.json
 ### Handover
-Opened 2026-08-03 from E21-S1's scoping discussion (accounts-only). Broadened 2026-08-04 (direct user request, same session as D48) to also cover run scope (duration_days/item_limit) and both result pages, not just Review — see this story's Goal for the concrete incident that prompted it. Standalone, no dependency on E21.
+- Opened 2026-08-03 from E21-S1's scoping discussion (accounts-only). Broadened 2026-08-04 (direct user request, same session as D48) to also cover run scope (duration_days/item_limit) and both result pages, not just Review — see this story's Goal for the concrete incident that prompted it. Standalone, no dependency on E21.
+- **Backend AC confirmed derivable from existing data, no new columns**: scope was already on `RunOut` (`duration_days`/`item_limit`/`analysis_mode`/`target_post_url`); only the account list needed new API surface. New `GET /runs/{run_id}/accounts` (`backend/src/api/runs.py`) returns `RunAccountOut[]` — for `account_ids`-scoped runs, exactly those accounts; for whole-list runs (`account_ids IS NULL`), every currently-non-archived `Account` in the project's IG list. `succeeded` is derived by checking for at least one `ContentItem` row with that `run_id`/`account_id`; `fail_reason` mirrors `Account.fail_reason` (the account's own last-attempt reason — this project has no run-scoped failure-reason column, so this is the best available signal, only surfaced when `succeeded=False`). Returns `[]` for post-mode Analysis runs (no competitor-list scope to show). Reused by **both** frontend pages — the Analysis report page already fetches its underlying `RunResponse` via `api.getRun(analysis.run_id)`, so no separate `deep-analyses` endpoint was needed.
+- Frontend: new shared `frontend/components/run-settings-sheet.tsx` (`RunSettingsSheet`), used by both `runs/[runId]/page.tsx` and `deep-analyses/[analysisId]/page.tsx` — a settings-gear icon button next to the summary card's date row opens it; lazy-fetches the account list only on open. New `RunSettingsSheet` i18n namespace (`frontend/messages/ru.json`): `title`, `scopeLabel`, `scopeDays`/`scopeCount`/`scopePost`/`scopeUnknown`, `accountsLabel`/`accountsEmpty`, `accountSucceeded`/`accountFailed`.
+- New backend tests (`backend/tests/test_runs.py`): succeeded/failed marking with real `fail_reason`, explicit `account_ids` scoping, empty list for post-mode, and cross-user 404 isolation. Full suite 354 passed (up from 350), ruff/ruff format/mypy clean. Frontend `tsc --noEmit`/`next lint`/`next build` all clean.
+- No new dependencies, no ENV vars, no migration.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint; verified via the new backend tests plus `tsc`/`eslint`/`next build`. Needs a real DEV pass per the Smoke test note above (a run with a mix of succeeded/failed competitors is the interesting case, and isn't reproducible without a live Apify failure).
 
 ## [E16-S1] Analysis teaser page
 **Epic:** Analysis Teaser

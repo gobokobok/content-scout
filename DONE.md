@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E15-S5] Run results: settings + competitor drill-down modal (Review and Analysis)
+**Completed:** 2026-08-04
+**Handover:**
+- Broadened scope (2026-08-04 PBR, bumped to high priority) of a story originally opened 2026-08-03 from E21-S1's scoping session — see BACKLOG.md's `[E15-S5]` Goal for the concrete DEV-log-diving incident that prompted the broadening.
+- Backend AC confirmed both pieces of the sheet's data were already derivable, no schema change: scope was already on `RunOut`; only the account list needed a new endpoint. New `GET /runs/{run_id}/accounts` (`backend/src/api/runs.py`, `RunAccountOut`) — for explicit `account_ids` runs, exactly those accounts; for whole-list runs, every currently-non-archived account in the project's IG list. `succeeded` = has at least one `ContentItem` row for this `run_id`; `fail_reason` mirrors `Account.fail_reason` (the account's own last-attempt reason — the closest signal this project has to a run-scoped one) when not succeeded. Empty list for post-mode Analysis runs (no competitor scope). One endpoint serves both Review and Analysis pages, since the Analysis report page already resolves its underlying `RunResponse` via `analysis.run_id`.
+- Frontend: new shared `frontend/components/run-settings-sheet.tsx` (`RunSettingsSheet`) — a settings-gear icon on both `runs/[runId]/page.tsx`'s and `deep-analyses/[analysisId]/page.tsx`'s summary card opens a read-only `BottomSheet` showing scope ("N дней" / "последние N публикаций" / "Одна публикация") plus the scrollable account list with a succeeded/failed indicator per account. New `RunSettingsSheet` i18n namespace.
+- New backend tests cover succeeded/failed marking, explicit `account_ids` scoping, post-mode empty list, and cross-user 404 isolation. Full suite 354 passed (up from 350). ruff/ruff format/mypy clean; frontend `tsc --noEmit`/`next lint`/`next build` clean. No new dependencies, no ENV vars, no migration.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint; verified via new backend tests + typecheck/lint/build. Needs a real DEV pass with a run that has a mix of succeeded/failed competitors (not reproducible without a live Apify failure) to confirm the failed-indicator path, plus a general 375px pass on both pages.
+**Promoted to backlog:**
+- (none)
+
 ## [E3-S8] Run-creation estimate: explain methodology + when balance is deducted (Review)
 **Completed:** 2026-08-04
 **Handover:**

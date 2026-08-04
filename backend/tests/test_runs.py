@@ -8,6 +8,7 @@ from src.auth.tokens import create_access_token
 from src.db import get_session
 from src.main import app
 from src.models import (
+    AccountStatus,
     DeepAnalysisItem,
     DeepAnalysisItemStatus,
     DeepAnalysisStatus,
@@ -502,3 +503,86 @@ async def test_run_feed_deep_analysis_run_with_no_analysis_has_null_status(
         [item] = resp.json()
         assert item["deep_analysis_id"] is None
         assert item["deep_analysis_status"] is None
+
+
+# ── E15-S5: GET /runs/{run_id}/accounts (settings drill-down sheet) ─────────────────────────
+
+
+async def test_get_run_accounts_marks_succeeded_and_failed(session: AsyncSession) -> None:
+    """account_ids unset (whole-list run) -- every active account in the list is listed,
+    succeeded=True only for the one with a ContentItem row for this run."""
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    ok_account = await make_account(
+        session,
+        account_list=account_list,
+        display_name="Cool Blogger",
+        avatar_url="https://x/a.jpg",
+    )
+    failed_account = await make_account(
+        session, account_list=account_list, status=AccountStatus.failed, fail_reason="404"
+    )
+    run = await make_run(session, project=project, requested_by=owner)
+    await make_content_item(session, run=run, account=ok_account)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}/accounts", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        by_id = {row["id"]: row for row in resp.json()}
+        assert by_id[str(ok_account.id)]["succeeded"] is True
+        assert by_id[str(ok_account.id)]["display_name"] == "Cool Blogger"
+        assert by_id[str(ok_account.id)]["fail_reason"] is None
+        assert by_id[str(failed_account.id)]["succeeded"] is False
+        assert by_id[str(failed_account.id)]["fail_reason"] == "404"
+
+
+async def test_get_run_accounts_scoped_to_explicit_account_ids(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    picked = await make_account(session, account_list=account_list)
+    other = await make_account(session, account_list=account_list)
+    run = await make_run(session, project=project, requested_by=owner, account_ids=[picked.id])
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}/accounts", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        ids = {row["id"] for row in resp.json()}
+        assert ids == {str(picked.id)}
+        assert str(other.id) not in ids
+
+
+async def test_get_run_accounts_empty_for_post_mode(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=owner,
+        duration_days=None,
+        analysis_mode="post",
+        target_post_url="https://www.instagram.com/p/ABC123xyz/",
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}/accounts", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+
+async def test_get_run_accounts_404_for_foreign_run(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    run = await make_run(session, project=project, requested_by=owner)
+
+    other_user = await make_user(session)
+    await make_workspace(session, owner=other_user)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}/accounts", headers=auth_headers(other_user.id))
+        assert resp.status_code == 404
