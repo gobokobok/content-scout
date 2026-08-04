@@ -36,7 +36,7 @@ class DeepAnalysisEstimateIn(BaseModel):
     analysis_mode: Literal["account", "post"]
     duration_days: int | None = Field(default=None, ge=1, le=7)
     item_limit: int | None = Field(default=None, ge=1, le=50)
-    comments_limit: int | None = Field(default=None, ge=1, le=50)
+    comments_limit: int | None = Field(default=None, ge=1, le=100)
 
 
 class DeepAnalysisEstimateOut(BaseModel):

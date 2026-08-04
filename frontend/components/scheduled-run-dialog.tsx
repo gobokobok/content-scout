@@ -18,7 +18,7 @@ import { Segmented } from "@/components/ui";
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
-const COMMENTS_LIMIT_OPTIONS = [5, 10, 15, 25];
+const COMMENTS_LIMIT_OPTIONS = [5, 10, 15, 25, 50, 100];
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 type ScopeMode = "days" | "count";
 type RepeatMode = "once" | "recurring";

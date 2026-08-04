@@ -53,7 +53,7 @@ class AnalysisRun(UuidPk, CreatedAt, Base):
             name="duration_or_item_limit_range",
         ),
         CheckConstraint(
-            "comments_limit IS NULL OR comments_limit BETWEEN 1 AND 50",
+            "comments_limit IS NULL OR comments_limit BETWEEN 1 AND 100",
             name="comments_limit_range",
         ),
     )

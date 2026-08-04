@@ -61,7 +61,7 @@ class RunRequestIn(BaseModel):
     # day/count scope) or 'post' (single publication URL, comments-only, no scope step).
     analysis_mode: Literal["account", "post"] | None = None
     target_post_url: str | None = None
-    comments_limit: int | None = Field(default=None, ge=1, le=50)
+    comments_limit: int | None = Field(default=None, ge=1, le=100)
 
     @model_validator(mode="after")
     def _validate_scope(self) -> "RunRequestIn":

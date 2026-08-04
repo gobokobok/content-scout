@@ -52,7 +52,7 @@ class ScheduledRunIn(BaseModel):
     # D49/D50: mirrors RunRequestIn's own deep_analysis-only fields.
     analysis_mode: Literal["account", "post"] | None = None
     target_post_url: str | None = None
-    comments_limit: int | None = Field(default=None, ge=1, le=50)
+    comments_limit: int | None = Field(default=None, ge=1, le=100)
     # once: exactly one day (its next occurrence fires, then the schedule deactivates).
     # recurring: 1-7 days, fires every selected day indefinitely (E14-S6).
     mode: Literal["once", "recurring"] = "recurring"

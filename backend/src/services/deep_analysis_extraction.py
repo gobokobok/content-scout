@@ -57,7 +57,6 @@ SYSTEM_PROMPT = """\
 
 _MAX_ATTEMPTS = 3
 _IMAGE_FETCH_TIMEOUT_SECS = 10.0
-_MAX_COMMENTS_IN_PROMPT = 25
 
 
 async def extract_deep_analysis_items(
@@ -155,7 +154,11 @@ def _build_user_text(item: ContentItem, comments: list[RawComment]) -> str:
     ]
     if comments:
         lines.append("Комментарии:")
-        for c in comments[:_MAX_COMMENTS_IN_PROMPT]:
+        # comments is already capped to the resolved comments_limit by fetch_comments'
+        # _sort_and_cap — every comment here was actually fetched and charged for
+        # (charge_tokens_for_item uses this same list's length), so none get silently
+        # dropped from the analysis the user is paying for.
+        for c in comments:
             author = f"@{c.author_username}" if c.author_username else "аноним"
             lines.append(f"- {author}: {c.text}")
     else:

@@ -98,7 +98,7 @@ Parameters: max_tokens=500, temperature=0.3. Output is deterministically parsed 
 {cover image attached as image block when available}
 ```
 
-One call per content item in the run's deep analysis. Comments come from `services/comment_scraper.py:fetch_comments` (E17-S2, capped at `deep_analysis_comments_per_post`, itself capped further to 25 in the prompt). Output is `json.loads`-parsed, not regex-parsed like the run summary — an unparseable or failed response stores a `failed` `DeepAnalysisItem` row (metrics-only degrade for that item, never fails the whole analysis).
+One call per content item in the run's deep analysis. Comments come from `services/comment_scraper.py:fetch_comments` (E17-S2), capped at `deep_analysis_comments_per_post` or the run's own `comments_limit` (D49, up to 100) — every comment in that list goes into the prompt, since it's also what `charge_tokens_for_item` bills for; the prompt used to re-truncate to a hardcoded 25 regardless of the fetch limit, silently charging for comments never analyzed, fixed as part of the `[E21-S2]` comments_limit-ceiling follow-up. Output is `json.loads`-parsed, not regex-parsed like the run summary — an unparseable or failed response stores a `failed` `DeepAnalysisItem` row (metrics-only degrade for that item, never fails the whole analysis).
 
 Parameters: max_tokens=500, temperature=0.2. Reuses `summarizer.py`'s cover-image policy (≤512px, skipped when caption > `summary_skip_image_caption_chars`) and batching (Message Batches API when the item count reaches `summary_batch_threshold`, same D29 cost policy as content summaries).
 
