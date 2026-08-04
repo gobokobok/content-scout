@@ -1775,31 +1775,36 @@ backend/src/models/analysis_run.py, backend/alembic/versions/b8c4d5e6f7a1_run_it
 
 ## [E3-S8] Run-creation estimate: explain the methodology and when balance is deducted
 **Epic:** Analysis Pipeline
-**Sprint:** unassigned (proposed Sprint 12, 2026-08-04 PBR)
-**Status:** backlog
+**Sprint:** 12
+**Status:** done
+**Completed:** 2026-08-04
 **Priority:** high
 **Depends on:** none
 ### Goal
 Opened directly from the 2026-08-04 PBR session: the Review run-dialog's cost estimate (`costEstimateLabel`/`costEstimateValue`, "≈ N ток.") is a bare number with no explanation. The underlying math (`estimator.py:estimate_run`, confirmed during PBR) is already exactly 1 token per unit analyzed (`apify_units = accounts_count × items`) — the complaint isn't that the number is wrong, it's that nothing tells the user what it means or when it's actually charged. Users need a short note: the estimate is based on units analyzed (e.g. 10 publications selected → ≈10 tokens), and the real balance deduction happens after the run completes, not at confirmation time.
 ### Acceptance Criteria
-- [ ] The Review run-dialog's cost-estimate block (`frontend/app/(app)/projects/[id]/run-dialog.tsx` or wherever it now lives post-E18-S2 — confirm current location) gains a short explanatory line beneath the number, e.g. "Расчёт по количеству анализируемых публикаций. Баланс списывается после завершения запуска." (exact RU copy to be finalized, keep it to 1–2 short sentences per CLAUDE.md's UI guidelines)
-- [ ] Confirm this note is accurate against actual Review charging behavior (when in the pipeline `token_balance` is actually debited) before finalizing the copy — don't assert "after completion" if the real debit timing differs
-- [ ] Scope is Review's `run-dialog.tsx` only — the Analysis creation flow (`deep-analysis-sheet.tsx`) is being rebuilt by `[E21-S2]`, which already carries an AC for the same messaging on its new UI; don't duplicate that work here
+- [x] The Review run-dialog's cost-estimate block gains a short explanatory line beneath the number — real component turned out to be `frontend/components/run-dialog.tsx` (the story's guessed path, `app/(app)/projects/[id]/run-dialog.tsx`, is dead/orphaned code, no imports anywhere — not touched)
+- [x] Confirmed accurate against actual Review charging behavior before finalizing copy: `worker.py`'s `_finish_run` debits `token_balance` incrementally, 1 token per publication, per batch, during the `summarizing` phase — **not** "after completion" as the story's draft copy assumed. Final RU copy: "Оценка — по количеству отобранных публикаций (1 токен за публикацию). Токены списываются по ходу выполнения запуска, а не при подтверждении." (`reviewEstimateExplanation`, `RunDialog` namespace)
+- [x] Scope kept to Review's `run-dialog.tsx` only — Analysis's equivalent (`deepEstimateExplanation`) was already shipped by `[E21-S2]`, not duplicated here
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing (or N/A if pure copy — confirm with CONVENTIONS.md's frontend test bar)
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] All AC checked
+- [x] Tests written and passing — N/A, pure copy change (CONVENTIONS.md's frontend test bar is typecheck + eslint, both clean)
+- [x] CI green, deployed to DEV
+- [ ] Smoke test passed — deferred, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
 ### Smoke test
 Open the run-creation dialog on DEV, confirm the estimate note renders clearly at 375px and reads correctly against a real run's actual token deduction.
+**DEFERRED** — per CLAUDE.md's explicit no-agent-UI-testing constraint (no Browser tool, no scratch-preview routes for frontend changes); verified via `tsc --noEmit` + `eslint` (both clean) and direct code reading of the real debit path in `worker.py`. Real-device DEV pass owed, same established pattern.
 ### Files to read
-CLAUDE.md, frontend/app/(app)/projects/[id]/run-dialog.tsx (or current location), backend/src/services/estimator.py, backend/src/worker.py (token debit timing)
+CLAUDE.md, frontend/components/run-dialog.tsx (real location — story's guessed path is dead code), backend/src/services/estimator.py, backend/src/worker.py (token debit timing)
 ### Files to create or modify
-frontend/app/(app)/projects/[id]/run-dialog.tsx (or current location), frontend/messages/ru.json
+frontend/components/run-dialog.tsx, frontend/messages/ru.json
 ### Handover
-Opened 2026-08-04 (PBR session) alongside `[E15-S5]`'s priority bump and `[E21-S2]`'s scope resolution (D49) — all three grouped under the same "billing/run transparency before paying customers" motivation.
+- Opened 2026-08-04 (PBR session) alongside `[E15-S5]`'s priority bump and `[E21-S2]`'s scope resolution (D49) — all three grouped under the same "billing/run transparency before paying customers" motivation.
+- New string `reviewEstimateExplanation` added to the `RunDialog` namespace in `frontend/messages/ru.json`, rendered next to the existing `deepEstimateExplanation` (Analysis path), conditioned on `!isDeepAnalysis`.
+- Confirmed while reading `worker.py`: Review's token debit is already incremental (1 token/item, per batch, during `summarizing`), the same shape as Analysis's D50 incremental-charging model — not a lump sum at any single point. Worth remembering if `[E15-S5]` or any future billing-transparency story needs to describe this mechanism again.
+- No backend changes, no ENV vars added, no new dependencies.
 
 ## [E18-S6] Notification drawer: show task type/time/status instead of stale project name
 **Epic:** Run-Centric Navigation & Redesign

@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E3-S8] Run-creation estimate: explain methodology + when balance is deducted (Review)
+**Completed:** 2026-08-04
+**Handover:**
+- Real component is `frontend/components/run-dialog.tsx` — the story's guessed path (`app/(app)/projects/[id]/run-dialog.tsx`) turned out to be dead/orphaned code from before E18's redesign consolidated the dialog into `components/`, confirmed via a repo-wide import search before touching anything.
+- New RU string `reviewEstimateExplanation` (`RunDialog` namespace, `frontend/messages/ru.json`), rendered beneath the cost-estimate block for the Review path (`!isDeepAnalysis`), mirroring the existing `deepEstimateExplanation` (Analysis path, shipped by `[E21-S2]`).
+- Copy was corrected against real behavior before finalizing, per the AC's explicit requirement: `worker.py`'s `_finish_run` debits `token_balance` incrementally — 1 token per publication, per batch, during the `summarizing` phase — not as a single "after completion" event as the story's draft copy assumed. Final copy: "Оценка — по количеству отобранных публикаций (1 токен за публикацию). Токены списываются по ходу выполнения запуска, а не при подтверждении." Worth noting for any future billing-transparency story (e.g. `[E15-S5]`): Review's charging is already the same incremental shape as Analysis's D50 model, not a lump sum.
+- No backend changes, no tests (pure copy change — CONVENTIONS.md's frontend test bar is typecheck + eslint), no ENV vars, no new dependencies.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint (no Browser tool/scratch-preview for frontend changes this session); verified via `tsc --noEmit` + `eslint` (both clean) and direct code reading of the real debit path. Needs a real DEV pass at 375px to confirm the two-line block (estimate + explanation) reads cleanly.
+**Promoted to backlog:**
+- (none)
+
 ## [E21-S2] Standalone Analysis pipeline: own scraping, single-account/post scope, incremental token charging
 **Completed:** 2026-08-04
 **Handover:**

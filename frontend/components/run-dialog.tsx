@@ -772,7 +772,11 @@ export function RunDialog({
                       : "…"}
                 </span>
               </div>
-              {isDeepAnalysis && <p className="text-xs text-secondary">{t("deepEstimateExplanation")}</p>}
+              {isDeepAnalysis ? (
+                <p className="text-xs text-secondary">{t("deepEstimateExplanation")}</p>
+              ) : (
+                <p className="text-xs text-secondary">{t("reviewEstimateExplanation")}</p>
+              )}
 
               {error && (
                 <div className="flex flex-col gap-1">
