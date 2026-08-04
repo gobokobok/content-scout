@@ -104,7 +104,14 @@ async def list_accounts(
     accounts = (
         await session.scalars(
             select(Account)
-            .where(Account.account_list_id == account_list.id, Account.archived_at.is_(None))
+            .where(
+                Account.account_list_id == account_list.id,
+                Account.archived_at.is_(None),
+                # Direct bug fix (chat-reported): post-mode Analysis auto-creates the resolved
+                # post author as a real Account row, but the user never explicitly added them
+                # as a competitor — hidden ones stay off this list until explicitly re-added.
+                Account.hidden.is_(False),
+            )
             .order_by(Account.created_at)
         )
     ).all()
@@ -121,11 +128,18 @@ async def add_accounts(
     existing = (
         await session.scalars(select(Account).where(Account.account_list_id == account_list.id))
     ).all()
-    active_existing = [a for a in existing if a.archived_at is None]
+    # Direct bug fix (chat-reported): a hidden account (auto-created by post-mode Analysis's
+    # single-post author resolution, worker.py:_resolve_or_create_account) doesn't count as an
+    # active competitor yet — it must not block re-adding the same handle for real, nor count
+    # against the 50-per-list cap, until the user explicitly adds it here.
+    active_existing = [a for a in existing if a.archived_at is None and not a.hidden]
     active_urls = {a.normalized_url for a in active_existing}
     # A previously archived account (same normalized_url) is reactivated in place rather than
     # erroring on the unique constraint — preserves its scrape history instead of recreating it.
     archived_by_url = {a.normalized_url: a for a in existing if a.archived_at is not None}
+    # A hidden-but-active account (same normalized_url) is surfaced in place the same way —
+    # explicitly adding it is exactly the signal that it should become a real, visible competitor.
+    hidden_by_url = {a.normalized_url: a for a in existing if a.archived_at is None and a.hidden}
     slots_left = MAX_ACCOUNTS_PER_LIST - len(active_existing)
 
     added: list[AccountOut] = []
@@ -157,9 +171,20 @@ async def add_accounts(
         archived_match = archived_by_url.get(normalized.normalized_url)
         if archived_match is not None:
             archived_match.archived_at = None
+            archived_match.hidden = False
             archived_match.input_url = line
             await session.flush()
             added.append(AccountOut.from_model(archived_match))
+            seen_in_batch.add(normalized.normalized_url)
+            slots_left -= 1
+            continue
+
+        hidden_match = hidden_by_url.get(normalized.normalized_url)
+        if hidden_match is not None:
+            hidden_match.hidden = False
+            hidden_match.input_url = line
+            await session.flush()
+            added.append(AccountOut.from_model(hidden_match))
             seen_in_batch.add(normalized.normalized_url)
             slots_left -= 1
             continue

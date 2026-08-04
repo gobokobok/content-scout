@@ -717,6 +717,9 @@ async def test_process_run_post_mode_creates_one_item_and_resolves_new_account(
 
     account = await session.get(Account, items[0].account_id)
     assert account.handle == "brand_new_author"
+    # Direct bug fix (chat-reported, 2026-08-04): a newly auto-resolved post-mode author must
+    # not silently show up as a real competitor — hidden from the Конкуренты list/picker.
+    assert account.hidden is True
 
 
 async def test_process_run_post_mode_reuses_existing_account(session: AsyncSession) -> None:
@@ -753,6 +756,9 @@ async def test_process_run_post_mode_reuses_existing_account(session: AsyncSessi
     items = (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
     assert len(items) == 1
     assert items[0].account_id == existing.id
+    # An already-real (non-hidden) competitor stays visible — only a genuinely new row is
+    # created hidden.
+    assert existing.hidden is False
 
 
 async def test_process_run_post_mode_fetch_failure_marks_run_failed_gracefully(

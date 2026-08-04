@@ -62,7 +62,15 @@ async def _resolve_or_create_account(
     """Post-mode Analysis (D49/D50): the pasted post's author isn't necessarily an existing
     competitor — reuse the account if it already is one, otherwise auto-add it (mirrors
     api/accounts.py:add_accounts' normalize-and-reuse-or-create, minus the 50-per-list cap,
-    which shouldn't block an Analysis run the user explicitly asked for)."""
+    which shouldn't block an Analysis run the user explicitly asked for).
+
+    Direct bug fix (chat-reported, 2026-08-04): a newly-created row is marked `hidden=True` —
+    ContentItem.account_id needs a real, non-nullable Account either way, but the user never
+    explicitly added this author as a competitor, so it must not silently show up in the
+    Конкуренты picker/list or count against the 50-per-list cap (Account.hidden, filtered out
+    in api/accounts.py:list_accounts and services/runs.py:resolve_target_accounts). If the
+    account already existed as a real (non-hidden) competitor, it's reused as-is and stays
+    visible; only a genuinely new row is created hidden."""
     normalized = normalize_instagram_input(owner_username)
     account_list = await session.scalar(
         select(AccountList).where(
@@ -90,6 +98,7 @@ async def _resolve_or_create_account(
         input_url=normalized.normalized_url,
         normalized_url=normalized.normalized_url,
         handle=normalized.handle,
+        hidden=True,
     )
     session.add(account)
     await session.flush()

@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base, CreatedAt, UuidPk
@@ -42,3 +42,10 @@ class Account(UuidPk, CreatedAt, Base):
     # content_items/shortlist_items/deep_analysis_items history tied to past runs. Re-adding
     # the same normalized_url un-archives the row instead of erroring on the unique constraint.
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # True only for accounts auto-created by post-mode Analysis's single-post author resolution
+    # (worker.py:_resolve_or_create_account) — the row is real (ContentItem.account_id needs a
+    # non-nullable FK) but must not silently pollute the user's actual competitor list: hidden
+    # from GET /accounts (the picker), excluded from resolve_target_accounts' "whole list" scope
+    # and the 50-per-list cap. Explicitly re-adding the same handle via "Добавить конкурентов"
+    # clears this flag (api/accounts.py:add_accounts), surfacing it as a real competitor.
+    hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

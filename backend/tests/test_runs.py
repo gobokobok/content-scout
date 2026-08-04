@@ -586,3 +586,26 @@ async def test_get_run_accounts_404_for_foreign_run(session: AsyncSession) -> No
     async with await client(session) as c:
         resp = await c.get(f"/runs/{run.id}/accounts", headers=auth_headers(other_user.id))
         assert resp.status_code == 404
+
+
+async def test_estimate_excludes_hidden_accounts(session: AsyncSession) -> None:
+    """Direct bug fix (chat-reported, 2026-08-04): a hidden account (post-mode Analysis's
+    auto-created single-post author, Account.hidden) must not be an eligible target for a
+    "whole list" Review/Analysis run — resolve_target_accounts excludes it."""
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    await make_account(session, account_list=account_list)
+    await make_account(session, account_list=account_list, hidden=True)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs/estimate",
+            json={"duration_days": 3},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 200
+        assert resp.json()["accounts_count"] == 2

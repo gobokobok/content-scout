@@ -236,6 +236,77 @@ async def test_archived_accounts_dont_count_against_the_cap_trigger(
         assert body["total"] == 1
 
 
+# --- Direct bug fix (chat-reported, 2026-08-04): post-mode Analysis's auto-created accounts
+# (Account.hidden) must not pollute the Конкуренты list/picker or the 50-per-list cap. ---
+
+
+async def test_list_accounts_excludes_hidden(session: AsyncSession) -> None:
+    owner, project = await _setup_project(session)
+    account_list = await make_account_list(session, project=project)
+    visible = await make_account(session, account_list=account_list, handle="real_competitor")
+    await make_account(session, account_list=account_list, handle="shadow_account", hidden=True)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/projects/{project.id}/accounts", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        assert [a["id"] for a in resp.json()] == [str(visible.id)]
+
+
+@patch("src.api.accounts.enqueue_profile_fetch", new_callable=AsyncMock)
+async def test_readding_hidden_account_surfaces_it_as_real_competitor(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    owner, project = await _setup_project(session)
+    account_list = await make_account_list(session, project=project)
+    shadow = await make_account(
+        session,
+        account_list=account_list,
+        handle="shadow_account",
+        normalized_url="https://instagram.com/shadow_account",
+        hidden=True,
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/accounts",
+            json={"entries": ["@shadow_account"]},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        # Same row reused, not a duplicate — preserves any scrape history tied to it.
+        assert body["added"][0]["id"] == str(shadow.id)
+        assert body["total"] == 1
+
+        resp = await c.get(f"/projects/{project.id}/accounts", headers=auth_headers(owner.id))
+        assert [a["id"] for a in resp.json()] == [str(shadow.id)]
+
+    await session.refresh(shadow)
+    assert shadow.hidden is False
+
+
+@patch("src.api.accounts.enqueue_profile_fetch", new_callable=AsyncMock)
+async def test_hidden_accounts_dont_count_against_the_cap_trigger(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    owner, project = await _setup_project(session)
+    account_list = await make_account_list(session, project=project)
+    for _ in range(50):
+        await make_account(session, account_list=account_list, hidden=True)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/accounts",
+            json={"entries": ["@freshslot"]},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 201
+        assert resp.json()["total"] == 1
+
+
 async def test_accounts_scoped_to_owning_workspace(session: AsyncSession) -> None:
     owner, project = await _setup_project(session)
     other_user = await make_user(session)

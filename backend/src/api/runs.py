@@ -365,7 +365,9 @@ async def get_run_accounts(
         if account_list is None:
             return []
         accounts_stmt = select(Account).where(
-            Account.account_list_id == account_list.id, Account.archived_at.is_(None)
+            Account.account_list_id == account_list.id,
+            Account.archived_at.is_(None),
+            Account.hidden.is_(False),
         )
     accounts = list(await session.scalars(accounts_stmt))
     if not accounts:

@@ -19,7 +19,12 @@ async def resolve_target_accounts(
         return []
 
     stmt = select(Account).where(
-        Account.account_list_id == account_list.id, Account.status == AccountStatus.active
+        Account.account_list_id == account_list.id,
+        Account.status == AccountStatus.active,
+        # Direct bug fix (chat-reported): hidden accounts (post-mode Analysis's auto-created
+        # single-post authors) are not real competitors — never eligible scrape targets, even
+        # for a "whole list" run (account_ids=None).
+        Account.hidden.is_(False),
     )
     if account_ids is not None:
         stmt = stmt.where(Account.id.in_(account_ids))
