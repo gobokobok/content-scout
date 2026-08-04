@@ -23,9 +23,19 @@ logger = logging.getLogger(__name__)
 
 _MAX_ATTEMPTS = 3
 _APIFY_RUN_TIMEOUT_SECS = 120
+_APIFY_BATCH_RUN_TIMEOUT_PER_POST_SECS = 60
 _BRIGHTDATA_POLL_INTERVAL_SECS = 2.0
 _BRIGHTDATA_POLL_ATTEMPTS = 30
 _BRIGHTDATA_HTTP_TIMEOUT_SECS = 30.0
+
+# E20-S1: which field on a batched comment item identifies the post (from startUrls) it came
+# from. Not independently verifiable outside a live Apify account (no live Apify access in
+# this sandbox — same constraint D41's own investigation had for the input schema), so this
+# tries several plausible field-name conventions rather than assuming one. See
+# ApifyCommentsClient._fetch_batch_once's all-unmatched abort for the safety net if every one
+# of these guesses turns out wrong for the actor's real output shape — confirm on the first
+# real DEV batched run (this story's Handover) and trim/correct this list then.
+_POST_URL_FIELD_CANDIDATES = ("inputUrl", "postUrl", "url", "inputSource", "post_url")
 
 
 @dataclass(frozen=True)
@@ -71,7 +81,10 @@ class ApifyCommentsClient:
     async def _fetch_once(self, post_url: str, limit: int) -> list[RawComment]:
         async with acquire_apify_slot(self._max_concurrent_actor_runs):
             run = await self._client.actor(self._actor_id).call(
-                run_input={"startUrls": [{"url": post_url}], "resultsLimit": limit},
+                # D41: the real field is maxItems, not resultsLimit (which the actor's schema
+                # doesn't recognize at all — Apify silently ignores unknown fields, so this cap
+                # has likely never been server-side enforced before this fix).
+                run_input={"startUrls": [{"url": post_url}], "maxItems": limit},
                 run_timeout=timedelta(seconds=_APIFY_RUN_TIMEOUT_SECS),
                 max_total_charge_usd=self._max_charge_usd,
                 memory_mbytes=self._memory_mbytes,
@@ -83,6 +96,79 @@ class ApifyCommentsClient:
         page = await self._client.dataset(run.default_dataset_id).list_items()
         valid_items = [item for item in page.items if "error" not in item]
         return [_normalize_apify_comment(item) for item in valid_items]
+
+    async def fetch_comments_batch(
+        self, post_urls: list[str], per_post_limit: int
+    ) -> dict[str, list[RawComment]]:
+        """One actor call for many posts (E20-S1) instead of one call per post — cuts
+        sequential round-trips and per-call cold-start overhead by roughly the batch size.
+        Retries the whole batch up to _MAX_ATTEMPTS times, same policy as fetch_comments.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                return await self._fetch_batch_once(post_urls, per_post_limit)
+            except Exception as exc:  # noqa: BLE001 — retried here, converted for the caller
+                last_exc = exc
+                if attempt < _MAX_ATTEMPTS - 1:
+                    await asyncio.sleep(2**attempt)
+        raise ApifyCommentsFailedError(str(last_exc)) from last_exc
+
+    async def _fetch_batch_once(
+        self, post_urls: list[str], per_post_limit: int
+    ) -> dict[str, list[RawComment]]:
+        # maxItems is a global cap across the whole run, not per-post (verified against the
+        # actor's public input schema) — request the batch-wide ceiling and let _sort_and_cap
+        # enforce the per-post limit downstream, after grouping.
+        max_items = len(post_urls) * per_post_limit
+        timeout_secs = max(
+            _APIFY_RUN_TIMEOUT_SECS, _APIFY_BATCH_RUN_TIMEOUT_PER_POST_SECS * len(post_urls)
+        )
+        async with acquire_apify_slot(self._max_concurrent_actor_runs):
+            run = await self._client.actor(self._actor_id).call(
+                run_input={
+                    "startUrls": [{"url": u} for u in post_urls],
+                    "maxItems": max_items,
+                },
+                run_timeout=timedelta(seconds=timeout_secs),
+                max_total_charge_usd=self._max_charge_usd * len(post_urls),
+                memory_mbytes=self._memory_mbytes,
+            )
+        if run is None or run.status != "SUCCEEDED":
+            status = run.status if run else "no run"
+            raise ApifyCommentsFailedError(
+                f"apidojo batched comments run ({len(post_urls)} posts): {status}"
+            )
+
+        page = await self._client.dataset(run.default_dataset_id).list_items()
+        valid_items = [item for item in page.items if "error" not in item]
+
+        grouped: dict[str, list[RawComment]] = {u: [] for u in post_urls}
+        unmatched = 0
+        for item in valid_items:
+            matched_url = _match_post_url(item, post_urls)
+            if matched_url is None:
+                unmatched += 1
+                continue
+            grouped[matched_url].append(_normalize_apify_comment(item))
+
+        if valid_items and unmatched == len(valid_items):
+            # Every item failed to match a known post URL — a strong signal the field-name
+            # guess (_POST_URL_FIELD_CANDIDATES) is wrong for this actor version, not that the
+            # posts genuinely had no comments. Abort the whole batch rather than silently
+            # return all-empty results; the caller falls back to the safe per-post path.
+            raise ApifyCommentsFailedError(
+                "apidojo batched comments run: no items could be matched back to a source "
+                "post URL — grouping field guess likely wrong for this actor version"
+            )
+        if unmatched:
+            logger.warning(
+                "apidojo batched comments run: %d/%d items could not be matched to a source "
+                "post URL",
+                unmatched,
+                len(valid_items),
+            )
+        return grouped
 
 
 class BrightDataCommentsClient:
@@ -143,6 +229,17 @@ class BrightDataCommentsClient:
             items = data.json()
 
         return [_normalize_brightdata_comment(item) for item in items if "error" not in item]
+
+
+def _match_post_url(item: dict[str, Any], known_urls: list[str]) -> str | None:
+    """Best-effort match of one batched comment item back to the post URL it came from —
+    see _POST_URL_FIELD_CANDIDATES' comment for why this is a guess, not a verified field."""
+    known = {u.rstrip("/"): u for u in known_urls}
+    for field_name in _POST_URL_FIELD_CANDIDATES:
+        value = item.get(field_name)
+        if isinstance(value, str) and value.rstrip("/") in known:
+            return known[value.rstrip("/")]
+    return None
 
 
 def _normalize_apify_comment(item: dict[str, Any]) -> RawComment:
@@ -232,6 +329,61 @@ async def fetch_comments(
             brightdata_exc,
         )
         return []
+
+
+async def fetch_comments_batch(
+    session: AsyncSession,
+    items: list[ContentItem],
+    *,
+    user_id: uuid.UUID,
+    settings: Settings,
+    limit_override: int | None = None,
+    apify_client: ApifyCommentsClient | None = None,
+    brightdata_client: BrightDataCommentsClient | None = None,
+) -> dict[uuid.UUID, list[RawComment]]:
+    """Batched sibling of fetch_comments (E20-S1): one Apify actor call for the whole `items`
+    batch instead of one sequential call per post — the real bottleneck this story targets
+    (a 130-item run meant ~26 sequential rounds of actor cold-starts). Falls back to the
+    original per-item primary-then-fallback path (fetch_comments, unchanged) for every item in
+    the batch if the batched call fails outright, so Bright Data still covers whatever the
+    batched Apify call didn't — never raises, same never-fails contract as fetch_comments.
+    Cost accounting stays per-post either way (_record_apify_usage called once per item) —
+    batching changes latency, not what gets billed.
+    """
+    if not items:
+        return {}
+    limit = limit_override or settings.deep_analysis_comments_per_post
+    apify = apify_client or ApifyCommentsClient(settings)
+    brightdata = brightdata_client or BrightDataCommentsClient(settings)
+
+    try:
+        grouped_by_url = await apify.fetch_comments_batch([item.url for item in items], limit)
+        result: dict[uuid.UUID, list[RawComment]] = {}
+        for item in items:
+            comments = _sort_and_cap(grouped_by_url.get(item.url, []), limit)
+            result[item.id] = comments
+            _record_apify_usage(session, user_id, item, len(comments), settings)
+        return result
+    except ApifyCommentsFailedError as apify_exc:
+        logger.warning(
+            "Batched Apify comment fetch failed for %d items, falling back to the per-item "
+            "path (Apify retry, then Bright Data) for each: %s",
+            len(items),
+            apify_exc,
+        )
+
+    return {
+        item.id: await fetch_comments(
+            session,
+            item,
+            user_id=user_id,
+            settings=settings,
+            limit_override=limit_override,
+            apify_client=apify,
+            brightdata_client=brightdata,
+        )
+        for item in items
+    }
 
 
 def _record_apify_usage(

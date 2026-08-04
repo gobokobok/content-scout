@@ -43,6 +43,23 @@ class _FakeClient:
         self.messages = _FakeMessages(response, exc)
 
 
+def _batch_fetch_stub(comments: list[RawComment] | dict[uuid.UUID, list[RawComment]] | None = None):
+    """E20-S1: extract_deep_analysis_items now calls fetch_comments_batch once per DB batch
+    instead of fetch_comments once per item — this stands in for it, returning `comments`
+    keyed by item.id for whatever batch it's actually invoked with (so it works regardless of
+    balance-truncation shrinking the batch). Pass a flat list to give every item in the batch
+    the same comments (the common case here); pass a dict keyed by content_item_id for
+    per-item control. Still an AsyncMock underneath, so call_args/assert_not_called etc. work.
+    """
+
+    async def _fn(session, batch, **kwargs):
+        if isinstance(comments, dict):
+            return {item.id: comments.get(item.id, []) for item in batch}
+        return {item.id: list(comments or []) for item in batch}
+
+    return AsyncMock(side_effect=_fn)
+
+
 _VALID_JSON = json.dumps(
     {
         "topic": "Тренировки дома",
@@ -74,8 +91,8 @@ async def test_extract_stores_parsed_signals_usage_and_charges_tokens(
     with (
         patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
         patch(
-            "src.services.deep_analysis_extraction.fetch_comments",
-            new=AsyncMock(return_value=comments),
+            "src.services.deep_analysis_extraction.fetch_comments_batch",
+            new=_batch_fetch_stub(comments),
         ),
     ):
         token_exhausted = await extract_deep_analysis_items(
@@ -120,7 +137,7 @@ async def test_extract_unparseable_response_stores_failed_but_still_charges_usag
     with (
         patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
         patch(
-            "src.services.deep_analysis_extraction.fetch_comments", new=AsyncMock(return_value=[])
+            "src.services.deep_analysis_extraction.fetch_comments_batch", new=_batch_fetch_stub()
         ),
     ):
         await extract_deep_analysis_items(session, analysis, [item], user=user, client=fake_client)
@@ -154,7 +171,7 @@ async def test_extract_retries_then_stores_failed_with_no_usage(session: AsyncSe
     with (
         patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
         patch(
-            "src.services.deep_analysis_extraction.fetch_comments", new=AsyncMock(return_value=[])
+            "src.services.deep_analysis_extraction.fetch_comments_batch", new=_batch_fetch_stub()
         ),
         patch("src.services.deep_analysis_extraction.asyncio.sleep", new_callable=AsyncMock),
     ):
@@ -182,7 +199,7 @@ async def test_extract_no_comments_marks_zero_coverage(session: AsyncSession) ->
     with (
         patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
         patch(
-            "src.services.deep_analysis_extraction.fetch_comments", new=AsyncMock(return_value=[])
+            "src.services.deep_analysis_extraction.fetch_comments_batch", new=_batch_fetch_stub()
         ),
     ):
         await extract_deep_analysis_items(session, analysis, [item], user=user, client=fake_client)
@@ -195,7 +212,7 @@ async def test_extract_no_comments_marks_zero_coverage(session: AsyncSession) ->
     assert rows[0].comments_analyzed_count == 0
 
 
-async def test_extract_passes_comments_limit_override_to_fetch_comments(
+async def test_extract_passes_comments_limit_override_to_fetch_comments_batch(
     session: AsyncSession,
 ) -> None:
     user = await make_user(session)
@@ -206,10 +223,10 @@ async def test_extract_passes_comments_limit_override_to_fetch_comments(
     await session.commit()
 
     fake_client = _FakeClient(_fake_response(_VALID_JSON))
-    fake_fetch = AsyncMock(return_value=[])
+    fake_fetch = _batch_fetch_stub()
     with (
         patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
-        patch("src.services.deep_analysis_extraction.fetch_comments", new=fake_fetch),
+        patch("src.services.deep_analysis_extraction.fetch_comments_batch", new=fake_fetch),
     ):
         await extract_deep_analysis_items(
             session, analysis, [item], user=user, comments_limit=7, client=fake_client
@@ -227,10 +244,10 @@ async def test_extract_stops_when_balance_exhausted_before_batch(session: AsyncS
     await session.commit()
 
     fake_client = _FakeClient(_fake_response(_VALID_JSON))
-    fake_fetch = AsyncMock(return_value=[])
+    fake_fetch = _batch_fetch_stub()
     with (
         patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
-        patch("src.services.deep_analysis_extraction.fetch_comments", new=fake_fetch),
+        patch("src.services.deep_analysis_extraction.fetch_comments_batch", new=fake_fetch),
     ):
         token_exhausted = await extract_deep_analysis_items(
             session, analysis, [item], user=user, client=fake_client
@@ -258,7 +275,7 @@ async def test_extract_truncates_batch_to_remaining_balance(session: AsyncSessio
     with (
         patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
         patch(
-            "src.services.deep_analysis_extraction.fetch_comments", new=AsyncMock(return_value=[])
+            "src.services.deep_analysis_extraction.fetch_comments_batch", new=_batch_fetch_stub()
         ),
     ):
         token_exhausted = await extract_deep_analysis_items(

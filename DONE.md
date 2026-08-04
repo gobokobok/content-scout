@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E20-S1] Batch deep-analysis comment scraping
+**Completed:** 2026-08-04
+**Handover:**
+- Targeted the real bottleneck a real DEV investigation earlier this sprint measured directly: `deep_analysis_extraction.py`'s comment-fetch loop called the `apidojo` actor once per post, sequentially — ~87% of one real run's 12-minute wall time. Replaced with one batched Apify call per DB batch (`summary_concurrency`-sized, default 5), via new `comment_scraper.py:fetch_comments_batch` (module-level, mirrors `fetch_comments`) and `ApifyCommentsClient.fetch_comments_batch`/`_fetch_batch_once` (client-level).
+- **Verified live** (WebFetch against the actor's public input-schema page) that `maxItems` is a whole-run cap, not per-post — batched calls request `maxItems = len(posts) × per_post_limit`, then the existing `_sort_and_cap` (D36) enforces the real per-post cap after grouping results back to their source post.
+- **The comment→source-post grouping field name could not be independently verified** (no live Apify account access; two web lookups gave inconsistent/likely-hallucinated answers, one contradicting this codebase's own already-working field mapping). Handled defensively: `_match_post_url` tries several plausible field names; an all-unmatched batch response aborts the whole batch back to the original safe per-item path (Apify retry, then Bright Data) rather than risk silently misattributed comments. **Needs a real DEV run to confirm/correct** — flagged prominently in BACKLOG.md's Handover with what to check in `railway logs`.
+- Also folded in D41's real bug fix (`resultsLimit` → `maxItems`, the actual field name — the old one was silently ignored, so the per-post comment cap has likely never been enforced) on **both** the pre-existing single-post path and the new batched one, plus the `deep_analysis_comments_per_post` default drop 25 → 15 (matches apidojo's free-included tier, zero overage by default).
+- Cost accounting unchanged: still one `UsageEvent` per post, not per batch — batching is a latency change only.
+- 12 new/updated backend tests; full suite 368 passed (up from 362). ruff/ruff format/mypy clean. No new dependencies, no ENV vars, no migration.
+**Smoke test:** DEFERRED — needs a real DEV deep analysis with 20+ items to (1) confirm wall time actually drops, (2) confirm the grouping-field guess landed correctly (check `railway logs` for the "items could not be matched" warning — should be 0/absent), and (3) confirm the `maxItems` fix actually caps comments at 15 with zero overage `UsageEvent` rows.
+**Promoted to backlog:**
+- (none)
+
 ## [E22-S1] Review Telegram completion message: condensed formatting + quantified summary
 **Completed:** 2026-08-04
 **Handover:**

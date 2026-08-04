@@ -92,7 +92,9 @@ class Settings(BaseSettings):
     # token per comment actually analyzed, charged incrementally as each item's real work
     # completes (see services/deep_analysis.py:charge_tokens_for_item). Also the account-mode
     # default per-post comment count; post mode's user-configurable comments_limit overrides it.
-    deep_analysis_comments_per_post: int = 25  # D34
+    # 15 (was 25, D34) per D41/E20-S1: matches apidojo's free-included tier exactly
+    # (apify_comment_included_comments below), so the default run yields zero overage cost.
+    deep_analysis_comments_per_post: int = 15  # D41
 
     # E17-S2: comment scraping, dual-vendor per D32. Primary actor's pricing has two
     # components — a flat post-query event, plus per-comment overage past the first

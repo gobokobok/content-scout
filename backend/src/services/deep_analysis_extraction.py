@@ -20,7 +20,7 @@ from src.models import (
     UsageEvent,
     User,
 )
-from src.services.comment_scraper import RawComment, fetch_comments
+from src.services.comment_scraper import RawComment, fetch_comments_batch
 from src.services.deep_analysis import charge_tokens_for_item
 from src.services.summarizer import _fetch_image_block  # deliberate D29 reuse, not duplicated here
 
@@ -104,15 +104,15 @@ async def extract_deep_analysis_items(
                 batch = batch[: user.token_balance]
                 token_exhausted = True
 
-            comments_by_item: dict[uuid.UUID, list[RawComment]] = {}
-            for item in batch:
-                comments_by_item[item.id] = await fetch_comments(
-                    session,
-                    item,
-                    user_id=user.id,
-                    settings=settings,
-                    limit_override=comments_limit,
-                )
+            # E20-S1: one batched Apify call for the whole DB batch instead of one sequential
+            # call per post — was the dominant cost of a deep-analysis run's wall time.
+            comments_by_item: dict[uuid.UUID, list[RawComment]] = await fetch_comments_batch(
+                session,
+                batch,
+                user_id=user.id,
+                settings=settings,
+                limit_override=comments_limit,
+            )
 
             semaphore = asyncio.Semaphore(settings.summary_concurrency)
 
