@@ -182,6 +182,143 @@ async def test_create_run_with_no_accounts_rejected(
     mock_enqueue.assert_not_awaited()
 
 
+@patch("src.api.runs.enqueue_run", new_callable=AsyncMock)
+async def test_create_run_deep_analysis_account_mode(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=3)
+    accounts_resp_ids = None
+    async with await client(session) as c:
+        accounts = await c.get(f"/projects/{project.id}/accounts", headers=auth_headers(owner.id))
+        accounts_resp_ids = [a["id"] for a in accounts.json()]
+
+        resp = await c.post(
+            f"/projects/{project.id}/runs",
+            json={
+                "run_type": "deep_analysis",
+                "analysis_mode": "account",
+                "account_ids": [accounts_resp_ids[0]],
+                "item_limit": 10,
+            },
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["run_type"] == "deep_analysis"
+        assert body["analysis_mode"] == "account"
+        assert body["target_post_url"] is None
+
+    mock_enqueue.assert_awaited_once()
+
+
+async def test_create_run_deep_analysis_account_mode_rejects_multiple_accounts(
+    session: AsyncSession,
+) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=3)
+    async with await client(session) as c:
+        accounts = await c.get(f"/projects/{project.id}/accounts", headers=auth_headers(owner.id))
+        account_ids = [a["id"] for a in accounts.json()]
+
+        resp = await c.post(
+            f"/projects/{project.id}/runs",
+            json={
+                "run_type": "deep_analysis",
+                "analysis_mode": "account",
+                "account_ids": account_ids,
+                "item_limit": 10,
+            },
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 422
+
+
+async def test_create_run_deep_analysis_requires_analysis_mode(session: AsyncSession) -> None:
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs",
+            json={"run_type": "deep_analysis", "item_limit": 10},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 422
+
+
+@patch("src.api.runs.enqueue_run", new_callable=AsyncMock)
+async def test_create_run_deep_analysis_post_mode(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs",
+            json={
+                "run_type": "deep_analysis",
+                "analysis_mode": "post",
+                "target_post_url": "https://www.instagram.com/p/ABC123xyz/",
+                "comments_limit": 15,
+            },
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["run_type"] == "deep_analysis"
+        assert body["analysis_mode"] == "post"
+        assert body["target_post_url"] == "https://www.instagram.com/p/ABC123xyz/"
+        assert body["comments_limit"] == 15
+        assert body["duration_days"] is None
+        assert body["item_limit"] is None
+
+    mock_enqueue.assert_awaited_once()
+
+
+async def test_create_run_deep_analysis_post_mode_rejects_invalid_url(
+    session: AsyncSession,
+) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs",
+            json={
+                "run_type": "deep_analysis",
+                "analysis_mode": "post",
+                "target_post_url": "https://example.com/not-instagram",
+            },
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["code"] == "invalid_post_url"
+
+
+async def test_create_run_deep_analysis_post_mode_rejects_duration_days(
+    session: AsyncSession,
+) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs",
+            json={
+                "run_type": "deep_analysis",
+                "analysis_mode": "post",
+                "target_post_url": "https://www.instagram.com/p/ABC123xyz/",
+                "duration_days": 3,
+            },
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 422
+
+
 async def test_get_run_scoped_to_owning_workspace(session: AsyncSession) -> None:
     owner, project = await _setup_project_with_accounts(session, n=1)
     run = await make_run(session, project=project, requested_by=owner)
@@ -343,10 +480,12 @@ async def test_run_feed_surfaces_failed_deep_analysis_status_even_when_run_done(
         assert item["deep_analysis_status"] == "failed"
 
 
-async def test_run_feed_surfaces_deep_analysis_skip_reason(session: AsyncSession) -> None:
-    """The bug reported live: a deep_analysis run whose auto-chain skipped (insufficient
-    balance) has no DeepAnalysis row at all, so without this field it is visually
-    indistinguishable from a plain stat_collection run."""
+async def test_run_feed_deep_analysis_run_with_no_analysis_has_null_status(
+    session: AsyncSession,
+) -> None:
+    """D50: the auto-chain and its skip-reason bookkeeping are gone -- a deep_analysis run
+    that finished its scrape but has no DeepAnalysis row (e.g. the pipeline job never got that
+    far) just surfaces null status, same as before the analysis exists at all."""
     owner, project = await _setup_project_with_accounts(session, n=1)
     await make_run(
         session,
@@ -354,7 +493,6 @@ async def test_run_feed_surfaces_deep_analysis_skip_reason(session: AsyncSession
         requested_by=owner,
         run_type="deep_analysis",
         status=RunStatus.done,
-        deep_analysis_skip_reason="insufficient_tokens",
     )
     await session.commit()
 
@@ -363,4 +501,4 @@ async def test_run_feed_surfaces_deep_analysis_skip_reason(session: AsyncSession
         assert resp.status_code == 200
         [item] = resp.json()
         assert item["deep_analysis_id"] is None
-        assert item["deep_analysis_skip_reason"] == "insufficient_tokens"
+        assert item["deep_analysis_status"] is None

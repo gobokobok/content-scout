@@ -52,6 +52,9 @@ class InstagramPlatform:
     async def fetch_profile(self, account: Account) -> ProfileInfo:
         return await self._with_retries(lambda: self._fetch_profile_once(account))
 
+    async def fetch_post(self, post_url: str) -> RawContentItem:
+        return await self._with_retries(lambda: self._fetch_post_once(post_url))
+
     async def _with_retries[T](self, call: Callable[[], Awaitable[T]]) -> T:
         last_exc: Exception | None = None
         for attempt in range(_MAX_ATTEMPTS):
@@ -111,6 +114,41 @@ class InstagramPlatform:
             raise ApifyRunFailedError(f"@{account.handle}: {reason}")
 
         return [_normalize(item) for item in valid_items]
+
+    async def _fetch_post_once(self, post_url: str) -> RawContentItem:
+        """directUrls also accepts a direct post/reel URL (not just a profile URL) — the same
+        actor call shape as _fetch_once, just resultsLimit=1 and no date/limit scope, since
+        there's exactly one post to return."""
+        async with acquire_apify_slot(self._max_concurrent_actor_runs):
+            run = await self._client.actor(self._actor_id).call(
+                run_input={
+                    "directUrls": [post_url],
+                    "resultsType": "posts",
+                    "resultsLimit": 1,
+                },
+                run_timeout=timedelta(seconds=self._run_timeout_secs),
+                max_total_charge_usd=self._max_charge_usd,
+                memory_mbytes=self._memory_mbytes,
+            )
+        if run is None:
+            raise ApifyRunFailedError(f"Apify post run for {post_url} returned no run")
+        if run.status != "SUCCEEDED":
+            raise ApifyRunFailedError(
+                f"Apify post run for {post_url} ended with status {run.status}"
+            )
+
+        page = await self._client.dataset(run.default_dataset_id).list_items()
+        valid_items = [item for item in page.items if "error" not in item]
+        if not valid_items:
+            error_items = [item for item in page.items if "error" in item]
+            reason = (
+                error_items[0].get("errorDescription") or error_items[0]["error"]
+                if error_items
+                else "empty response"
+            )
+            raise ApifyRunFailedError(f"{post_url}: {reason}")
+
+        return _normalize(valid_items[0])
 
     async def _fetch_profile_once(self, account: Account) -> ProfileInfo:
         async with acquire_apify_slot(self._max_concurrent_actor_runs):

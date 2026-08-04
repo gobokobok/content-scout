@@ -1,25 +1,18 @@
 import uuid
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependency import CurrentUser
 from src.config import get_settings
 from src.db import get_session
-from src.middleware.rate_limit import check_rate_limit
-from src.models import AnalysisRun, ContentItem, DeepAnalysis, DeepAnalysisItem, User
-from src.services.deep_analysis import (
-    InsufficientTokenBalanceError,
-    RunNotDoneError,
-    compute_tokens_charged,
-    start_deep_analysis,
-)
+from src.models import DeepAnalysis, DeepAnalysisItem
+from src.services.deep_analysis import estimate_deep_analysis_tokens
 from src.services.projects import ProjectNotFoundError, get_owned_project
-from src.services.queue import enqueue_deep_analysis
 
 router = APIRouter(tags=["deep-analyses"])
 
@@ -29,28 +22,21 @@ PROJECT_NOT_FOUND = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND,
     detail={"code": "project_not_found", "message_ru": "Проект не найден."},
 )
-RUN_NOT_FOUND = HTTPException(
-    status_code=status.HTTP_404_NOT_FOUND,
-    detail={"code": "run_not_found", "message_ru": "Запуск не найден."},
-)
 DEEP_ANALYSIS_NOT_FOUND = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND,
     detail={"code": "deep_analysis_not_found", "message_ru": "Анализ не найден."},
 )
-RUN_NOT_DONE = HTTPException(
-    status_code=status.HTTP_400_BAD_REQUEST,
-    detail={
-        "code": "run_not_done",
-        "message_ru": "Разбор доступен только для завершённых запусков.",
-    },
-)
-NO_BALANCE = HTTPException(
-    status_code=status.HTTP_402_PAYMENT_REQUIRED,
-    detail={
-        "code": "insufficient_token_balance",
-        "message_ru": "Баланс токенов исчерпан. Пополните баланс, чтобы запустить анализ.",
-    },
-)
+
+
+class DeepAnalysisEstimateIn(BaseModel):
+    """D50: a pre-confirm token estimate for the standalone Analysis creation flow — no run_id
+    anymore, since Analysis no longer attaches to an existing Review run (D40). Mirrors the
+    scope shape of RunRequestIn's own deep_analysis fields."""
+
+    analysis_mode: Literal["account", "post"]
+    duration_days: int | None = Field(default=None, ge=1, le=7)
+    item_limit: int | None = Field(default=None, ge=1, le=50)
+    comments_limit: int | None = Field(default=None, ge=1, le=50)
 
 
 class DeepAnalysisEstimateOut(BaseModel):
@@ -96,63 +82,25 @@ async def _get_project(session: AsyncSession, user: CurrentUser, project_id: uui
         raise PROJECT_NOT_FOUND from None
 
 
-@router.get(
-    "/projects/{project_id}/runs/{run_id}/deep-analyses/estimate",
-    response_model=DeepAnalysisEstimateOut,
+@router.post(
+    "/projects/{project_id}/deep-analyses/estimate", response_model=DeepAnalysisEstimateOut
 )
 async def estimate_deep_analysis(
-    project_id: uuid.UUID, run_id: uuid.UUID, user: CurrentUser, session: SessionDep
+    project_id: uuid.UUID, body: DeepAnalysisEstimateIn, user: CurrentUser, session: SessionDep
 ) -> DeepAnalysisEstimateOut:
-    """Read-only token preview for E17-S6's new-analysis sheet — mirrors `compute_tokens_charged`
-    exactly, just without deducting. Added alongside S6 rather than S5 because only the
-    frontend picker needs a pre-charge number; `create_deep_analysis` already returns the real
-    `tokens_charged` once the charge has happened."""
+    """Read-only token preview for the standalone Analysis creation flow (D49/D50) — a ceiling
+    estimate before any scrape has happened, same spirit as the old run_id-based version this
+    replaces but computed from the requested scope directly instead of an already-scraped
+    ContentItem count."""
     await _get_project(session, user, project_id)
-    run = await session.get(AnalysisRun, run_id)
-    if run is None or run.project_id != project_id:
-        raise RUN_NOT_FOUND
-
-    items_count = await session.scalar(
-        select(func.count()).select_from(ContentItem).where(ContentItem.run_id == run_id)
+    tokens = estimate_deep_analysis_tokens(
+        get_settings(),
+        analysis_mode=body.analysis_mode,
+        duration_days=body.duration_days,
+        item_limit=body.item_limit,
+        comments_limit=body.comments_limit,
     )
-    tokens = compute_tokens_charged(items_count or 0, get_settings())
     return DeepAnalysisEstimateOut(tokens=tokens)
-
-
-@router.post(
-    "/projects/{project_id}/runs/{run_id}/deep-analyses",
-    response_model=DeepAnalysisOut,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_deep_analysis(
-    project_id: uuid.UUID,
-    run_id: uuid.UUID,
-    user: CurrentUser,
-    session: SessionDep,
-    request: Request,
-) -> DeepAnalysisOut:
-    await _get_project(session, user, project_id)
-    settings = get_settings()
-    await check_rate_limit(
-        request, limit=settings.write_endpoint_rate_limit_per_minute, key=str(user.id)
-    )
-    run = await session.get(AnalysisRun, run_id)
-    if run is None or run.project_id != project_id:
-        raise RUN_NOT_FOUND
-
-    db_user = await session.get(User, user.id)
-    if db_user is None:
-        raise RUN_NOT_FOUND
-    try:
-        analysis = await start_deep_analysis(session, run, db_user, settings)
-    except RunNotDoneError:
-        raise RUN_NOT_DONE from None
-    except InsufficientTokenBalanceError:
-        raise NO_BALANCE from None
-    await session.commit()
-
-    await enqueue_deep_analysis(analysis.id)
-    return DeepAnalysisOut.from_model(analysis)
 
 
 @router.get("/projects/{project_id}/deep-analyses", response_model=list[DeepAnalysisOut])

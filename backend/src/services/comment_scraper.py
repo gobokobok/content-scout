@@ -191,16 +191,19 @@ async def fetch_comments(
     *,
     user_id: uuid.UUID,
     settings: Settings,
+    limit_override: int | None = None,
     apify_client: ApifyCommentsClient | None = None,
     brightdata_client: BrightDataCommentsClient | None = None,
 ) -> list[RawComment]:
-    """Fetches up to `deep_analysis_comments_per_post` comments for one post, primary-then-
-    fallback (D32). Never raises — both vendors failing degrades to an empty list for this post
-    (E17-S9), it does not fail the whole deep analysis. Records usage_events for whichever
-    vendor actually served the fetch; nothing is recorded when both fail (no successful fetch to
-    bill for).
+    """Fetches up to `limit_override` (or `deep_analysis_comments_per_post` when unset) comments
+    for one post, primary-then-fallback (D32). `limit_override` is D49's post-mode
+    "top N comments" field, user-configurable per Analysis run; account mode always leaves it
+    unset and gets the account-wide default. Never raises — both vendors failing degrades to an
+    empty list for this post (E17-S9), it does not fail the whole deep analysis. Records
+    usage_events for whichever vendor actually served the fetch; nothing is recorded when both
+    fail (no successful fetch to bill for).
     """
-    limit = settings.deep_analysis_comments_per_post
+    limit = limit_override or settings.deep_analysis_comments_per_post
     apify = apify_client or ApifyCommentsClient(settings)
     brightdata = brightdata_client or BrightDataCommentsClient(settings)
 

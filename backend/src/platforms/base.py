@@ -40,3 +40,9 @@ class Platform(Protocol):
         ...
 
     async def fetch_profile(self, account: Account) -> ProfileInfo: ...
+
+    async def fetch_post(self, post_url: str) -> RawContentItem:
+        """Standalone Analysis post mode (D49/D50) — fetches exactly one publication by URL,
+        no account/profile context needed. `RawContentItem.raw` carries the vendor's owner
+        username field so the caller can resolve/create the post's author as a real Account."""
+        ...

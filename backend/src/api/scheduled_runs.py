@@ -12,6 +12,7 @@ from src.auth.dependency import CurrentUser
 from src.db import get_session
 from src.models import Project, ScheduledRun, ScheduleMode
 from src.services.projects import ProjectNotFoundError, get_owned_project
+from src.services.url_normalizer import InvalidAccountUrlError, normalize_post_url
 from src.services.workspace import get_user_workspace
 
 router = APIRouter(prefix="/projects/{project_id}/scheduled-runs", tags=["scheduled-runs"])
@@ -42,11 +43,16 @@ SCHEDULED_RUN_NOT_FOUND = HTTPException(
 
 class ScheduledRunIn(BaseModel):
     # Exactly one of the two — a day window, or the last N publications per account,
-    # same XOR scope as RunRequestIn (src/api/runs.py).
+    # same XOR scope as RunRequestIn (src/api/runs.py). Both left unset only for a post-mode
+    # Analysis schedule (D49/D50).
     duration_days: int | None = Field(default=None, ge=1, le=7)
     item_limit: int | None = Field(default=None, ge=1, le=50)
     account_ids: list[uuid.UUID] | None = None
     run_type: Literal["stat_collection", "deep_analysis"] = "stat_collection"
+    # D49/D50: mirrors RunRequestIn's own deep_analysis-only fields.
+    analysis_mode: Literal["account", "post"] | None = None
+    target_post_url: str | None = None
+    comments_limit: int | None = Field(default=None, ge=1, le=50)
     # once: exactly one day (its next occurrence fires, then the schedule deactivates).
     # recurring: 1-7 days, fires every selected day indefinitely (E14-S6).
     mode: Literal["once", "recurring"] = "recurring"
@@ -57,9 +63,34 @@ class ScheduledRunIn(BaseModel):
     notify_enabled: bool = False
 
     @model_validator(mode="after")
-    def _exactly_one_scope(self) -> "ScheduledRunIn":
+    def _validate_scope(self) -> "ScheduledRunIn":
+        if self.run_type != "deep_analysis":
+            if self.analysis_mode is not None or self.target_post_url is not None:
+                raise ValueError(
+                    "analysis_mode/target_post_url применимы только к run_type=deep_analysis."
+                )
+        elif self.analysis_mode is None:
+            raise ValueError("analysis_mode обязателен для run_type=deep_analysis.")
+        elif self.analysis_mode == "post":
+            if self.duration_days is not None or self.item_limit is not None:
+                raise ValueError("Для анализа публикации duration_days/item_limit не задаются.")
+            if not self.target_post_url:
+                raise ValueError("target_post_url обязателен для analysis_mode=post.")
+            return self
+        elif self.account_ids is None or len(self.account_ids) != 1:
+            raise ValueError("Для анализа аккаунта нужно выбрать ровно один аккаунт.")
+
         if (self.duration_days is None) == (self.item_limit is None):
             raise ValueError("Ровно одно из duration_days/item_limit должно быть задано.")
+        return self
+
+    @model_validator(mode="after")
+    def _normalize_post_url(self) -> "ScheduledRunIn":
+        if self.analysis_mode == "post" and self.target_post_url:
+            try:
+                self.target_post_url = normalize_post_url(self.target_post_url).url
+            except InvalidAccountUrlError as exc:
+                raise ValueError(exc.message_ru) from None
         return self
 
     @model_validator(mode="after")
@@ -88,6 +119,9 @@ class ScheduledRunOut(BaseModel):
     account_ids: list[uuid.UUID] | None
     duration_days: int | None
     item_limit: int | None
+    analysis_mode: str | None
+    target_post_url: str | None
+    comments_limit: int | None
     mode: str
     days_of_week: list[int]
     time_of_day: time
@@ -108,6 +142,9 @@ class ScheduledRunOut(BaseModel):
             account_ids=scheduled_run.account_ids,
             duration_days=scheduled_run.duration_days,
             item_limit=scheduled_run.item_limit,
+            analysis_mode=scheduled_run.analysis_mode,
+            target_post_url=scheduled_run.target_post_url,
+            comments_limit=scheduled_run.comments_limit,
             mode=scheduled_run.mode.value,
             days_of_week=sorted(scheduled_run.days_of_week),
             time_of_day=scheduled_run.time_of_day,
@@ -163,6 +200,9 @@ async def create_scheduled_run(
         account_ids=body.account_ids,
         duration_days=body.duration_days,
         item_limit=body.item_limit,
+        analysis_mode=body.analysis_mode,
+        target_post_url=body.target_post_url,
+        comments_limit=body.comments_limit,
         mode=ScheduleMode(body.mode),
         days_of_week=body.days_of_week,
         time_of_day=body.time_of_day,
@@ -202,6 +242,9 @@ async def update_scheduled_run(
     scheduled_run.account_ids = body.account_ids
     scheduled_run.duration_days = body.duration_days
     scheduled_run.item_limit = body.item_limit
+    scheduled_run.analysis_mode = body.analysis_mode
+    scheduled_run.target_post_url = body.target_post_url
+    scheduled_run.comments_limit = body.comments_limit
     scheduled_run.mode = ScheduleMode(body.mode)
     scheduled_run.days_of_week = body.days_of_week
     scheduled_run.time_of_day = body.time_of_day

@@ -12,11 +12,12 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import get_settings
+from src.config import Settings, get_settings
 from src.db import get_sessionmaker
 from src.models import (
     KIND_APIFY_RESULT,
     Account,
+    AccountList,
     AccountStatus,
     AnalysisRun,
     ContentItem,
@@ -28,19 +29,16 @@ from src.models import (
     User,
 )
 from src.platforms import get_platform
-from src.services.deep_analysis import (
-    InsufficientTokenBalanceError,
-    fail_deep_analysis,
-    start_deep_analysis,
-)
+from src.platforms.base import Platform
+from src.services.deep_analysis import create_pending_deep_analysis, fail_deep_analysis
 from src.services.deep_analysis_extraction import extract_deep_analysis_items
 from src.services.deep_analysis_synthesis import synthesize_report
-from src.services.queue import enqueue_deep_analysis
 from src.services.run_summary import generate_run_summary
 from src.services.runs import resolve_target_accounts
 from src.services.scheduled_runs import fire_due_schedules
 from src.services.summarizer import summarize_run_items
 from src.services.telegram_notify import notify_deep_analysis_complete, notify_run_complete
+from src.services.url_normalizer import InvalidAccountUrlError, normalize_instagram_input
 from src.services.usage import rollup_run_totals
 
 # arq's own logging.config.dictConfig only configures the "arq" namespace (see arq/logs.py) —
@@ -58,12 +56,203 @@ _TOKEN_BALANCE_EXHAUSTED_MSG = (
 )
 
 
+async def _resolve_or_create_account(
+    session: AsyncSession, project_id: uuid.UUID, owner_username: str
+) -> Account:
+    """Post-mode Analysis (D49/D50): the pasted post's author isn't necessarily an existing
+    competitor — reuse the account if it already is one, otherwise auto-add it (mirrors
+    api/accounts.py:add_accounts' normalize-and-reuse-or-create, minus the 50-per-list cap,
+    which shouldn't block an Analysis run the user explicitly asked for)."""
+    normalized = normalize_instagram_input(owner_username)
+    account_list = await session.scalar(
+        select(AccountList).where(
+            AccountList.project_id == project_id, AccountList.platform == PlatformSlug.instagram
+        )
+    )
+    if account_list is None:
+        account_list = AccountList(project_id=project_id, platform=PlatformSlug.instagram)
+        session.add(account_list)
+        await session.flush()
+
+    existing = await session.scalar(
+        select(Account).where(
+            Account.account_list_id == account_list.id,
+            Account.normalized_url == normalized.normalized_url,
+        )
+    )
+    if existing is not None:
+        if existing.archived_at is not None:
+            existing.archived_at = None
+        return existing
+
+    account = Account(
+        account_list_id=account_list.id,
+        input_url=normalized.normalized_url,
+        normalized_url=normalized.normalized_url,
+        handle=normalized.handle,
+    )
+    session.add(account)
+    await session.flush()
+    return account
+
+
+async def _scrape_single_post(
+    session: AsyncSession, run: AnalysisRun, platform: Platform, settings: Settings
+) -> None:
+    """Post-mode Analysis (D49/D50): fetches exactly one publication by URL instead of an
+    account's post history, resolving/creating its author as a real Account so
+    ContentItem.account_id stays non-nullable and every existing account-joined query (virality,
+    exports, Telegram notify) keeps working unmodified."""
+    assert run.target_post_url is not None
+    try:
+        raw_item = await platform.fetch_post(run.target_post_url)
+        owner_username = raw_item.raw.get("ownerUsername")
+        if not owner_username:
+            raise InvalidAccountUrlError("Не удалось определить автора публикации.")
+        account = await _resolve_or_create_account(session, run.project_id, owner_username)
+    except Exception as exc:  # noqa: BLE001 — mirrors the per-account failure handling below
+        run.error_message = str(exc)[:1000]
+        logger.warning("run_id=%s post fetch failed: %s", run.id, exc)
+        run.progress_accounts = 0
+        run.progress_items = 0
+        await session.commit()
+        return
+
+    await session.execute(
+        pg_insert(ContentItem)
+        .values(
+            id=uuid.uuid4(),
+            run_id=run.id,
+            account_id=account.id,
+            external_id=raw_item.external_id,
+            type=raw_item.type,
+            published_at=raw_item.published_at,
+            title=raw_item.title,
+            url=raw_item.url,
+            cover_url=raw_item.cover_url,
+            caption=raw_item.caption,
+            likes=raw_item.likes,
+            views=raw_item.views,
+            comments=raw_item.comments,
+            raw=raw_item.raw,
+        )
+        .on_conflict_do_nothing(index_elements=["run_id", "external_id"])
+    )
+    session.add(
+        UsageEvent(
+            user_id=run.requested_by,
+            run_id=run.id,
+            kind=KIND_APIFY_RESULT,
+            quantity=1,
+            unit_cost_usd=Decimal(str(settings.apify_unit_cost_usd)),
+        )
+    )
+    run.progress_accounts = 1
+    run.progress_items = 1
+    await session.commit()
+
+
+async def _finish_run(session: AsyncSession, run: AnalysisRun, settings: Settings) -> None:
+    """Shared tail for both scrape paths (multi-account and single-post): summarizing (skipped
+    entirely for deep_analysis runs — Analysis's own extraction/synthesis is the "summary", no
+    product surface shows Review's per-item Claude captions for it, D50) -> done -> rollup ->
+    notify."""
+    run.status = RunStatus.summarizing
+    await session.commit()
+
+    requesting_user = await session.get(User, run.requested_by)
+    token_balance_exhausted = False
+
+    if run.run_type != "deep_analysis":
+        pending_items = list(
+            await session.scalars(
+                select(ContentItem).where(
+                    ContentItem.run_id == run.id, ContentItem.summary.is_(None)
+                )
+            )
+        )
+        batch_size = max(1, settings.summary_concurrency)
+        anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        http_client = httpx.AsyncClient(timeout=_SUMMARIZER_HTTP_TIMEOUT)
+
+        for start in range(0, len(pending_items), batch_size):
+            if requesting_user is not None and requesting_user.token_balance <= 0:
+                token_balance_exhausted = True
+                break
+
+            batch = pending_items[start : start + batch_size]
+
+            if requesting_user is not None and requesting_user.token_balance < len(batch):
+                batch = batch[: requesting_user.token_balance]
+                token_balance_exhausted = True
+
+            await summarize_run_items(
+                session,
+                batch,
+                user_id=run.requested_by,
+                run_id=run.id,
+                project_id=run.project_id,
+                client=anthropic_client,
+                http_client=http_client,
+            )
+            run.progress_summarized += len(batch)
+
+            if requesting_user is not None:
+                requesting_user.token_balance = max(0, requesting_user.token_balance - len(batch))
+
+            await session.commit()
+
+            if token_balance_exhausted:
+                break
+
+        try:
+            # Run-level AI overview (E15-S1) — one extra call after per-item summaries
+            # are ready, using the same client. Never fails the run: the service itself
+            # never raises, but this call site mirrors notify_run_complete's
+            # defensive try/except pattern for good measure.
+            await generate_run_summary(
+                session, run, user_id=run.requested_by, client=anthropic_client
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+        await anthropic_client.close()
+        await http_client.aclose()
+
+    await rollup_run_totals(session, run)
+    run.status = RunStatus.done
+    run.finished_at = datetime.now(UTC)
+    if token_balance_exhausted:
+        run.error_message = _TOKEN_BALANCE_EXHAUSTED_MSG
+    await session.commit()
+    requesting_user = requesting_user or await session.get(User, run.requested_by)
+    # deep_analysis runs defer their completion notification until run_deep_analysis_pipeline
+    # actually finishes — notifying here would tell the user the run is "done" while only the
+    # scrape has finished, before the real Analysis result exists.
+    if requesting_user and run.notify_on_complete and run.run_type != "deep_analysis":
+        await notify_run_complete(run, requesting_user, session)
+
+
 async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
     """Core run lifecycle logic, isolated from session/queue plumbing for testability."""
     try:
         run.status = RunStatus.scraping
         run.started_at = datetime.now(UTC)
         await session.commit()
+
+        platform = get_platform(PlatformSlug.instagram)
+        settings = get_settings()
+
+        if run.analysis_mode == "post":
+            logger.info(
+                "run_id=%s scope: post_url=%s run_type=%s",
+                run.id,
+                run.target_post_url,
+                run.run_type,
+            )
+            await _scrape_single_post(session, run, platform, settings)
+            await _finish_run(session, run, settings)
+            return
 
         accounts = await resolve_target_accounts(session, run.project_id, run.account_ids)
         # Exactly one of duration_days/item_limit is set on the run (see AnalysisRun) — a day
@@ -77,8 +266,6 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             run.item_limit,
             run.run_type,
         )
-        platform = get_platform(PlatformSlug.instagram)
-        settings = get_settings()
         semaphore = asyncio.Semaphore(settings.scrape_concurrency)
 
         async def _fetch_one(account):
@@ -167,80 +354,7 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             run.progress_items = items_found
             await session.commit()
 
-        run.status = RunStatus.summarizing
-        await session.commit()
-
-        pending_items = list(
-            await session.scalars(
-                select(ContentItem).where(
-                    ContentItem.run_id == run.id, ContentItem.summary.is_(None)
-                )
-            )
-        )
-        batch_size = max(1, settings.summary_concurrency)
-        anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-        http_client = httpx.AsyncClient(timeout=_SUMMARIZER_HTTP_TIMEOUT)
-
-        requesting_user = await session.get(User, run.requested_by)
-        token_balance_exhausted = False
-
-        for start in range(0, len(pending_items), batch_size):
-            if requesting_user is not None and requesting_user.token_balance <= 0:
-                token_balance_exhausted = True
-                break
-
-            batch = pending_items[start : start + batch_size]
-
-            if requesting_user is not None and requesting_user.token_balance < len(batch):
-                batch = batch[: requesting_user.token_balance]
-                token_balance_exhausted = True
-
-            await summarize_run_items(
-                session,
-                batch,
-                user_id=run.requested_by,
-                run_id=run.id,
-                project_id=run.project_id,
-                client=anthropic_client,
-                http_client=http_client,
-            )
-            run.progress_summarized += len(batch)
-
-            if requesting_user is not None:
-                requesting_user.token_balance = max(0, requesting_user.token_balance - len(batch))
-
-            await session.commit()
-
-            if token_balance_exhausted:
-                break
-
-        try:
-            # Run-level AI overview (E15-S1) — one extra call after per-item summaries
-            # are ready, using the same client. Never fails the run: the service itself
-            # never raises, but this call site mirrors notify_run_complete's
-            # defensive try/except pattern for good measure.
-            await generate_run_summary(
-                session, run, user_id=run.requested_by, client=anthropic_client
-            )
-        except Exception:  # noqa: BLE001
-            pass
-
-        await anthropic_client.close()
-        await http_client.aclose()
-
-        await rollup_run_totals(session, run)
-        run.status = RunStatus.done
-        run.finished_at = datetime.now(UTC)
-        if token_balance_exhausted:
-            run.error_message = _TOKEN_BALANCE_EXHAUSTED_MSG
-        await session.commit()
-        requesting_user = requesting_user or await session.get(User, run.requested_by)
-        # deep_analysis runs defer their completion notification until the Разбор itself
-        # finishes (see maybe_start_deep_analysis / process_deep_analysis below) — notifying
-        # here would tell the user the run is "done" while only the base scrape has actually
-        # finished, minutes before the real Analysis result exists.
-        if requesting_user and run.notify_on_complete and run.run_type != "deep_analysis":
-            await notify_run_complete(run, requesting_user, session)
+        await _finish_run(session, run, settings)
 
     except asyncio.CancelledError:
         run.status = RunStatus.failed
@@ -268,52 +382,78 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             pass
 
 
-async def maybe_start_deep_analysis(session: AsyncSession, run: AnalysisRun) -> None:
-    """Auto-chain (nav overhaul, E17 follow-up): a "deep_analysis"-type run immediately starts
-    and enqueues a DeepAnalysis once its base scrape finishes cleanly — no separate user step.
-    Never raises: a soft-fail here (insufficient tokens, a DB/queue hiccup, a misconfigured
-    comment vendor) leaves the scrape result intact and analyzable manually later. Always
-    logged, and — unlike the original version of this function — always recorded on the run
-    itself via deep_analysis_skip_reason: a bare `except: pass` here previously made a skipped
-    chain indistinguishable from a run that was never meant to have one, with zero trace once
-    the log line scrolled out of Railway's retention window.
-    """
-    if run.run_type != "deep_analysis" or run.status != RunStatus.done:
-        return
+async def run_deep_analysis_pipeline(session: AsyncSession, run: AnalysisRun, user: User) -> None:
+    """D50: the standalone Analysis pipeline, run inline as the continuation of a deep_analysis
+    run_type's own worker job (no more separate auto-chain/enqueue, no more
+    deep_analysis_skip_reason — every deep_analysis run either produces a DeepAnalysis here or
+    process_run above already failed/was cancelled, in which case its own except blocks already
+    notified). extracting (E17-S3) -> synthesizing (E17-S4) -> done/failed, exactly one
+    notification either way."""
+    analysis = await create_pending_deep_analysis(session, run, user)
+    await session.commit()
     try:
-        user = await session.get(User, run.requested_by)
-        if user is None:
-            return
-        settings = get_settings()
-        analysis = await start_deep_analysis(session, run, user, settings)
-        run.deep_analysis_skip_reason = None
+        analysis.status = DeepAnalysisStatus.extracting
         await session.commit()
-        await enqueue_deep_analysis(analysis.id)
-    except InsufficientTokenBalanceError:
-        logger.info("Skipping auto deep-analysis for run_id=%s: insufficient token balance", run.id)
-        run.deep_analysis_skip_reason = "insufficient_tokens"
+
+        items = list(await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id)))
+        token_exhausted = await extract_deep_analysis_items(
+            session, analysis, items, user=user, comments_limit=run.comments_limit
+        )
+        if token_exhausted:
+            # D43: still synthesize whatever was extracted before the balance ran out, rather
+            # than discarding it — the disclaimer persists through synthesize_report's success
+            # path since it never touches error_message on a `done` result.
+            analysis.error_message = _TOKEN_BALANCE_EXHAUSTED_MSG
         await session.commit()
-        await _notify_base_scrape_only(session, run)
-    except Exception:  # noqa: BLE001 — logged, never lets chaining fail the base run
-        logger.exception("Auto deep-analysis chaining failed for run_id=%s", run.id)
-        run.deep_analysis_skip_reason = "error"
+
+        analysis.status = DeepAnalysisStatus.synthesizing
         await session.commit()
-        await _notify_base_scrape_only(session, run)
+
+        await synthesize_report(session, analysis, user_id=analysis.requested_by)
+        await session.commit()
+        await _notify_deep_analysis(session, analysis)
+    except asyncio.CancelledError:
+        # CancelledError is a BaseException, not Exception — arq's job_timeout cancels the
+        # task via asyncio.wait_for, which would otherwise bypass the except Exception below
+        # and leave the row stuck in extracting/synthesizing forever (mirrors process_run's
+        # same handling above).
+        await asyncio.shield(
+            fail_deep_analysis(
+                session, analysis, "Превышено время выполнения", user_id=analysis.requested_by
+            )
+        )
+        await asyncio.shield(session.commit())
+        await asyncio.shield(_notify_deep_analysis(session, analysis))
+        raise
+    except Exception as exc:  # noqa: BLE001 — worker boundary: never let a deep analysis hang
+        await fail_deep_analysis(session, analysis, str(exc), user_id=analysis.requested_by)
+        await session.commit()
+        await _notify_deep_analysis(session, analysis)
 
 
-async def _notify_base_scrape_only(session: AsyncSession, run: AnalysisRun) -> None:
-    """The deep_analysis notification was deferred by process_run on the assumption the
-    auto-chain would pick it up (see maybe_start_deep_analysis) — when the chain never even
-    starts, this is the only notification the user gets, so it must still fire here rather
-    than silently never sending one."""
-    if not run.notify_on_complete:
-        return
+async def _notify_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -> None:
+    """Fires once the full deep_analysis pipeline (scrape -> comments -> synthesis) is
+    actually done — process_run's own except blocks cover the case where the base scrape
+    itself fails or is cancelled before ever reaching this pipeline."""
     try:
-        user = await session.get(User, run.requested_by)
-        if user:
-            await notify_run_complete(run, user, session)
+        run = await session.get(AnalysisRun, analysis.run_id)
+        user = await session.get(User, analysis.requested_by)
+        if run and user and run.notify_on_complete:
+            await notify_deep_analysis_complete(analysis, run, user, session)
     except Exception:  # noqa: BLE001
         pass
+
+
+async def process_run_and_maybe_analyze(session: AsyncSession, run: AnalysisRun) -> None:
+    """Core glue logic, isolated from session/queue plumbing for testability (mirrors
+    process_run/run_deep_analysis_pipeline): scrape, then continue inline into the standalone
+    Analysis pipeline (D50) when this is a deep_analysis run that finished cleanly — no more
+    separate auto-chain/enqueue."""
+    await process_run(session, run)
+    if run.run_type == "deep_analysis" and run.status == RunStatus.done:
+        user = await session.get(User, run.requested_by)
+        if user is not None:
+            await run_deep_analysis_pipeline(session, run, user)
 
 
 async def run_analysis(ctx: dict, run_id: str) -> None:
@@ -322,8 +462,7 @@ async def run_analysis(ctx: dict, run_id: str) -> None:
         run = await session.get(AnalysisRun, uuid.UUID(run_id))
         if run is None:
             return
-        await process_run(session, run)
-        await maybe_start_deep_analysis(session, run)
+        await process_run_and_maybe_analyze(session, run)
 
 
 async def apply_profile_update(session: AsyncSession, account: Account, user_id: uuid.UUID) -> None:
@@ -370,72 +509,8 @@ async def check_scheduled_runs(ctx: dict) -> None:
         await fire_due_schedules(session)
 
 
-async def process_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -> None:
-    """Core deep-analysis lifecycle logic, isolated from session/queue plumbing for
-    testability (mirrors `process_run`): extracting (E17-S3) -> synthesizing (E17-S4) ->
-    done/failed. Tokens are already deducted up front by `services/deep_analysis.py:
-    start_deep_analysis` before this job is even enqueued."""
-    try:
-        analysis.status = DeepAnalysisStatus.extracting
-        await session.commit()
-
-        items = list(
-            await session.scalars(select(ContentItem).where(ContentItem.run_id == analysis.run_id))
-        )
-        await extract_deep_analysis_items(
-            session, analysis.id, items, user_id=analysis.requested_by
-        )
-        await session.commit()
-
-        analysis.status = DeepAnalysisStatus.synthesizing
-        await session.commit()
-
-        await synthesize_report(session, analysis, user_id=analysis.requested_by)
-        await session.commit()
-        await _notify_deep_analysis(session, analysis)
-    except asyncio.CancelledError:
-        # CancelledError is a BaseException, not Exception — arq's job_timeout cancels the
-        # task via asyncio.wait_for, which would otherwise bypass the except Exception below
-        # and leave the row stuck in extracting/synthesizing forever (mirrors process_run's
-        # same handling above).
-        await asyncio.shield(
-            fail_deep_analysis(
-                session, analysis, "Превышено время выполнения", user_id=analysis.requested_by
-            )
-        )
-        await asyncio.shield(session.commit())
-        await asyncio.shield(_notify_deep_analysis(session, analysis))
-        raise
-    except Exception as exc:  # noqa: BLE001 — worker boundary: never let a deep analysis hang
-        await fail_deep_analysis(session, analysis, str(exc), user_id=analysis.requested_by)
-        await session.commit()
-        await _notify_deep_analysis(session, analysis)
-
-
-async def _notify_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -> None:
-    """Fires once the full deep_analysis pipeline (scrape -> comments -> synthesis) is
-    actually done — see process_run's deferred notification and _notify_base_scrape_only's
-    skip-path fallback for the other two places this run's single notification can come from."""
-    try:
-        run = await session.get(AnalysisRun, analysis.run_id)
-        user = await session.get(User, analysis.requested_by)
-        if run and user and run.notify_on_complete:
-            await notify_deep_analysis_complete(analysis, run, user, session)
-    except Exception:  # noqa: BLE001
-        pass
-
-
-async def run_deep_analysis(ctx: dict, deep_analysis_id: str) -> None:
-    sessionmaker = get_sessionmaker()
-    async with sessionmaker() as session:
-        analysis = await session.get(DeepAnalysis, uuid.UUID(deep_analysis_id))
-        if analysis is None:
-            return
-        await process_deep_analysis(session, analysis)
-
-
 class WorkerSettings:
-    functions = [run_analysis, fetch_account_profile, run_deep_analysis]
+    functions = [run_analysis, fetch_account_profile]
     cron_jobs = [cron(check_scheduled_runs, minute=set(range(0, 60, 5)), second=0)]
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
     job_timeout = get_settings().worker_job_timeout_secs

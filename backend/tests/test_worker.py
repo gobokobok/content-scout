@@ -11,19 +11,27 @@ from src.models import (
     KIND_APIFY_RESULT,
     KIND_CLAUDE_INPUT_TOKENS,
     KIND_CLAUDE_OUTPUT_TOKENS,
+    Account,
     AccountStatus,
     ContentItem,
+    ContentType,
     DeepAnalysis,
+    DeepAnalysisItem,
     DeepAnalysisStatus,
     RunStatus,
     UsageEvent,
 )
-from src.worker import WorkerSettings, maybe_start_deep_analysis, process_deep_analysis, process_run
+from src.platforms.base import RawContentItem
+from src.worker import (
+    WorkerSettings,
+    process_run,
+    process_run_and_maybe_analyze,
+    run_deep_analysis_pipeline,
+)
 from tests.conftest import (
     make_account,
     make_account_list,
     make_content_item,
-    make_deep_analysis,
     make_project,
     make_run,
     make_user,
@@ -406,25 +414,28 @@ async def test_process_run_duplicate_insert_is_noop(session: AsyncSession) -> No
 
 
 # ---------------------------------------------------------------------------
-# E17-S4: deep analysis lifecycle
+# E17-S4/D50: deep analysis lifecycle — run_deep_analysis_pipeline is now the standalone
+# pipeline, called inline from run_analysis (no more separate arq job/auto-chain), and
+# incremental charging (D50) means it always starts a fresh DeepAnalysis at tokens_charged=0.
 # ---------------------------------------------------------------------------
 
 
-async def test_process_deep_analysis_transitions_extracting_synthesizing_done(
+async def test_run_deep_analysis_pipeline_transitions_extracting_synthesizing_done(
     session: AsyncSession,
 ) -> None:
     project = await make_project(session)
     account_list = await make_account_list(session, project=project)
     account = await make_account(session, account_list=account_list)
-    run = await make_run(session, project=project, duration_days=1)
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(session, project=project, requested_by=user, duration_days=1)
     await make_content_item(session, run=run, account=account)
-    analysis = await make_deep_analysis(session, run=run)
     await session.commit()
 
     seen_statuses: list[DeepAnalysisStatus] = []
 
-    async def _fake_extract(session, deep_analysis_id, items, *, user_id, **_kwargs) -> None:
+    async def _fake_extract(session, analysis, items, *, user, **_kwargs) -> bool:
         seen_statuses.append(analysis.status)
+        return False
 
     async def _fake_synthesize(session, analysis_arg, *, user_id, **_kwargs) -> None:
         seen_statuses.append(analysis_arg.status)
@@ -434,24 +445,26 @@ async def test_process_deep_analysis_transitions_extracting_synthesizing_done(
         patch("src.worker.extract_deep_analysis_items", side_effect=_fake_extract),
         patch("src.worker.synthesize_report", side_effect=_fake_synthesize),
     ):
-        await process_deep_analysis(session, analysis)
+        await run_deep_analysis_pipeline(session, run, user)
 
     assert seen_statuses == [DeepAnalysisStatus.extracting, DeepAnalysisStatus.synthesizing]
+    analysis = (
+        await session.scalars(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
+    ).one()
     assert analysis.status == DeepAnalysisStatus.done
 
 
-async def test_process_deep_analysis_notifies_on_success(session: AsyncSession) -> None:
+async def test_run_deep_analysis_pipeline_notifies_on_success(session: AsyncSession) -> None:
     project = await make_project(session)
     account_list = await make_account_list(session, project=project)
     account = await make_account(session, account_list=account_list)
     user = await make_user(session, token_balance=1000)
     run = await make_run(session, project=project, requested_by=user, duration_days=1)
     await make_content_item(session, run=run, account=account)
-    analysis = await make_deep_analysis(session, run=run, requested_by=user)
     await session.commit()
 
-    async def _fake_extract(session, deep_analysis_id, items, *, user_id, **_kwargs) -> None:
-        pass
+    async def _fake_extract(session, analysis, items, *, user, **_kwargs) -> bool:
+        return False
 
     async def _fake_synthesize(session, analysis_arg, *, user_id, **_kwargs) -> None:
         analysis_arg.status = DeepAnalysisStatus.done
@@ -461,43 +474,95 @@ async def test_process_deep_analysis_notifies_on_success(session: AsyncSession) 
         patch("src.worker.synthesize_report", side_effect=_fake_synthesize),
         patch("src.worker.notify_deep_analysis_complete", new_callable=AsyncMock) as mock_notify,
     ):
-        await process_deep_analysis(session, analysis)
+        await run_deep_analysis_pipeline(session, run, user)
 
     mock_notify.assert_awaited_once()
+    analysis = (
+        await session.scalars(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
+    ).one()
     assert mock_notify.call_args[0][0] is analysis
 
 
-async def test_process_deep_analysis_exception_marks_failed(session: AsyncSession) -> None:
+async def test_run_deep_analysis_pipeline_token_exhausted_sets_disclaimer(
+    session: AsyncSession,
+) -> None:
+    """D43/D50: extraction stopping early on balance exhaustion doesn't hard-fail the
+    analysis — whatever was extracted still gets synthesized, with a disclaimer message."""
     project = await make_project(session)
-    run = await make_run(session, project=project, duration_days=1)
-    user = await make_user(session, token_balance=100)
-    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=60)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=5)
+    run = await make_run(session, project=project, requested_by=user, duration_days=1)
+    await make_content_item(session, run=run, account=account)
     await session.commit()
 
-    async def _boom(*args, **kwargs):
+    async def _fake_extract(session, analysis, items, *, user, **_kwargs) -> bool:
+        return True  # simulates the balance running out mid-extraction
+
+    async def _fake_synthesize(session, analysis_arg, *, user_id, **_kwargs) -> None:
+        # Mirrors synthesize_report's real success path: never touches error_message.
+        analysis_arg.status = DeepAnalysisStatus.done
+
+    with (
+        patch("src.worker.extract_deep_analysis_items", side_effect=_fake_extract),
+        patch("src.worker.synthesize_report", side_effect=_fake_synthesize),
+    ):
+        await run_deep_analysis_pipeline(session, run, user)
+
+    analysis = (
+        await session.scalars(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
+    ).one()
+    assert analysis.status == DeepAnalysisStatus.done
+    assert analysis.error_message == (
+        "Баланс токенов исчерпан. Показаны результаты, полученные до остановки."
+    )
+
+
+async def test_run_deep_analysis_pipeline_exception_marks_failed_without_refund(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=100)
+    run = await make_run(session, project=project, requested_by=user, duration_days=1)
+    await make_content_item(session, run=run, account=account)
+    await session.commit()
+
+    async def _boom(session, analysis, items, *, user, **_kwargs):
+        # Simulates a real partial charge having already happened before the crash.
+        analysis.tokens_charged += 4
+        user.token_balance -= 4
         raise RuntimeError("extraction exploded")
 
     with (
         patch("src.worker.extract_deep_analysis_items", side_effect=_boom),
         patch("src.worker.notify_deep_analysis_complete", new_callable=AsyncMock) as mock_notify,
     ):
-        await process_deep_analysis(session, analysis)
+        await run_deep_analysis_pipeline(session, run, user)
 
+    analysis = (
+        await session.scalars(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
+    ).one()
     assert analysis.status == DeepAnalysisStatus.failed
     assert analysis.error_message == "extraction exploded"
     assert analysis.completed_at is not None
-    # A hard failure delivers zero report — the up-front charge is refunded in full.
-    assert analysis.tokens_charged == 0
-    assert user.token_balance == 160
-    # A failed deep analysis still notifies — with the failure message, not silence.
+    # D50: incremental charging means tokens_charged already reflects real work done — no
+    # refund on failure, unlike the old up-front lump-sum model.
+    assert analysis.tokens_charged == 4
+    assert user.token_balance == 96
     mock_notify.assert_awaited_once()
 
 
-async def test_process_deep_analysis_cancellation_marks_failed(session: AsyncSession) -> None:
+async def test_run_deep_analysis_pipeline_cancellation_marks_failed_without_refund(
+    session: AsyncSession,
+) -> None:
     project = await make_project(session)
-    run = await make_run(session, project=project, duration_days=1)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
     user = await make_user(session, token_balance=100)
-    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=60)
+    run = await make_run(session, project=project, requested_by=user, duration_days=1)
+    await make_content_item(session, run=run, account=account)
     await session.commit()
 
     inside = asyncio.Event()
@@ -507,176 +572,215 @@ async def test_process_deep_analysis_cancellation_marks_failed(session: AsyncSes
         await asyncio.sleep(60)
 
     with patch("src.worker.extract_deep_analysis_items", side_effect=_blocking_extract):
-        task = asyncio.create_task(process_deep_analysis(session, analysis))
+        task = asyncio.create_task(run_deep_analysis_pipeline(session, run, user))
         await inside.wait()
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
 
-    assert analysis.status == DeepAnalysisStatus.failed
-    assert analysis.error_message == "Превышено время выполнения"
-    assert analysis.completed_at is not None
-    # Same full-refund behavior as any other hard failure (E17-S4 AC: never leave a row
-    # stuck mid-pipeline) — this is the regression test for the bug where arq's job_timeout
-    # cancellation (CancelledError, a BaseException) bypassed `except Exception` entirely and
-    # left rows stuck in extracting/synthesizing forever.
-    assert analysis.tokens_charged == 0
-    assert user.token_balance == 160
-
-
-# ---------------------------------------------------------------------------
-# run_analysis auto-chain (nav overhaul): a done "deep_analysis" run starts + enqueues a
-# DeepAnalysis with no separate user step. Previously untested — the only coverage was of
-# process_run/process_deep_analysis individually, never the glue between them.
-# ---------------------------------------------------------------------------
-
-
-async def test_maybe_start_deep_analysis_creates_and_enqueues_when_run_done(
-    session: AsyncSession,
-) -> None:
-    project = await make_project(session)
-    account_list = await make_account_list(session, project=project)
-    account = await make_account(session, account_list=account_list)
-    user = await make_user(session, token_balance=1000)
-    run = await make_run(
-        session,
-        project=project,
-        requested_by=user,
-        run_type="deep_analysis",
-        status=RunStatus.done,
-    )
-    await make_content_item(session, run=run, account=account)
-    await session.commit()
-
-    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue:
-        await maybe_start_deep_analysis(session, run)
-
     analysis = (
         await session.scalars(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
     ).one()
-    assert analysis.status == DeepAnalysisStatus.pending
-    assert analysis.tokens_charged > 0
-    assert run.deep_analysis_skip_reason is None
-    mock_enqueue.assert_awaited_once_with(analysis.id)
+    assert analysis.status == DeepAnalysisStatus.failed
+    assert analysis.error_message == "Превышено время выполнения"
+    assert analysis.completed_at is not None
+    # Regression test for the bug where arq's job_timeout cancellation (CancelledError, a
+    # BaseException) bypassed `except Exception` entirely and left rows stuck forever — no
+    # refund expected either, since nothing was charged before the cancellation.
+    assert analysis.tokens_charged == 0
+    assert user.token_balance == 100
 
 
-async def test_maybe_start_deep_analysis_clears_stale_skip_reason_on_success(
+# ---------------------------------------------------------------------------
+# run_analysis (D50): scrape then, inline in the same job, the standalone Analysis pipeline
+# for deep_analysis-type runs — no more separate auto-chain/enqueue.
+# ---------------------------------------------------------------------------
+
+
+async def test_run_analysis_chains_into_deep_analysis_pipeline_when_run_done(
     session: AsyncSession,
 ) -> None:
-    """A run that skipped once (e.g. insufficient balance, later topped up and retried some
-    other way) should not keep showing a stale skip reason once the chain does succeed."""
     project = await make_project(session)
     account_list = await make_account_list(session, project=project)
-    account = await make_account(session, account_list=account_list)
+    await make_account(session, account_list=account_list)
     user = await make_user(session, token_balance=1000)
     run = await make_run(
-        session,
-        project=project,
-        requested_by=user,
-        run_type="deep_analysis",
-        status=RunStatus.done,
-        deep_analysis_skip_reason="insufficient_tokens",
+        session, project=project, requested_by=user, duration_days=1, run_type="deep_analysis"
     )
-    await make_content_item(session, run=run, account=account)
     await session.commit()
 
-    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()):
-        await maybe_start_deep_analysis(session, run)
+    async def _fake_extract(session, analysis, items, *, user, **_kwargs) -> bool:
+        return False
 
-    assert run.deep_analysis_skip_reason is None
+    async def _fake_synthesize(session, analysis_arg, *, user_id, **_kwargs) -> None:
+        analysis_arg.status = DeepAnalysisStatus.done
+
+    with (
+        patch("src.worker.extract_deep_analysis_items", side_effect=_fake_extract),
+        patch("src.worker.synthesize_report", side_effect=_fake_synthesize),
+    ):
+        await process_run_and_maybe_analyze(session, run)
+
+    assert run.status == RunStatus.done
+    analysis = (
+        await session.scalars(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
+    ).one()
+    assert analysis.status == DeepAnalysisStatus.done
 
 
-async def test_maybe_start_deep_analysis_skips_for_stat_collection_run(
-    session: AsyncSession,
-) -> None:
+async def test_run_analysis_does_not_chain_for_stat_collection(session: AsyncSession) -> None:
     project = await make_project(session)
-    run = await make_run(
-        session, project=project, run_type="stat_collection", status=RunStatus.done
-    )
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    run = await make_run(session, project=project, duration_days=1, run_type="stat_collection")
     await session.commit()
 
-    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue:
-        await maybe_start_deep_analysis(session, run)
+    with patch("src.worker.summarize_run_items", side_effect=_fake_summarize):
+        await process_run_and_maybe_analyze(session, run)
 
-    mock_enqueue.assert_not_awaited()
+    assert run.status == RunStatus.done
     count = await session.scalar(
         select(func.count()).select_from(DeepAnalysis).where(DeepAnalysis.run_id == run.id)
     )
     assert count == 0
 
 
-async def test_maybe_start_deep_analysis_skips_when_run_not_done(session: AsyncSession) -> None:
-    project = await make_project(session)
-    run = await make_run(
-        session, project=project, run_type="deep_analysis", status=RunStatus.failed
-    )
-    await session.commit()
-
-    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue:
-        await maybe_start_deep_analysis(session, run)
-
-    mock_enqueue.assert_not_awaited()
-
-
-async def test_maybe_start_deep_analysis_skips_silently_on_insufficient_balance(
-    session: AsyncSession,
-) -> None:
+async def test_run_analysis_zero_balance_ends_in_no_data_failure(session: AsyncSession) -> None:
+    """D50: there's no more up-front insufficient-balance skip gate — the pipeline always
+    starts, extraction immediately exhausts (zero items attempted), and synthesis's own
+    existing no-done-items guard fails the analysis cleanly instead."""
     project = await make_project(session)
     account_list = await make_account_list(session, project=project)
-    account = await make_account(session, account_list=account_list)
+    await make_account(session, account_list=account_list)
     user = await make_user(session, token_balance=0)
     run = await make_run(
-        session,
-        project=project,
-        requested_by=user,
-        run_type="deep_analysis",
-        status=RunStatus.done,
+        session, project=project, requested_by=user, duration_days=1, run_type="deep_analysis"
     )
-    await make_content_item(session, run=run, account=account)
     await session.commit()
 
-    with (
-        patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue,
-        patch("src.worker.notify_run_complete", new_callable=AsyncMock) as mock_notify,
-    ):
-        await maybe_start_deep_analysis(session, run)  # must not raise
+    await process_run_and_maybe_analyze(session, run)
 
-    mock_enqueue.assert_not_awaited()
-    count = await session.scalar(
-        select(func.count()).select_from(DeepAnalysis).where(DeepAnalysis.run_id == run.id)
-    )
-    assert count == 0
+    assert run.status == RunStatus.done  # the base scrape itself still succeeds
+    analysis = (
+        await session.scalars(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
+    ).one()
+    assert analysis.status == DeepAnalysisStatus.failed
+    assert analysis.tokens_charged == 0
     assert user.token_balance == 0
-    assert run.deep_analysis_skip_reason == "insufficient_tokens"
-    # The chain never started, so process_deep_analysis will never notify — this is the only
-    # notification the user gets for this run, and it must still fire.
-    mock_notify.assert_awaited_once()
+    items = (await session.scalars(select(DeepAnalysisItem))).all()
+    assert items == []
 
 
-async def test_maybe_start_deep_analysis_records_error_reason_on_unexpected_exception(
+# ---------------------------------------------------------------------------
+# D49/D50: post-mode Analysis — a single publication URL instead of an account's post history.
+# ---------------------------------------------------------------------------
+
+
+async def test_process_run_post_mode_creates_one_item_and_resolves_new_account(
     session: AsyncSession,
 ) -> None:
-    """A genuine bug in the chain (DB hiccup, unexpected exception) must still leave a visible
-    trace on the run, not just a log line that scrolls out of retention."""
     project = await make_project(session)
-    account_list = await make_account_list(session, project=project)
-    account = await make_account(session, account_list=account_list)
-    user = await make_user(session, token_balance=1000)
+    user = await make_user(session)
     run = await make_run(
         session,
         project=project,
         requested_by=user,
         run_type="deep_analysis",
-        status=RunStatus.done,
+        analysis_mode="post",
+        duration_days=None,
+        target_post_url="https://www.instagram.com/p/ABC123/",
     )
-    await make_content_item(session, run=run, account=account)
     await session.commit()
 
-    with (
-        patch("src.worker.start_deep_analysis", side_effect=RuntimeError("boom")),
-        patch("src.worker.notify_run_complete", new_callable=AsyncMock) as mock_notify,
-    ):
-        await maybe_start_deep_analysis(session, run)  # must not raise
+    raw_item = RawContentItem(
+        external_id="abc123",
+        type=ContentType.post,
+        published_at=run.created_at,
+        url="https://www.instagram.com/p/ABC123/",
+        caption="Тестовая подпись",
+        raw={"ownerUsername": "brand_new_author"},
+    )
 
-    assert run.deep_analysis_skip_reason == "error"
-    mock_notify.assert_awaited_once()
+    class _PostPlatform:
+        async def fetch_post(self, post_url: str) -> RawContentItem:
+            return raw_item
+
+    with patch("src.worker.get_platform", return_value=_PostPlatform()):
+        await process_run(session, run)
+
+    assert run.status == RunStatus.done
+    assert run.progress_accounts == 1
+    assert run.progress_items == 1
+    items = (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
+    assert len(items) == 1
+    assert items[0].external_id == "abc123"
+
+    account = await session.get(Account, items[0].account_id)
+    assert account.handle == "brand_new_author"
+
+
+async def test_process_run_post_mode_reuses_existing_account(session: AsyncSession) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    existing = await make_account(session, account_list=account_list, handle="existing_author")
+    user = await make_user(session)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        run_type="deep_analysis",
+        analysis_mode="post",
+        duration_days=None,
+        target_post_url="https://www.instagram.com/p/XYZ789/",
+    )
+    await session.commit()
+
+    raw_item = RawContentItem(
+        external_id="xyz789",
+        type=ContentType.post,
+        published_at=run.created_at,
+        url="https://www.instagram.com/p/XYZ789/",
+        raw={"ownerUsername": "existing_author"},
+    )
+
+    class _PostPlatform:
+        async def fetch_post(self, post_url: str) -> RawContentItem:
+            return raw_item
+
+    with patch("src.worker.get_platform", return_value=_PostPlatform()):
+        await process_run(session, run)
+
+    items = (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
+    assert len(items) == 1
+    assert items[0].account_id == existing.id
+
+
+async def test_process_run_post_mode_fetch_failure_marks_run_failed_gracefully(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    user = await make_user(session)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        run_type="deep_analysis",
+        analysis_mode="post",
+        duration_days=None,
+        target_post_url="https://www.instagram.com/p/GONE/",
+    )
+    await session.commit()
+
+    class _FailingPlatform:
+        async def fetch_post(self, post_url: str):
+            raise RuntimeError("post not found")
+
+    with patch("src.worker.get_platform", return_value=_FailingPlatform()):
+        await process_run(session, run)
+
+    # Mirrors a failed-account scrape: the run still completes (done), not hard-failed, with
+    # zero items and an explanatory message — same "never leave the user with nothing to see"
+    # shape process_run already uses for a single bad account among many.
+    assert run.status == RunStatus.done
+    assert run.progress_items == 0
+    assert run.error_message is not None

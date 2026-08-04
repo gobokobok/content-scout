@@ -88,14 +88,10 @@ class Settings(BaseSettings):
     claude_input_token_cost_usd: float = 0.000001
     claude_output_token_cost_usd: float = 0.000005
 
-    # E17/D48: Run Deep Analysis token charging — 1 token per publication analyzed + 1 token
-    # per comment actually analyzed (superseded the old flat deep_analysis_token_multiplier
-    # estimate, D35, which assumed 15 tokens/item regardless of how many comments were really
-    # fetched — a live DEV run showed the real comment count is capped well below what was
-    # being charged for). deep_analysis_comments_per_post sizes the up-front hold only (the
-    # real charge is reconciled down to actual usage once extraction finishes — see
-    # services/deep_analysis.py:compute_tokens_charged and
-    # services/deep_analysis_synthesis.py:_reconcile_real_usage).
+    # E17/D48/D50: Run Deep Analysis token charging — 1 token per publication analyzed + 1
+    # token per comment actually analyzed, charged incrementally as each item's real work
+    # completes (see services/deep_analysis.py:charge_tokens_for_item). Also the account-mode
+    # default per-post comment count; post mode's user-configurable comments_limit overrides it.
     deep_analysis_comments_per_post: int = 25  # D34
 
     # E17-S2: comment scraping, dual-vendor per D32. Primary actor's pricing has two

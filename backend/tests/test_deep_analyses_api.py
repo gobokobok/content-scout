@@ -1,6 +1,5 @@
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, patch
 
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
@@ -57,102 +56,42 @@ async def _setup_done_run(session: AsyncSession, *, token_balance: int = 1000):
     return owner, project, run
 
 
-async def test_estimate_deep_analysis_matches_actual_charge(session: AsyncSession) -> None:
-    owner, project, run = await _setup_done_run(session, token_balance=1000)
-
-    async with await client(session) as c:
-        estimate = await c.get(
-            f"/projects/{project.id}/runs/{run.id}/deep-analyses/estimate",
-            headers=auth_headers(owner.id),
-        )
-        assert estimate.status_code == 200
-        estimated_tokens = estimate.json()["tokens"]
-        assert estimated_tokens > 0
-
-        with patch("src.api.deep_analyses.enqueue_deep_analysis", new_callable=AsyncMock):
-            created = await c.post(
-                f"/projects/{project.id}/runs/{run.id}/deep-analyses",
-                headers=auth_headers(owner.id),
-            )
-        assert created.json()["tokens_charged"] == estimated_tokens
-
-
-@patch("src.api.deep_analyses.enqueue_deep_analysis", new_callable=AsyncMock)
-async def test_create_deep_analysis_deducts_tokens_and_enqueues(
-    mock_enqueue: AsyncMock, session: AsyncSession
-) -> None:
-    owner, project, run = await _setup_done_run(session, token_balance=1000)
-
-    async with await client(session) as c:
-        resp = await c.post(
-            f"/projects/{project.id}/runs/{run.id}/deep-analyses",
-            headers=auth_headers(owner.id),
-        )
-        assert resp.status_code == 201
-        body = resp.json()
-        assert body["status"] == DeepAnalysisStatus.pending.value
-        assert body["tokens_charged"] > 0
-        assert body["run_id"] == str(run.id)
-        assert body["project_id"] == str(project.id)
-
-        me = await c.get("/auth/me", headers=auth_headers(owner.id))
-        assert me.json()["token_balance"] == 1000 - body["tokens_charged"]
-
-    mock_enqueue.assert_awaited_once()
-
-
-@patch("src.api.deep_analyses.enqueue_deep_analysis", new_callable=AsyncMock)
-async def test_create_deep_analysis_rejects_run_not_done(
-    mock_enqueue: AsyncMock, session: AsyncSession
-) -> None:
-    owner = await make_user(session, token_balance=1000)
+async def test_estimate_deep_analysis_account_mode_item_limit(session: AsyncSession) -> None:
+    owner = await make_user(session)
     ws = await make_workspace(session, owner=owner)
     project = await make_project(session, workspace=ws)
-    run = await make_run(session, project=project, requested_by=owner)  # default status: pending
     await session.commit()
 
     async with await client(session) as c:
         resp = await c.post(
-            f"/projects/{project.id}/runs/{run.id}/deep-analyses",
+            f"/projects/{project.id}/deep-analyses/estimate",
+            json={"analysis_mode": "account", "item_limit": 5},
             headers=auth_headers(owner.id),
         )
-        assert resp.status_code == 400
-        assert resp.json()["detail"]["code"] == "run_not_done"
-
-    mock_enqueue.assert_not_awaited()
+        assert resp.status_code == 200
+        assert resp.json()["tokens"] > 0
 
 
-@patch("src.api.deep_analyses.enqueue_deep_analysis", new_callable=AsyncMock)
-async def test_create_deep_analysis_rejects_insufficient_balance(
-    mock_enqueue: AsyncMock, session: AsyncSession
-) -> None:
-    owner, project, run = await _setup_done_run(session, token_balance=0)
-
-    async with await client(session) as c:
-        resp = await c.post(
-            f"/projects/{project.id}/runs/{run.id}/deep-analyses",
-            headers=auth_headers(owner.id),
-        )
-        assert resp.status_code == 402
-        assert resp.json()["detail"]["code"] == "insufficient_token_balance"
-
-    mock_enqueue.assert_not_awaited()
-
-
-async def test_create_deep_analysis_404_for_foreign_run(session: AsyncSession) -> None:
-    owner, project, run = await _setup_done_run(session)
-    other_owner = await make_user(session)
-    other_ws = await make_workspace(session, owner=other_owner)
-    other_project = await make_project(session, workspace=other_ws)
+async def test_estimate_deep_analysis_post_mode_is_flat(session: AsyncSession) -> None:
+    owner = await make_user(session)
+    ws = await make_workspace(session, owner=owner)
+    project = await make_project(session, workspace=ws)
     await session.commit()
 
     async with await client(session) as c:
-        resp = await c.post(
-            f"/projects/{other_project.id}/runs/{run.id}/deep-analyses",
-            headers=auth_headers(other_owner.id),
+        default_resp = await c.post(
+            f"/projects/{project.id}/deep-analyses/estimate",
+            json={"analysis_mode": "post"},
+            headers=auth_headers(owner.id),
         )
-        assert resp.status_code == 404
-        assert resp.json()["detail"]["code"] == "run_not_found"
+        overridden_resp = await c.post(
+            f"/projects/{project.id}/deep-analyses/estimate",
+            json={"analysis_mode": "post", "comments_limit": 5},
+            headers=auth_headers(owner.id),
+        )
+        assert default_resp.status_code == overridden_resp.status_code == 200
+        assert overridden_resp.json()["tokens"] == 6  # 1 + 5, overriding the account-wide default
+        assert overridden_resp.json()["tokens"] < default_resp.json()["tokens"]
 
 
 async def test_list_deep_analyses_orders_most_recent_first(session: AsyncSession) -> None:

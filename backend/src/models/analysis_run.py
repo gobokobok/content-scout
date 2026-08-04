@@ -38,25 +38,39 @@ class RunSummaryStatus(enum.StrEnum):
 class AnalysisRun(UuidPk, CreatedAt, Base):
     __tablename__ = "analysis_runs"
     # Exactly one of duration_days (a day window) / item_limit (last N publications per
-    # account) is set — mutually exclusive ways to scope a scrape, never both.
+    # account) is set for stat_collection runs and account-mode Analysis runs; post-mode
+    # Analysis runs (analysis_mode='post') set neither — a single post has no such scope (D50).
     __table_args__ = (
         CheckConstraint(
+            "(analysis_mode IS NOT DISTINCT FROM 'post'"
+            " AND duration_days IS NULL AND item_limit IS NULL)"
+            " OR (analysis_mode IS DISTINCT FROM 'post' AND ("
             "(duration_days IS NOT NULL AND item_limit IS NULL"
             " AND duration_days BETWEEN 1 AND 7)"
             " OR (item_limit IS NOT NULL AND duration_days IS NULL"
-            " AND item_limit BETWEEN 1 AND 50)",
+            " AND item_limit BETWEEN 1 AND 50)"
+            "))",
             name="duration_or_item_limit_range",
+        ),
+        CheckConstraint(
+            "comments_limit IS NULL OR comments_limit BETWEEN 1 AND 50",
+            name="comments_limit_range",
         ),
     )
 
-    # "stat_collection" = standard scrape; "deep_analysis" = scrape + auto-chained deep analysis.
+    # "stat_collection" = standard scrape; "deep_analysis" = standalone Analysis pipeline (D40).
     run_type: Mapped[str] = mapped_column(
         String(32), nullable=False, server_default="stat_collection"
     )
-    # Set when a deep_analysis run's auto-chain (worker.py:maybe_start_deep_analysis) does not
-    # create a DeepAnalysis: "insufficient_tokens" or "error". NULL for stat_collection runs and
-    # for deep_analysis runs where the chain succeeded.
-    deep_analysis_skip_reason: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Set only for run_type="deep_analysis": 'account' (single competitor + day/count scope) or
+    # 'post' (single publication URL, comments-only) — the two entry modes from D49. NULL for
+    # stat_collection runs.
+    analysis_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Set only for analysis_mode='post' — the pasted publication URL to fetch and analyze.
+    target_post_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # User-configurable "top N comments" for post mode (D49's UX); NULL means the account-mode/
+    # global default (Settings.deep_analysis_comments_per_post) applies instead.
+    comments_limit: Mapped[int | None] = mapped_column(nullable=True)
 
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id"), nullable=False, index=True
@@ -64,7 +78,8 @@ class AnalysisRun(UuidPk, CreatedAt, Base):
     requested_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     duration_days: Mapped[int | None] = mapped_column(nullable=True)
     item_limit: Mapped[int | None] = mapped_column(nullable=True)
-    # NULL = every active account in the project's IG list; otherwise an explicit subset.
+    # NULL = every active account in the project's IG list; otherwise an explicit subset (exactly
+    # one account for analysis_mode='account', per D49).
     account_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(Uuid()), nullable=True)
     status: Mapped[RunStatus] = mapped_column(
         Enum(RunStatus, native_enum=False, length=20),

@@ -18,6 +18,7 @@ from src.services.estimator import estimate_run
 from src.services.projects import ProjectNotFoundError, get_owned_project
 from src.services.queue import enqueue_run
 from src.services.runs import resolve_target_accounts
+from src.services.url_normalizer import InvalidAccountUrlError, normalize_post_url
 from src.services.workspace import get_user_workspace
 
 router = APIRouter(tags=["runs"])
@@ -49,14 +50,37 @@ NO_BALANCE = HTTPException(
 
 
 class RunRequestIn(BaseModel):
-    # Exactly one of the two — a day window, or the last N publications per account.
+    # Exactly one of duration_days/item_limit — a day window, or the last N publications per
+    # account. Both left unset only for a post-mode Analysis run (D49/D50), which has no such
+    # scope (its "top N comments" field is comments_limit instead).
     duration_days: int | None = Field(default=None, ge=1, le=7)
     item_limit: int | None = Field(default=None, ge=1, le=50)
     account_ids: list[uuid.UUID] | None = None
     run_type: Literal["stat_collection", "deep_analysis"] = "stat_collection"
+    # D49/D50: only meaningful for run_type="deep_analysis" — 'account' (single competitor +
+    # day/count scope) or 'post' (single publication URL, comments-only, no scope step).
+    analysis_mode: Literal["account", "post"] | None = None
+    target_post_url: str | None = None
+    comments_limit: int | None = Field(default=None, ge=1, le=50)
 
     @model_validator(mode="after")
-    def _exactly_one_scope(self) -> "RunRequestIn":
+    def _validate_scope(self) -> "RunRequestIn":
+        if self.run_type != "deep_analysis":
+            if self.analysis_mode is not None or self.target_post_url is not None:
+                raise ValueError(
+                    "analysis_mode/target_post_url применимы только к run_type=deep_analysis."
+                )
+        elif self.analysis_mode is None:
+            raise ValueError("analysis_mode обязателен для run_type=deep_analysis.")
+        elif self.analysis_mode == "post":
+            if self.duration_days is not None or self.item_limit is not None:
+                raise ValueError("Для анализа публикации duration_days/item_limit не задаются.")
+            if not self.target_post_url:
+                raise ValueError("target_post_url обязателен для analysis_mode=post.")
+            return self
+        elif self.account_ids is None or len(self.account_ids) != 1:
+            raise ValueError("Для анализа аккаунта нужно выбрать ровно один аккаунт.")
+
         if (self.duration_days is None) == (self.item_limit is None):
             raise ValueError("Ровно одно из duration_days/item_limit должно быть задано.")
         return self
@@ -92,8 +116,11 @@ class RunOut(BaseModel):
     summary_status: str
     summary_text: str | None
     summary_topics: list[str] | None
-    # Set when a deep_analysis run's auto-chain skipped instead of creating a DeepAnalysis.
-    deep_analysis_skip_reason: str | None
+    # D49/D50: only set for run_type="deep_analysis" — which of the two Analysis entry modes
+    # this run used, and post mode's own fields.
+    analysis_mode: str | None
+    target_post_url: str | None
+    comments_limit: int | None
 
     @classmethod
     def from_model(cls, run: AnalysisRun) -> "RunOut":
@@ -118,7 +145,9 @@ class RunOut(BaseModel):
             summary_status=run.summary_status.value,
             summary_text=run.summary_text,
             summary_topics=run.summary_topics,
-            deep_analysis_skip_reason=run.deep_analysis_skip_reason,
+            analysis_mode=run.analysis_mode,
+            target_post_url=run.target_post_url,
+            comments_limit=run.comments_limit,
         )
 
 
@@ -137,10 +166,6 @@ class RunFeedItem(BaseModel):
     # base run's — a run can finish scraping cleanly while its deep analysis still fails.
     deep_analysis_id: uuid.UUID | None
     deep_analysis_status: str | None
-    # Set when the auto-chain (worker.py:maybe_start_deep_analysis) skipped instead of creating
-    # a DeepAnalysis — "insufficient_tokens" or "error" — so a done deep_analysis run with no
-    # analysis isn't visually indistinguishable from a plain stat_collection run.
-    deep_analysis_skip_reason: str | None
     created_at: datetime
     finished_at: datetime | None
 
@@ -219,12 +244,27 @@ async def create_run(
     db_user = await session.get(User, user.id)
     if db_user is not None and db_user.token_balance <= 0:
         raise NO_BALANCE
-    accounts = await resolve_target_accounts(session, project_id, body.account_ids)
-    if not accounts:
-        raise NO_ACCOUNTS
+
+    target_post_url: str | None = None
+    accounts: list = []
+    if body.analysis_mode == "post":
+        try:
+            target_post_url = normalize_post_url(body.target_post_url or "").url
+        except InvalidAccountUrlError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "invalid_post_url", "message_ru": exc.message_ru},
+            ) from None
+    else:
+        accounts = await resolve_target_accounts(session, project_id, body.account_ids)
+        if not accounts:
+            raise NO_ACCOUNTS
 
     est = estimate_run(
-        get_settings(), len(accounts), duration_days=body.duration_days, item_limit=body.item_limit
+        get_settings(),
+        len(accounts) or 1,
+        duration_days=body.duration_days,
+        item_limit=body.item_limit,
     )
     run = AnalysisRun(
         project_id=project_id,
@@ -234,6 +274,9 @@ async def create_run(
         account_ids=body.account_ids,
         estimated_cost_usd=est.estimated_cost_usd,
         run_type=body.run_type,
+        analysis_mode=body.analysis_mode,
+        target_post_url=target_post_url,
+        comments_limit=body.comments_limit,
     )
     session.add(run)
     await session.commit()
@@ -317,7 +360,6 @@ async def get_run_feed(user: CurrentUser, session: SessionDep) -> list[RunFeedIt
             comments_count=comments_count,
             deep_analysis_id=deep_analysis_id,
             deep_analysis_status=deep_analysis_status,
-            deep_analysis_skip_reason=run.deep_analysis_skip_reason,
             created_at=run.created_at,
             finished_at=run.finished_at,
         )

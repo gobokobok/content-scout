@@ -14,11 +14,14 @@ from src.models import (
     KIND_CLAUDE_OUTPUT_TOKENS,
     ContentItem,
     ContentType,
+    DeepAnalysis,
     DeepAnalysisItem,
     DeepAnalysisItemStatus,
     UsageEvent,
+    User,
 )
 from src.services.comment_scraper import RawComment, fetch_comments
+from src.services.deep_analysis import charge_tokens_for_item
 from src.services.summarizer import _fetch_image_block  # deliberate D29 reuse, not duplicated here
 
 _TYPE_LABELS_RU = {
@@ -54,70 +57,91 @@ SYSTEM_PROMPT = """\
 
 _MAX_ATTEMPTS = 3
 _IMAGE_FETCH_TIMEOUT_SECS = 10.0
-_BATCH_POLL_INTERVAL_SECS = 10.0
 _MAX_COMMENTS_IN_PROMPT = 25
 
 
 async def extract_deep_analysis_items(
     session: AsyncSession,
-    deep_analysis_id: uuid.UUID,
+    analysis: DeepAnalysis,
     items: list[ContentItem],
     *,
-    user_id: uuid.UUID,
+    user: User,
+    comments_limit: int | None = None,
     client: AsyncAnthropic | None = None,
     http_client: httpx.AsyncClient | None = None,
-) -> None:
+) -> bool:
     """One Haiku call per item (D33): content-signal tags + comment-derived sentiment/
-    complaints/praises/questions. Reuses summarizer.py's concurrency/batch/retry scaffolding
-    and D29's cost policy (512px cover images, Message Batches API for batches >= threshold).
+    complaints/praises/questions. Reuses summarizer.py's concurrency scaffolding and D29's cost
+    policy (512px cover images).
+
+    D50: charges incrementally as each item's real work completes (1 token/publication +
+    1/comment actually analyzed via `charge_tokens_for_item`), processed in
+    concurrency-bounded batches with a balance check before each one — mirrors
+    worker.py:process_run's per-batch token_balance_exhausted pattern. Returns True if the
+    balance ran out before every item could be processed (some items may simply never get a
+    DeepAnalysisItem row, rather than a `failed` one, since no work was attempted on them).
 
     Never raises for a single item's failure — an unparseable/failed extraction stores a
     `failed` DeepAnalysisItem row (metrics-only degrade) rather than failing the analysis.
+    Drops the previous Message Batches API path (D50): an all-or-nothing remote batch call
+    can't support this per-batch balance-exhaustion stop, and Analysis's 1-account/1-post cap
+    makes the large batch sizes that path targeted rare.
     """
     settings = get_settings()
     _client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
     _own_http = http_client is None
     _http = http_client or httpx.AsyncClient(timeout=_IMAGE_FETCH_TIMEOUT_SECS)
+    batch_size = max(1, settings.summary_concurrency)
+    token_exhausted = False
 
     try:
-        comments_by_item: dict[uuid.UUID, list[RawComment]] = {}
-        for item in items:
-            comments_by_item[item.id] = await fetch_comments(
-                session, item, user_id=user_id, settings=settings
-            )
+        for start in range(0, len(items), batch_size):
+            if user.token_balance <= 0:
+                token_exhausted = True
+                break
 
-        if len(items) >= settings.summary_batch_threshold:
-            try:
-                await _extract_via_batches(
+            batch = items[start : start + batch_size]
+            if user.token_balance < len(batch):
+                batch = batch[: user.token_balance]
+                token_exhausted = True
+
+            comments_by_item: dict[uuid.UUID, list[RawComment]] = {}
+            for item in batch:
+                comments_by_item[item.id] = await fetch_comments(
                     session,
-                    _client,
-                    _http,
-                    items,
-                    comments_by_item,
-                    deep_analysis_id,
-                    settings,
-                    user_id=user_id,
-                )
-                return
-            except Exception:  # noqa: BLE001 — fall back to the concurrent path on any batch failure
-                pass
-
-        semaphore = asyncio.Semaphore(settings.summary_concurrency)
-
-        async def _one(item: ContentItem) -> None:
-            async with semaphore:
-                await _extract_item(
-                    session,
-                    _client,
-                    _http,
                     item,
-                    comments_by_item[item.id],
-                    deep_analysis_id,
-                    settings,
-                    user_id=user_id,
+                    user_id=user.id,
+                    settings=settings,
+                    limit_override=comments_limit,
                 )
 
-        await asyncio.gather(*(_one(item) for item in items))
+            semaphore = asyncio.Semaphore(settings.summary_concurrency)
+
+            async def _one(item: ContentItem) -> None:
+                async with semaphore:
+                    await _extract_item(
+                        session,
+                        _client,
+                        _http,
+                        item,
+                        comments_by_item[item.id],
+                        analysis.id,
+                        settings,
+                        user_id=user.id,
+                    )
+
+            await asyncio.gather(*(_one(item) for item in batch))
+
+            for item in batch:
+                charge_tokens_for_item(
+                    analysis, user, comments_analyzed_count=len(comments_by_item[item.id])
+                )
+            await session.commit()
+
+            if token_exhausted:
+                break
+
+        return token_exhausted
     finally:
         if _own_http:
             await _http.aclose()
@@ -269,81 +293,3 @@ async def _extract_item(
             await asyncio.sleep(2**attempt)
 
     session.add(_store_extraction(item, comments, deep_analysis_id, None))
-
-
-async def _extract_via_batches(
-    session: AsyncSession,
-    client: AsyncAnthropic,
-    http_client: httpx.AsyncClient,
-    items: list[ContentItem],
-    comments_by_item: dict[uuid.UUID, list[RawComment]],
-    deep_analysis_id: uuid.UUID,
-    settings: Settings,
-    *,
-    user_id: uuid.UUID,
-) -> None:
-    item_by_id: dict[str, ContentItem] = {}
-    requests = []
-    for item in items:
-        comments = comments_by_item[item.id]
-        blocks = await _build_content_blocks(http_client, item, comments, settings)
-        custom_id = str(item.id)
-        item_by_id[custom_id] = item
-        requests.append(
-            {
-                "custom_id": custom_id,
-                "params": {
-                    "model": settings.summary_model,
-                    "max_tokens": 500,
-                    "temperature": 0.2,
-                    "system": SYSTEM_PROMPT,
-                    "messages": [{"role": "user", "content": blocks}],
-                },
-            }
-        )
-
-    if not requests:
-        return
-
-    batch = await client.messages.batches.create(requests=requests)  # type: ignore[arg-type]
-
-    while batch.processing_status != "ended":
-        await asyncio.sleep(_BATCH_POLL_INTERVAL_SECS)
-        batch = await client.messages.batches.retrieve(batch.id)
-
-    seen: set[str] = set()
-    async for result in await client.messages.batches.results(batch.id):
-        target = item_by_id.get(result.custom_id)
-        if target is None:
-            continue
-        seen.add(result.custom_id)
-        comments = comments_by_item[target.id]
-        if result.result.type == "succeeded":
-            msg = result.result.message
-            text = "".join(b.text for b in msg.content if b.type == "text").strip()
-            data = _parse_extraction(text)
-            session.add(_store_extraction(target, comments, deep_analysis_id, data))
-            session.add(
-                UsageEvent(
-                    user_id=user_id,
-                    run_id=target.run_id,
-                    kind=KIND_CLAUDE_INPUT_TOKENS,
-                    quantity=msg.usage.input_tokens,
-                    unit_cost_usd=Decimal(str(settings.claude_input_token_cost_usd)),
-                )
-            )
-            session.add(
-                UsageEvent(
-                    user_id=user_id,
-                    run_id=target.run_id,
-                    kind=KIND_CLAUDE_OUTPUT_TOKENS,
-                    quantity=msg.usage.output_tokens,
-                    unit_cost_usd=Decimal(str(settings.claude_output_token_cost_usd)),
-                )
-            )
-        else:
-            session.add(_store_extraction(target, comments, deep_analysis_id, None))
-
-    for custom_id, item in item_by_id.items():
-        if custom_id not in seen:
-            session.add(_store_extraction(item, comments_by_item[item.id], deep_analysis_id, None))

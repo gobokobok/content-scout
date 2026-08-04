@@ -71,11 +71,14 @@ async def _fire_one(session: AsyncSession, schedule: ScheduledRun) -> AnalysisRu
     """Creates+enqueues an AnalysisRun the same way POST /projects/{id}/runs does, minus the
     HTTP-facing error responses: a cron tick has no user to show an error to, so every gate
     that would 400/402/429 a manual run instead just skips this fire (recording why, see
-    _skip)."""
-    accounts = await resolve_target_accounts(session, schedule.project_id, schedule.account_ids)
-    if not accounts:
-        await _skip(session, schedule, ScheduledRunSkipReason.no_accounts)
-        return None
+    _skip). Post-mode Analysis schedules (D49/D50) have no account list to resolve — the
+    no_accounts skip gate only applies to account-scoped schedules."""
+    accounts = []
+    if schedule.analysis_mode != "post":
+        accounts = await resolve_target_accounts(session, schedule.project_id, schedule.account_ids)
+        if not accounts:
+            await _skip(session, schedule, ScheduledRunSkipReason.no_accounts)
+            return None
 
     user = await session.get(User, schedule.created_by)
     if user is None:
@@ -93,7 +96,7 @@ async def _fire_one(session: AsyncSession, schedule: ScheduledRun) -> AnalysisRu
 
     est = estimate_run(
         settings,
-        len(accounts),
+        len(accounts) or 1,
         duration_days=schedule.duration_days,
         item_limit=schedule.item_limit,
     )
@@ -106,6 +109,9 @@ async def _fire_one(session: AsyncSession, schedule: ScheduledRun) -> AnalysisRu
         account_ids=schedule.account_ids,
         estimated_cost_usd=est.estimated_cost_usd,
         notify_on_complete=schedule.notify_enabled,
+        analysis_mode=schedule.analysis_mode,
+        target_post_url=schedule.target_post_url,
+        comments_limit=schedule.comments_limit,
     )
     session.add(run)
     await session.flush()

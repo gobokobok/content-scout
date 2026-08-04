@@ -41,11 +41,19 @@ class ScheduledRun(UuidPk, CreatedAt, Base):
     # (day window) / item_limit (last N publications per account) is set.
     __table_args__ = (
         CheckConstraint(
+            "(analysis_mode IS NOT DISTINCT FROM 'post'"
+            " AND duration_days IS NULL AND item_limit IS NULL)"
+            " OR (analysis_mode IS DISTINCT FROM 'post' AND ("
             "(duration_days IS NOT NULL AND item_limit IS NULL"
             " AND duration_days BETWEEN 1 AND 7)"
             " OR (item_limit IS NOT NULL AND duration_days IS NULL"
-            " AND item_limit BETWEEN 1 AND 50)",
+            " AND item_limit BETWEEN 1 AND 50)"
+            "))",
             name="duration_or_item_limit_range",
+        ),
+        CheckConstraint(
+            "comments_limit IS NULL OR comments_limit BETWEEN 1 AND 50",
+            name="comments_limit_range",
         ),
         # Every element of days_of_week must be a valid weekday (0=Monday..6=Sunday) and
         # there must be at least one — array containment (`<@`) checks the values, and
@@ -57,16 +65,21 @@ class ScheduledRun(UuidPk, CreatedAt, Base):
         ),
     )
 
-    # "stat_collection" = standard scrape; "deep_analysis" = scrape + auto-chained deep analysis.
+    # "stat_collection" = standard scrape; "deep_analysis" = standalone Analysis pipeline (D40).
     run_type: Mapped[str] = mapped_column(
         String(32), nullable=False, server_default="stat_collection"
     )
+    # Mirrors AnalysisRun's same fields (D50) — set only for run_type="deep_analysis".
+    analysis_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    target_post_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    comments_limit: Mapped[int | None] = mapped_column(nullable=True)
 
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id"), nullable=False, index=True
     )
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
-    # NULL = every active account in the project's IG list; otherwise an explicit subset.
+    # NULL = every active account in the project's IG list; otherwise an explicit subset (exactly
+    # one account for analysis_mode='account', per D49).
     account_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(Uuid()), nullable=True)
     duration_days: Mapped[int | None] = mapped_column(nullable=True)
     item_limit: Mapped[int | None] = mapped_column(nullable=True)

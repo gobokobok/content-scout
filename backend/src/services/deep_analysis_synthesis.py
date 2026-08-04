@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from anthropic import AsyncAnthropic
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
@@ -21,7 +21,6 @@ from src.models import (
     DeepAnalysisItemStatus,
     DeepAnalysisStatus,
     UsageEvent,
-    User,
 )
 from src.services.deep_analysis import fail_deep_analysis
 from src.services.metrics import bucket_virality, virality_baseline_subquery, virality_ratio
@@ -184,35 +183,6 @@ def _strip_comment_derived_sections(stats: dict[str, Any], recommendations: dict
     stats["comment_coverage_degraded"] = True
     recommendations["faq_pack"] = []
     recommendations["comment_coverage_degraded"] = True
-
-
-async def _reconcile_real_usage(
-    session: AsyncSession, analysis: DeepAnalysis, user_id: uuid.UUID
-) -> None:
-    """D48: the up-front charge (`compute_tokens_charged`) is a ceiling estimate made before
-    comment coverage is knowable — 1 token per item, assuming every item reaches the
-    configured per-post comment target. The real cost is 1 token per publication actually
-    analyzed (done or failed extraction — the Haiku call was still made) + 1 token per comment
-    actually fetched, counted here now that extraction has run. Refunds the difference; never
-    charges more than what was held up front. Supersedes the old thin-coverage multiplier
-    discount (E17-S9) — a thin-coverage run already has fewer real comments counted, so
-    usage-based billing already charges less without a separate discount step."""
-    items_count, comments_count = (
-        await session.execute(
-            select(
-                func.count(),
-                func.coalesce(func.sum(DeepAnalysisItem.comments_analyzed_count), 0),
-            ).where(DeepAnalysisItem.deep_analysis_id == analysis.id)
-        )
-    ).one()
-    real_cost = items_count + comments_count
-    refund = max(0, analysis.tokens_charged - real_cost)
-    if refund <= 0:
-        return
-    user = await session.get(User, user_id)
-    if user is not None:
-        user.token_balance += refund
-    analysis.tokens_charged -= refund
 
 
 def _build_prompt_lines(rows: Sequence[Any]) -> list[str]:
@@ -378,8 +348,6 @@ async def synthesize_report(
 
         if _comment_coverage_ratio(rows) < settings.deep_analysis_comment_coverage_threshold:
             _strip_comment_derived_sections(stats, recommendations)
-
-        await _reconcile_real_usage(session, analysis, user_id)
 
         analysis.report_stats = stats
         analysis.report_recommendations = recommendations

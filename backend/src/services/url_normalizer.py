@@ -57,6 +57,35 @@ def normalize_instagram_input(raw: str) -> NormalizedAccount:
     return NormalizedAccount(handle=handle, normalized_url=f"https://instagram.com/{handle}")
 
 
+_POST_URL_SEGMENTS = {"p", "reel", "reels", "tv"}
+
+
+@dataclass(frozen=True)
+class NormalizedPostUrl:
+    url: str
+
+
+def normalize_post_url(raw: str) -> NormalizedPostUrl:
+    """Standalone Analysis post mode (D49) — validates a pasted publication link, the mirror
+    image of normalize_instagram_input's account-URL handling (which explicitly rejects these
+    same path segments as out of scope)."""
+    value = raw.strip()
+    if not value:
+        raise InvalidAccountUrlError("Пустая строка.")
+
+    candidate = value if "://" in value else f"https://{value}"
+    parsed = urlparse(candidate)
+    host = parsed.netloc.lower().removeprefix("www.")
+    if host != "instagram.com":
+        raise InvalidAccountUrlError(f'Ссылка не на Instagram: "{value}".')
+
+    segments = [s for s in parsed.path.split("/") if s]
+    if len(segments) < 2 or segments[0] not in _POST_URL_SEGMENTS:
+        raise InvalidAccountUrlError(f'Похоже, это не ссылка на публикацию: "{value}".')
+
+    return NormalizedPostUrl(url=f"https://www.instagram.com/{segments[0]}/{segments[1]}/")
+
+
 def _extract_handle_from_url(value: str) -> str:
     candidate = value if "://" in value else f"https://{value}"
     parsed = urlparse(candidate)

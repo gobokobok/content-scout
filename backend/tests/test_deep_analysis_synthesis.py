@@ -156,9 +156,10 @@ async def test_synthesize_report_no_done_items_fails_without_api_call(
     assert analysis.status == DeepAnalysisStatus.failed
     assert analysis.error_message
     assert fake_client.messages.calls == []
-    # A hard failure delivers zero report — full refund, not just a status flip.
-    assert analysis.tokens_charged == 0
-    assert user.token_balance == 110
+    # D50: charging happens incrementally during extraction, not here — a synthesis-stage
+    # failure has nothing to refund, tokens_charged just stays whatever extraction left it at.
+    assert analysis.tokens_charged == 10
+    assert user.token_balance == 100
 
 
 async def test_synthesize_report_api_error_marks_failed(session: AsyncSession) -> None:
@@ -175,8 +176,9 @@ async def test_synthesize_report_api_error_marks_failed(session: AsyncSession) -
     assert analysis.status == DeepAnalysisStatus.failed
     assert analysis.error_message
     assert analysis.report_stats is None
-    assert analysis.tokens_charged == 0
-    assert user.token_balance == 110
+    # D50: no refund on a synthesis-stage failure — nothing artificial to give back.
+    assert analysis.tokens_charged == 10
+    assert user.token_balance == 100
 
     usage = (await session.scalars(select(UsageEvent).where(UsageEvent.run_id == run.id))).all()
     assert usage == []
@@ -278,22 +280,21 @@ async def test_synthesize_report_thin_coverage_strips_sections(session: AsyncSes
         == _VALID_REPORT["recommendations"]["content_ideas"]
     )
 
-    # D48: real usage is 2 items + 0 comments = 2 tokens, regardless of the thin-coverage
-    # strip above — no separate discount multiplier needed, usage-based billing already
-    # reflects the thin data.
-    assert analysis.tokens_charged == 2
+    # D50: synthesis never touches tokens_charged/token_balance at all — charging happens
+    # entirely during extraction, incrementally per item, not reconciled here afterward.
+    assert analysis.tokens_charged == 100
     await session.refresh(user)
-    assert user.token_balance == 1098
+    assert user.token_balance == 1000
 
 
-async def test_synthesize_report_reconciles_charge_to_real_item_and_comment_count(
-    session: AsyncSession,
-) -> None:
-    """D48: 1 token per publication analyzed + 1 token per comment actually analyzed —
-    reconciled down from the up-front hold once extraction's real counts are known."""
+async def test_synthesize_report_never_charges_or_refunds(session: AsyncSession) -> None:
+    """D50 supersedes the old post-hoc reconciliation (D48): extraction already charges the
+    real per-item/per-comment cost incrementally as it happens, so synthesis has nothing left
+    to true up — tokens_charged/token_balance must be exactly whatever they were beforehand,
+    regardless of how many items/comments the report actually covers."""
     user = await make_user(session, token_balance=1000)
     run = await make_run(session, requested_by=user)
-    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=100)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=6)
     await _make_done_extraction_item(
         session, run, deep_analysis_id=analysis.id, comments_analyzed_count=5
     )
@@ -306,30 +307,8 @@ async def test_synthesize_report_reconciles_charge_to_real_item_and_comment_coun
     await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
     await session.commit()
 
-    # 2 items + (5 + 3) comments = 10 real tokens; 90 refunded from the 100 held up front.
-    assert analysis.tokens_charged == 10
-    assert "comment_coverage_degraded" not in analysis.report_stats
-    await session.refresh(user)
-    assert user.token_balance == 1090
-
-
-async def test_synthesize_report_reconcile_does_not_refund_when_hold_already_matches(
-    session: AsyncSession,
-) -> None:
-    user = await make_user(session, token_balance=1000)
-    run = await make_run(session, requested_by=user)
-    # Held exactly 1 item + 5 comments = 6 up front — no discrepancy to refund.
-    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=6)
-    await _make_done_extraction_item(
-        session, run, deep_analysis_id=analysis.id, comments_analyzed_count=5
-    )
-    await session.commit()
-
-    fake_client = _FakeClient(_tool_use_response(_VALID_REPORT))
-    await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
-    await session.commit()
-
     assert analysis.tokens_charged == 6
+    assert "comment_coverage_degraded" not in analysis.report_stats
     await session.refresh(user)
     assert user.token_balance == 1000
 

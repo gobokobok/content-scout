@@ -13,14 +13,12 @@ from src.auth.tokens import create_access_token
 from src.config import Settings, get_settings
 from src.db import get_session
 from src.main import app
-from src.models import AnalysisRun, RunStatus
+from src.models import AnalysisRun
 from src.services.xlsx_export import _safe_text
 from tests.conftest import (
     make_account,
     make_account_list,
-    make_content_item,
     make_project,
-    make_run,
     make_user,
     make_workspace,
 )
@@ -260,32 +258,38 @@ async def test_run_creation_rate_limited_per_user(
     assert mock_enqueue.await_count == 2
 
 
-@patch("src.api.deep_analyses.enqueue_deep_analysis", new_callable=AsyncMock)
+@patch("src.api.runs.enqueue_run", new_callable=AsyncMock)
 async def test_deep_analysis_creation_rate_limited_per_user(
     mock_enqueue: AsyncMock, session: AsyncSession
 ) -> None:
+    """D50: Analysis creation is now POST /projects/{id}/runs with run_type=deep_analysis,
+    the same endpoint stat_collection uses — this confirms the shared rate limiter still
+    applies to that run_type, not just the sibling stat_collection test above."""
     user = await make_user(session, token_balance=1000)
     workspace = await make_workspace(session, owner=user)
     project = await make_project(session, workspace=workspace)
-    run = await make_run(session, project=project, requested_by=user)
-    run.status = RunStatus.done
-    await make_content_item(session, run=run)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
     await session.commit()
 
     settings = get_settings()
     overridden = Settings(**{**settings.model_dump(), "write_endpoint_rate_limit_per_minute": 1})
 
+    body = {
+        "run_type": "deep_analysis",
+        "analysis_mode": "account",
+        "account_ids": [str(account.id)],
+        "item_limit": 10,
+    }
     async with await _client(session) as c:
-        with patch("src.api.deep_analyses.get_settings", return_value=overridden):
+        with patch("src.api.runs.get_settings", return_value=overridden):
             resp = await c.post(
-                f"/projects/{project.id}/runs/{run.id}/deep-analyses",
-                headers=auth_headers(user.id),
+                f"/projects/{project.id}/runs", json=body, headers=auth_headers(user.id)
             )
             assert resp.status_code == 201
 
             resp = await c.post(
-                f"/projects/{project.id}/runs/{run.id}/deep-analyses",
-                headers=auth_headers(user.id),
+                f"/projects/{project.id}/runs", json=body, headers=auth_headers(user.id)
             )
 
     assert resp.status_code == 429

@@ -49,3 +49,17 @@ class MockPlatform:
             display_name=f"Тестовый аккаунт @{account.handle}",
             avatar_url=None,
         )
+
+    async def fetch_post(self, post_url: str) -> RawContentItem:
+        return RawContentItem(
+            external_id="mock-post",
+            type=ContentType.post,
+            published_at=datetime.now(UTC),
+            url=post_url,
+            title="Тестовая публикация",
+            caption="Пример подписи к публикации.",
+            likes=100,
+            views=None,
+            comments=5,
+            raw={"mock": True, "ownerUsername": "mock_author"},
+        )

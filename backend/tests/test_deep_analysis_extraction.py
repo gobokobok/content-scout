@@ -59,12 +59,14 @@ _VALID_JSON = json.dumps(
 )
 
 
-async def test_extract_stores_parsed_signals_and_usage(session: AsyncSession) -> None:
-    user = await make_user(session)
+async def test_extract_stores_parsed_signals_usage_and_charges_tokens(
+    session: AsyncSession,
+) -> None:
+    user = await make_user(session, token_balance=100)
     run = await make_run(session, requested_by=user)
     item = await make_content_item(session, run=run, caption="Подпись")
     item.cover_url = None
-    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=0)
     await session.commit()
 
     comments = [RawComment(external_id="c1", text="Здорово!", author_username="u1", likes=5)]
@@ -76,11 +78,12 @@ async def test_extract_stores_parsed_signals_and_usage(session: AsyncSession) ->
             new=AsyncMock(return_value=comments),
         ),
     ):
-        await extract_deep_analysis_items(
-            session, analysis.id, [item], user_id=user.id, client=fake_client
+        token_exhausted = await extract_deep_analysis_items(
+            session, analysis, [item], user=user, client=fake_client
         )
     await session.commit()
 
+    assert token_exhausted is False
     rows = (await session.scalars(select(DeepAnalysisItem))).all()
     assert len(rows) == 1
     row = rows[0]
@@ -98,6 +101,10 @@ async def test_extract_stores_parsed_signals_and_usage(session: AsyncSession) ->
     assert kinds[KIND_CLAUDE_INPUT_TOKENS] == 100
     assert kinds[KIND_CLAUDE_OUTPUT_TOKENS] == 60
 
+    # D50: 1 token for the publication + 1 for its one comment, charged incrementally.
+    assert analysis.tokens_charged == 2
+    assert user.token_balance == 98
+
 
 async def test_extract_unparseable_response_stores_failed_but_still_charges_usage(
     session: AsyncSession,
@@ -106,7 +113,7 @@ async def test_extract_unparseable_response_stores_failed_but_still_charges_usag
     run = await make_run(session, requested_by=user)
     item = await make_content_item(session, run=run, caption="Подпись")
     item.cover_url = None
-    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=0)
     await session.commit()
 
     fake_client = _FakeClient(_fake_response("это не json вовсе"))
@@ -116,9 +123,7 @@ async def test_extract_unparseable_response_stores_failed_but_still_charges_usag
             "src.services.deep_analysis_extraction.fetch_comments", new=AsyncMock(return_value=[])
         ),
     ):
-        await extract_deep_analysis_items(
-            session, analysis.id, [item], user_id=user.id, client=fake_client
-        )
+        await extract_deep_analysis_items(session, analysis, [item], user=user, client=fake_client)
     await session.commit()
 
     rows = (await session.scalars(select(DeepAnalysisItem))).all()
@@ -132,6 +137,9 @@ async def test_extract_unparseable_response_stores_failed_but_still_charges_usag
     assert len(fake_client.messages.calls) == 3
     usage = (await session.scalars(select(UsageEvent).where(UsageEvent.run_id == run.id))).all()
     assert len(usage) == 6
+
+    # A failed extraction still attempted the publication — still charged 1 token for it.
+    assert analysis.tokens_charged == 1
 
 
 async def test_extract_retries_then_stores_failed_with_no_usage(session: AsyncSession) -> None:
@@ -150,9 +158,7 @@ async def test_extract_retries_then_stores_failed_with_no_usage(session: AsyncSe
         ),
         patch("src.services.deep_analysis_extraction.asyncio.sleep", new_callable=AsyncMock),
     ):
-        await extract_deep_analysis_items(
-            session, analysis.id, [item], user_id=user.id, client=fake_client
-        )
+        await extract_deep_analysis_items(session, analysis, [item], user=user, client=fake_client)
     await session.commit()
 
     rows = (await session.scalars(select(DeepAnalysisItem))).all()
@@ -179,9 +185,7 @@ async def test_extract_no_comments_marks_zero_coverage(session: AsyncSession) ->
             "src.services.deep_analysis_extraction.fetch_comments", new=AsyncMock(return_value=[])
         ),
     ):
-        await extract_deep_analysis_items(
-            session, analysis.id, [item], user_id=user.id, client=fake_client
-        )
+        await extract_deep_analysis_items(session, analysis, [item], user=user, client=fake_client)
     await session.commit()
 
     sent_text = fake_client.messages.calls[0]["messages"][0]["content"][0]["text"]
@@ -191,72 +195,81 @@ async def test_extract_no_comments_marks_zero_coverage(session: AsyncSession) ->
     assert rows[0].comments_analyzed_count == 0
 
 
-async def test_extract_batches_path_maps_results(session: AsyncSession) -> None:
+async def test_extract_passes_comments_limit_override_to_fetch_comments(
+    session: AsyncSession,
+) -> None:
     user = await make_user(session)
     run = await make_run(session, requested_by=user)
-    items = []
-    for i in range(3):
-        it = await make_content_item(session, run=run, caption=f"Подпись {i}")
-        it.cover_url = None
-        items.append(it)
+    item = await make_content_item(session, run=run, caption="Подпись")
+    item.cover_url = None
     analysis = await make_deep_analysis(session, run=run, requested_by=user)
     await session.commit()
 
-    item_ids = [str(it.id) for it in items]
-
-    def _batch_result(custom_id: str):
-        return SimpleNamespace(
-            custom_id=custom_id,
-            result=SimpleNamespace(
-                type="succeeded",
-                message=SimpleNamespace(
-                    content=[SimpleNamespace(type="text", text=_VALID_JSON)],
-                    usage=SimpleNamespace(input_tokens=90, output_tokens=45),
-                ),
-            ),
+    fake_client = _FakeClient(_fake_response(_VALID_JSON))
+    fake_fetch = AsyncMock(return_value=[])
+    with (
+        patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
+        patch("src.services.deep_analysis_extraction.fetch_comments", new=fake_fetch),
+    ):
+        await extract_deep_analysis_items(
+            session, analysis, [item], user=user, comments_limit=7, client=fake_client
         )
 
-    fake_batch = SimpleNamespace(id="batch_da_1", processing_status="ended")
+    assert fake_fetch.call_args.kwargs["limit_override"] == 7
 
-    class _FakeBatches:
-        async def create(self, requests):
-            return fake_batch
 
-        async def retrieve(self, batch_id):
-            return fake_batch
+async def test_extract_stops_when_balance_exhausted_before_batch(session: AsyncSession) -> None:
+    # Balance is already 0 when extraction starts — no item should even be attempted.
+    user = await make_user(session, token_balance=0)
+    run = await make_run(session, requested_by=user)
+    item = await make_content_item(session, run=run, caption="Подпись")
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=0)
+    await session.commit()
 
-        async def results(self, batch_id):
-            async def _gen():
-                for cid in item_ids:
-                    yield _batch_result(cid)
-
-            return _gen()
-
-    class _FakeBatchClient:
-        def __init__(self):
-            self.messages = SimpleNamespace(batches=_FakeBatches())
-
-    fake_client = _FakeBatchClient()
-    from src.config import Settings, get_settings
-
-    overridden = Settings(**{**get_settings().model_dump(), "summary_batch_threshold": 2})
+    fake_client = _FakeClient(_fake_response(_VALID_JSON))
+    fake_fetch = AsyncMock(return_value=[])
     with (
-        patch("src.services.deep_analysis_extraction.get_settings", return_value=overridden),
+        patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
+        patch("src.services.deep_analysis_extraction.fetch_comments", new=fake_fetch),
+    ):
+        token_exhausted = await extract_deep_analysis_items(
+            session, analysis, [item], user=user, client=fake_client
+        )
+
+    assert token_exhausted is True
+    fake_fetch.assert_not_called()
+    rows = (await session.scalars(select(DeepAnalysisItem))).all()
+    assert rows == []
+    assert analysis.tokens_charged == 0
+
+
+async def test_extract_truncates_batch_to_remaining_balance(session: AsyncSession) -> None:
+    # Balance covers only 1 of 3 items in the same batch (summary_concurrency default is 5,
+    # so all 3 land in one batch) — the batch is truncated, not all-or-nothing.
+    user = await make_user(session, token_balance=1)
+    run = await make_run(session, requested_by=user)
+    items = [await make_content_item(session, run=run, caption=f"Подпись {i}") for i in range(3)]
+    for it in items:
+        it.cover_url = None
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=0)
+    await session.commit()
+
+    fake_client = _FakeClient(_fake_response(_VALID_JSON))
+    with (
+        patch("src.services.deep_analysis_extraction.AsyncAnthropic", return_value=fake_client),
         patch(
             "src.services.deep_analysis_extraction.fetch_comments", new=AsyncMock(return_value=[])
         ),
     ):
-        await extract_deep_analysis_items(
-            session, analysis.id, items, user_id=user.id, client=fake_client
+        token_exhausted = await extract_deep_analysis_items(
+            session, analysis, items, user=user, client=fake_client
         )
-    await session.commit()
 
+    assert token_exhausted is True
     rows = (await session.scalars(select(DeepAnalysisItem))).all()
-    assert len(rows) == 3
-    assert all(r.status == DeepAnalysisItemStatus.done for r in rows)
-
-    usage = (await session.scalars(select(UsageEvent).where(UsageEvent.run_id == run.id))).all()
-    assert len(usage) == 6  # 3 items x (input + output)
+    assert len(rows) == 1  # only the balance-affordable slice of the batch was attempted
+    assert user.token_balance == 0
+    assert analysis.tokens_charged == 1
 
 
 async def test_deep_analysis_item_unique_per_analysis_and_content_item() -> None:
