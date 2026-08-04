@@ -7,8 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import AnalysisRun, ContentType, RunStatus, User
-from src.services.telegram_notify import _top_items_lines, notify_run_complete
+from src.models import AnalysisRun, ContentType, DeepAnalysis, DeepAnalysisStatus, RunStatus, User
+from src.services.telegram_notify import (
+    _top_items_lines,
+    notify_deep_analysis_complete,
+    notify_run_complete,
+)
 from tests.conftest import (
     make_account,
     make_account_list,
@@ -30,6 +34,17 @@ def _make_run(status: RunStatus, items: int = 5, error: str | None = None) -> An
     run.error_message = error
     run.summary_text = None
     return run
+
+
+def _make_deep_analysis(
+    status: DeepAnalysisStatus, tokens_charged: int = 90, error: str | None = None
+) -> DeepAnalysis:
+    analysis = MagicMock(spec=DeepAnalysis)
+    analysis.id = uuid.uuid4()
+    analysis.status = status
+    analysis.tokens_charged = tokens_charged
+    analysis.error_message = error
+    return analysis
 
 
 def _make_user(telegram_id: int | None, token_balance: int = 100) -> User:
@@ -172,6 +187,80 @@ async def test_notify_http_failure_is_swallowed():
         mock_top.return_value = []
         # Must not raise
         await notify_run_complete(run, user, MagicMock())
+
+
+# --- notify_deep_analysis_complete (E20-S3 follow-up: deferred deep-analysis notification) -
+
+
+@pytest.mark.asyncio
+async def test_notify_deep_analysis_done_sends_message_with_link():
+    run = _make_run(RunStatus.done, items=15)
+    analysis = _make_deep_analysis(DeepAnalysisStatus.done, tokens_charged=225)
+    user = _make_user(telegram_id=99999, token_balance=775)
+
+    mock_session = AsyncMock()
+    mock_session.scalar = AsyncMock(return_value=150)
+
+    mock_post = AsyncMock()
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = mock_post
+
+    with (
+        patch("src.services.telegram_notify.get_settings") as mock_settings,
+        patch("src.services.telegram_notify.httpx.AsyncClient", return_value=mock_http),
+    ):
+        mock_settings.return_value.telegram_bot_token = "token123"
+        mock_settings.return_value.web_url = "https://example.com"
+        await notify_deep_analysis_complete(analysis, run, user, mock_session)
+
+    mock_post.assert_called_once()
+    payload = mock_post.call_args[1]["json"]
+    assert payload["chat_id"] == 99999
+    assert "15" in payload["text"]  # publications
+    assert "150" in payload["text"]  # comments analyzed
+    assert "225" in payload["text"]  # tokens charged
+    assert "775" in payload["text"]  # balance
+    assert (
+        f"https://example.com/projects/{run.project_id}/deep-analyses/{analysis.id}"
+        in (payload["text"])
+    )
+
+
+@pytest.mark.asyncio
+async def test_notify_deep_analysis_failed_sends_error_message():
+    run = _make_run(RunStatus.done, items=15)
+    analysis = _make_deep_analysis(DeepAnalysisStatus.failed, error="Не удалось сформировать отчёт")
+    user = _make_user(telegram_id=88888, token_balance=100)
+
+    mock_post = AsyncMock()
+    mock_http = AsyncMock()
+    mock_http.__aenter__ = AsyncMock(return_value=mock_http)
+    mock_http.__aexit__ = AsyncMock(return_value=False)
+    mock_http.post = mock_post
+
+    with (
+        patch("src.services.telegram_notify.get_settings") as mock_settings,
+        patch("src.services.telegram_notify.httpx.AsyncClient", return_value=mock_http),
+    ):
+        mock_settings.return_value.telegram_bot_token = "token123"
+        mock_settings.return_value.web_url = "https://example.com"
+        await notify_deep_analysis_complete(analysis, run, user, AsyncMock())
+
+    payload = mock_post.call_args[1]["json"]
+    assert "Не удалось сформировать отчёт" in payload["text"]
+    assert "100" in payload["text"]
+
+
+@pytest.mark.asyncio
+async def test_notify_deep_analysis_skipped_when_no_telegram_id():
+    run = _make_run(RunStatus.done)
+    analysis = _make_deep_analysis(DeepAnalysisStatus.done)
+    user = _make_user(telegram_id=None)
+    with patch("src.services.telegram_notify.httpx.AsyncClient") as mock_client:
+        await notify_deep_analysis_complete(analysis, run, user, AsyncMock())
+    mock_client.assert_not_called()
 
 
 # --- _top_items_lines against a real DB (virality ranking + formatting) --------------------

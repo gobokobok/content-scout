@@ -1,4 +1,3 @@
-import math
 import uuid
 from datetime import UTC, datetime
 
@@ -18,11 +17,12 @@ class InsufficientTokenBalanceError(Exception):
 
 
 def compute_tokens_charged(items_count: int, settings: Settings) -> int:
-    """D26 layer-2: a deep analysis burns `ceil(items_count * multiplier)` tokens.
-
-    `deep_analysis_token_multiplier` is a placeholder pending real DEV usage_events (D35).
-    """
-    return math.ceil(items_count * settings.deep_analysis_token_multiplier)
+    """D26 layer-2 / D48: the up-front hold, before extraction has run and the real comment
+    counts are known — 1 token per publication + 1 token per comment, assuming every item
+    reaches the configured per-post comment target. This is a ceiling, not a guess that has
+    to be precise: `deep_analysis_synthesis.py:_reconcile_real_usage` refunds the difference
+    down to actual usage once extraction finishes."""
+    return items_count * (1 + settings.deep_analysis_comments_per_post)
 
 
 async def start_deep_analysis(

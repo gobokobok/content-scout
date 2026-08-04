@@ -201,12 +201,10 @@ async def test_synthesize_report_malformed_tool_input_marks_failed(session: Asyn
     assert analysis.status == DeepAnalysisStatus.failed
 
 
-async def test_synthesize_report_thin_coverage_strips_sections_and_refunds_tokens(
-    session: AsyncSession,
-) -> None:
+async def test_synthesize_report_thin_coverage_strips_sections(session: AsyncSession) -> None:
     user = await make_user(session, token_balance=1000)
     run = await make_run(session, requested_by=user)
-    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=10)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=100)
     # Two items, neither with any fetched comments — coverage ratio 0.0, below the 0.5 default.
     await _make_done_extraction_item(
         session, run, deep_analysis_id=analysis.id, comments_analyzed_count=0
@@ -233,16 +231,48 @@ async def test_synthesize_report_thin_coverage_strips_sections_and_refunds_token
         == _VALID_REPORT["recommendations"]["content_ideas"]
     )
 
-    # 10 tokens charged up front -> reduced to ceil(10 * 0.5) = 5, 5 refunded.
-    assert analysis.tokens_charged == 5
+    # D48: real usage is 2 items + 0 comments = 2 tokens, regardless of the thin-coverage
+    # strip above — no separate discount multiplier needed, usage-based billing already
+    # reflects the thin data.
+    assert analysis.tokens_charged == 2
     await session.refresh(user)
-    assert user.token_balance == 1005
+    assert user.token_balance == 1098
 
 
-async def test_synthesize_report_full_coverage_does_not_refund(session: AsyncSession) -> None:
+async def test_synthesize_report_reconciles_charge_to_real_item_and_comment_count(
+    session: AsyncSession,
+) -> None:
+    """D48: 1 token per publication analyzed + 1 token per comment actually analyzed —
+    reconciled down from the up-front hold once extraction's real counts are known."""
     user = await make_user(session, token_balance=1000)
     run = await make_run(session, requested_by=user)
-    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=10)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=100)
+    await _make_done_extraction_item(
+        session, run, deep_analysis_id=analysis.id, comments_analyzed_count=5
+    )
+    await _make_done_extraction_item(
+        session, run, deep_analysis_id=analysis.id, comments_analyzed_count=3
+    )
+    await session.commit()
+
+    fake_client = _FakeClient(_tool_use_response(_VALID_REPORT))
+    await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    # 2 items + (5 + 3) comments = 10 real tokens; 90 refunded from the 100 held up front.
+    assert analysis.tokens_charged == 10
+    assert "comment_coverage_degraded" not in analysis.report_stats
+    await session.refresh(user)
+    assert user.token_balance == 1090
+
+
+async def test_synthesize_report_reconcile_does_not_refund_when_hold_already_matches(
+    session: AsyncSession,
+) -> None:
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(session, requested_by=user)
+    # Held exactly 1 item + 5 comments = 6 up front — no discrepancy to refund.
+    analysis = await make_deep_analysis(session, run=run, requested_by=user, tokens_charged=6)
     await _make_done_extraction_item(
         session, run, deep_analysis_id=analysis.id, comments_analyzed_count=5
     )
@@ -252,8 +282,7 @@ async def test_synthesize_report_full_coverage_does_not_refund(session: AsyncSes
     await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
     await session.commit()
 
-    assert analysis.tokens_charged == 10
-    assert "comment_coverage_degraded" not in analysis.report_stats
+    assert analysis.tokens_charged == 6
     await session.refresh(user)
     assert user.token_balance == 1000
 

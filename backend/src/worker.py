@@ -40,7 +40,7 @@ from src.services.run_summary import generate_run_summary
 from src.services.runs import resolve_target_accounts
 from src.services.scheduled_runs import fire_due_schedules
 from src.services.summarizer import summarize_run_items
-from src.services.telegram_notify import notify_run_complete
+from src.services.telegram_notify import notify_deep_analysis_complete, notify_run_complete
 from src.services.usage import rollup_run_totals
 
 # arq's own logging.config.dictConfig only configures the "arq" namespace (see arq/logs.py) —
@@ -235,7 +235,11 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             run.error_message = _TOKEN_BALANCE_EXHAUSTED_MSG
         await session.commit()
         requesting_user = requesting_user or await session.get(User, run.requested_by)
-        if requesting_user and run.notify_on_complete:
+        # deep_analysis runs defer their completion notification until the Разбор itself
+        # finishes (see maybe_start_deep_analysis / process_deep_analysis below) — notifying
+        # here would tell the user the run is "done" while only the base scrape has actually
+        # finished, minutes before the real Analysis result exists.
+        if requesting_user and run.notify_on_complete and run.run_type != "deep_analysis":
             await notify_run_complete(run, requesting_user, session)
 
     except asyncio.CancelledError:
@@ -289,10 +293,27 @@ async def maybe_start_deep_analysis(session: AsyncSession, run: AnalysisRun) -> 
         logger.info("Skipping auto deep-analysis for run_id=%s: insufficient token balance", run.id)
         run.deep_analysis_skip_reason = "insufficient_tokens"
         await session.commit()
+        await _notify_base_scrape_only(session, run)
     except Exception:  # noqa: BLE001 — logged, never lets chaining fail the base run
         logger.exception("Auto deep-analysis chaining failed for run_id=%s", run.id)
         run.deep_analysis_skip_reason = "error"
         await session.commit()
+        await _notify_base_scrape_only(session, run)
+
+
+async def _notify_base_scrape_only(session: AsyncSession, run: AnalysisRun) -> None:
+    """The deep_analysis notification was deferred by process_run on the assumption the
+    auto-chain would pick it up (see maybe_start_deep_analysis) — when the chain never even
+    starts, this is the only notification the user gets, so it must still fire here rather
+    than silently never sending one."""
+    if not run.notify_on_complete:
+        return
+    try:
+        user = await session.get(User, run.requested_by)
+        if user:
+            await notify_run_complete(run, user, session)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 async def run_analysis(ctx: dict, run_id: str) -> None:
@@ -371,6 +392,7 @@ async def process_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -
 
         await synthesize_report(session, analysis, user_id=analysis.requested_by)
         await session.commit()
+        await _notify_deep_analysis(session, analysis)
     except asyncio.CancelledError:
         # CancelledError is a BaseException, not Exception — arq's job_timeout cancels the
         # task via asyncio.wait_for, which would otherwise bypass the except Exception below
@@ -382,10 +404,25 @@ async def process_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -
             )
         )
         await asyncio.shield(session.commit())
+        await asyncio.shield(_notify_deep_analysis(session, analysis))
         raise
     except Exception as exc:  # noqa: BLE001 — worker boundary: never let a deep analysis hang
         await fail_deep_analysis(session, analysis, str(exc), user_id=analysis.requested_by)
         await session.commit()
+        await _notify_deep_analysis(session, analysis)
+
+
+async def _notify_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -> None:
+    """Fires once the full deep_analysis pipeline (scrape -> comments -> synthesis) is
+    actually done — see process_run's deferred notification and _notify_base_scrape_only's
+    skip-path fallback for the other two places this run's single notification can come from."""
+    try:
+        run = await session.get(AnalysisRun, analysis.run_id)
+        user = await session.get(User, analysis.requested_by)
+        if run and user and run.notify_on_complete:
+            await notify_deep_analysis_complete(analysis, run, user, session)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 async def run_deep_analysis(ctx: dict, deep_analysis_id: str) -> None:

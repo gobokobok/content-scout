@@ -9,11 +9,20 @@ import html
 import logging
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import get_settings
-from src.models import Account, AnalysisRun, ContentItem, RunStatus, User
+from src.config import Settings, get_settings
+from src.models import (
+    Account,
+    AnalysisRun,
+    ContentItem,
+    DeepAnalysis,
+    DeepAnalysisItem,
+    DeepAnalysisStatus,
+    RunStatus,
+    User,
+)
 from src.services.metrics import virality_baseline_subquery, virality_ratio_expr
 
 logger = logging.getLogger(__name__)
@@ -93,6 +102,53 @@ async def notify_run_complete(run: AnalysisRun, user: User, session: AsyncSessio
         error = _esc((run.error_message or "—")[:200])
         text = f"❌ Анализ завершился с ошибкой.\n\n{error}\n\n{balance_line}"
 
+    await _send(settings, user, text)
+
+
+async def notify_deep_analysis_complete(
+    analysis: DeepAnalysis, run: AnalysisRun, user: User, session: AsyncSession
+) -> None:
+    """Sent when a deep_analysis run's full pipeline (scrape -> comments -> synthesis)
+    finishes, not just its base scrape. `notify_run_complete` above fires immediately after
+    the base scrape for `stat_collection` runs; for `deep_analysis` runs that notification is
+    deliberately skipped (see worker.py's `process_run`) and this one fires instead, once the
+    Разбор itself is actually done — otherwise the user got a "done" DM for a Review-shaped
+    summary of a run they asked to Analyze, minutes before the real result was ready."""
+    settings = get_settings()
+    if not settings.telegram_bot_token or user.telegram_id is None:
+        return
+
+    balance_line = f"Баланс токенов: <b>{user.token_balance}</b>"
+
+    if analysis.status == DeepAnalysisStatus.done:
+        comments_count = await session.scalar(
+            select(func.coalesce(func.sum(DeepAnalysisItem.comments_analyzed_count), 0)).where(
+                DeepAnalysisItem.deep_analysis_id == analysis.id
+            )
+        )
+        link = (
+            f"{settings.web_url.rstrip('/')}/projects/{run.project_id}/deep-analyses/{analysis.id}"
+        )
+        parts = [
+            "✅ Разбор завершён!",
+            (
+                f"Аккаунтов проверено: <b>{run.progress_accounts or 0}</b> · "
+                f"публикаций: <b>{run.progress_items or 0}</b> · "
+                f"комментариев: <b>{comments_count or 0}</b>"
+            ),
+            f"Токенов потрачено: <b>{analysis.tokens_charged}</b>",
+            f'<a href="{link}">Открыть разбор →</a>',
+            balance_line,
+        ]
+        text = "\n\n".join(parts)
+    else:
+        error = _esc((analysis.error_message or "—")[:200])
+        text = f"❌ Разбор завершился с ошибкой.\n\n{error}\n\n{balance_line}"
+
+    await _send(settings, user, text)
+
+
+async def _send(settings: Settings, user: User, text: str) -> None:
     try:
         url = _BOT_API.format(token=settings.telegram_bot_token)
         async with httpx.AsyncClient(timeout=5) as client:

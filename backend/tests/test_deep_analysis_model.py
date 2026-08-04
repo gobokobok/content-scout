@@ -13,7 +13,7 @@ from tests.conftest import make_content_item, make_project, make_run, make_user
 
 
 def _settings(**overrides) -> Settings:
-    overrides.setdefault("deep_analysis_token_multiplier", 10.0)
+    overrides.setdefault("deep_analysis_comments_per_post", 9)  # -> 10 tokens/item held
     return Settings(**overrides)
 
 
@@ -35,9 +35,10 @@ async def test_deep_analysis_roundtrip_and_defaults(session: AsyncSession) -> No
     assert analysis.completed_at is None
 
 
-def test_compute_tokens_charged_rounds_up() -> None:
-    settings = _settings(deep_analysis_token_multiplier=2.5)
-    assert compute_tokens_charged(3, settings) == 8  # ceil(7.5)
+def test_compute_tokens_charged_is_one_per_item_plus_configured_comments_ceiling() -> None:
+    # D48: 1 token/item + 1 token/comment, holding for the configured per-post comment target.
+    settings = _settings(deep_analysis_comments_per_post=4)
+    assert compute_tokens_charged(3, settings) == 15  # 3 items * (1 + 4)
     assert compute_tokens_charged(0, settings) == 0
 
 
@@ -57,9 +58,7 @@ async def test_start_deep_analysis_rejects_insufficient_balance(session: AsyncSe
     await make_content_item(session, run=run)
 
     with pytest.raises(InsufficientTokenBalanceError):
-        await start_deep_analysis(
-            session, run, user, _settings(deep_analysis_token_multiplier=10.0)
-        )
+        await start_deep_analysis(session, run, user, _settings())
 
     assert user.token_balance == 1  # untouched on rejection
 
@@ -73,12 +72,10 @@ async def test_start_deep_analysis_deducts_tokens_and_creates_pending_row(
     await make_content_item(session, run=run)
     await make_content_item(session, run=run)
 
-    analysis = await start_deep_analysis(
-        session, run, user, _settings(deep_analysis_token_multiplier=10.0)
-    )
+    analysis = await start_deep_analysis(session, run, user, _settings())
 
     assert analysis.status == DeepAnalysisStatus.pending
-    assert analysis.tokens_charged == 20
+    assert analysis.tokens_charged == 20  # 2 items * (1 + 9)
     assert analysis.run_id == run.id
     assert analysis.project_id == run.project_id
     assert user.token_balance == 80

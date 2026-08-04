@@ -101,6 +101,61 @@ async def test_process_run_scrapes_mock_content_and_completes(session: AsyncSess
     assert run.total_cost_usd > 0
 
 
+async def test_process_run_deep_analysis_type_does_not_notify_immediately(
+    session: AsyncSession,
+) -> None:
+    """A deep_analysis run's completion notification is deferred to process_deep_analysis
+    (see worker.py) — notifying here would announce "done" before comments/synthesis even
+    start. stat_collection runs are unaffected (see the sibling test below)."""
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        duration_days=3,
+        run_type="deep_analysis",
+    )
+    await session.commit()
+
+    with (
+        patch("src.worker.summarize_run_items", side_effect=_fake_summarize),
+        patch("src.worker.notify_run_complete", new_callable=AsyncMock) as mock_notify,
+    ):
+        await process_run(session, run)
+
+    assert run.status == RunStatus.done
+    mock_notify.assert_not_awaited()
+
+
+async def test_process_run_stat_collection_type_still_notifies_immediately(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        duration_days=3,
+        run_type="stat_collection",
+    )
+    await session.commit()
+
+    with (
+        patch("src.worker.summarize_run_items", side_effect=_fake_summarize),
+        patch("src.worker.notify_run_complete", new_callable=AsyncMock) as mock_notify,
+    ):
+        await process_run(session, run)
+
+    assert run.status == RunStatus.done
+    mock_notify.assert_awaited_once()
+
+
 async def test_process_run_item_limit_mode_fetches_last_n_publications(
     session: AsyncSession,
 ) -> None:
@@ -385,6 +440,33 @@ async def test_process_deep_analysis_transitions_extracting_synthesizing_done(
     assert analysis.status == DeepAnalysisStatus.done
 
 
+async def test_process_deep_analysis_notifies_on_success(session: AsyncSession) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    account = await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(session, project=project, requested_by=user, duration_days=1)
+    await make_content_item(session, run=run, account=account)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    await session.commit()
+
+    async def _fake_extract(session, deep_analysis_id, items, *, user_id, **_kwargs) -> None:
+        pass
+
+    async def _fake_synthesize(session, analysis_arg, *, user_id, **_kwargs) -> None:
+        analysis_arg.status = DeepAnalysisStatus.done
+
+    with (
+        patch("src.worker.extract_deep_analysis_items", side_effect=_fake_extract),
+        patch("src.worker.synthesize_report", side_effect=_fake_synthesize),
+        patch("src.worker.notify_deep_analysis_complete", new_callable=AsyncMock) as mock_notify,
+    ):
+        await process_deep_analysis(session, analysis)
+
+    mock_notify.assert_awaited_once()
+    assert mock_notify.call_args[0][0] is analysis
+
+
 async def test_process_deep_analysis_exception_marks_failed(session: AsyncSession) -> None:
     project = await make_project(session)
     run = await make_run(session, project=project, duration_days=1)
@@ -395,7 +477,10 @@ async def test_process_deep_analysis_exception_marks_failed(session: AsyncSessio
     async def _boom(*args, **kwargs):
         raise RuntimeError("extraction exploded")
 
-    with patch("src.worker.extract_deep_analysis_items", side_effect=_boom):
+    with (
+        patch("src.worker.extract_deep_analysis_items", side_effect=_boom),
+        patch("src.worker.notify_deep_analysis_complete", new_callable=AsyncMock) as mock_notify,
+    ):
         await process_deep_analysis(session, analysis)
 
     assert analysis.status == DeepAnalysisStatus.failed
@@ -404,6 +489,8 @@ async def test_process_deep_analysis_exception_marks_failed(session: AsyncSessio
     # A hard failure delivers zero report — the up-front charge is refunded in full.
     assert analysis.tokens_charged == 0
     assert user.token_balance == 160
+    # A failed deep analysis still notifies — with the failure message, not silence.
+    mock_notify.assert_awaited_once()
 
 
 async def test_process_deep_analysis_cancellation_marks_failed(session: AsyncSession) -> None:
@@ -548,7 +635,10 @@ async def test_maybe_start_deep_analysis_skips_silently_on_insufficient_balance(
     await make_content_item(session, run=run, account=account)
     await session.commit()
 
-    with patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue:
+    with (
+        patch("src.worker.enqueue_deep_analysis", new=AsyncMock()) as mock_enqueue,
+        patch("src.worker.notify_run_complete", new_callable=AsyncMock) as mock_notify,
+    ):
         await maybe_start_deep_analysis(session, run)  # must not raise
 
     mock_enqueue.assert_not_awaited()
@@ -558,6 +648,9 @@ async def test_maybe_start_deep_analysis_skips_silently_on_insufficient_balance(
     assert count == 0
     assert user.token_balance == 0
     assert run.deep_analysis_skip_reason == "insufficient_tokens"
+    # The chain never started, so process_deep_analysis will never notify — this is the only
+    # notification the user gets for this run, and it must still fire.
+    mock_notify.assert_awaited_once()
 
 
 async def test_maybe_start_deep_analysis_records_error_reason_on_unexpected_exception(
@@ -579,7 +672,11 @@ async def test_maybe_start_deep_analysis_records_error_reason_on_unexpected_exce
     await make_content_item(session, run=run, account=account)
     await session.commit()
 
-    with patch("src.worker.start_deep_analysis", side_effect=RuntimeError("boom")):
+    with (
+        patch("src.worker.start_deep_analysis", side_effect=RuntimeError("boom")),
+        patch("src.worker.notify_run_complete", new_callable=AsyncMock) as mock_notify,
+    ):
         await maybe_start_deep_analysis(session, run)  # must not raise
 
     assert run.deep_analysis_skip_reason == "error"
+    mock_notify.assert_awaited_once()

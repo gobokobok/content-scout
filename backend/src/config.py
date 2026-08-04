@@ -88,11 +88,14 @@ class Settings(BaseSettings):
     claude_input_token_cost_usd: float = 0.000001
     claude_output_token_cost_usd: float = 0.000005
 
-    # E17: Run Deep Analysis paid add-on. deep_analysis_token_multiplier is an explicit
-    # placeholder (D35) — the real value is set only after reading a real pilot run's
-    # usage_events totals on DEV, since comment-scraping cost (D32/D34) doesn't scale like
-    # the base run's flat per-item Apify rate a naive guess would assume.
-    deep_analysis_token_multiplier: float = 15.0
+    # E17/D48: Run Deep Analysis token charging — 1 token per publication analyzed + 1 token
+    # per comment actually analyzed (superseded the old flat deep_analysis_token_multiplier
+    # estimate, D35, which assumed 15 tokens/item regardless of how many comments were really
+    # fetched — a live DEV run showed the real comment count is capped well below what was
+    # being charged for). deep_analysis_comments_per_post sizes the up-front hold only (the
+    # real charge is reconciled down to actual usage once extraction finishes — see
+    # services/deep_analysis.py:compute_tokens_charged and
+    # services/deep_analysis_synthesis.py:_reconcile_real_usage).
     deep_analysis_comments_per_post: int = 25  # D34
 
     # E17-S2: comment scraping, dual-vendor per D32. Primary actor's pricing has two
@@ -116,10 +119,10 @@ class Settings(BaseSettings):
     deep_analysis_synthesis_max_tokens: int = 8192
 
     # E17-S9: below this share of `done` items having any fetched comments, the report
-    # degrades to content-layer-only (comment-derived sections stripped) and the customer is
-    # only charged deep_analysis_thin_coverage_multiplier of the full rate.
+    # degrades to content-layer-only (comment-derived sections stripped) — pricing no longer
+    # needs a separate multiplier here (D48): real-usage billing already charges less on a
+    # thin-coverage run, since fewer comments were actually analyzed.
     deep_analysis_comment_coverage_threshold: float = 0.5
-    deep_analysis_thin_coverage_multiplier: float = 0.5
 
     # E5-S5: self-relative virality badge thresholds (item's performance_ratio vs. that
     # account's own median in the run) — tunable without a code change, same pattern as the

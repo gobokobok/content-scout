@@ -2205,18 +2205,20 @@ frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/messages/ru.jso
 ### Handover
 Opened 2026-08-03 from E21-S1's scoping discussion (see BACKLOG.md's `[E21-S1]` entry and DECISIONS.md's D43). Standalone — ships independently of E21, doesn't depend on the Analysis decoupling work.
 
-## [E15-S5] Review results: competitor drill-down modal
+## [E15-S5] Run results: settings + competitor drill-down modal (Review and Analysis)
 **Epic:** Run Detail View
 **Sprint:** unassigned
 **Status:** backlog
 **Priority:** medium
 **Depends on:** none
 ### Goal
-Direct user request during E21-S1's scoping session: on a run's Summary tab, let the user tap through to see which competitor accounts were actually included in that run — a read-only, scrollable bottom sheet listing the accounts, not a live edit surface. Supports the stated core Review use case ("every morning, what did my competitors post in the last 24h, top viral") by making it easy to confirm scope at a glance without leaving the run.
+Originally opened 2026-08-03 (E21-S1's scoping session) scoped to just a competitor drill-down; **broadened 2026-08-04** after a direct user request made while debugging two real DEV Analysis runs together — having just spent that session cross-referencing Apify/Railway logs to reconstruct what a run's actual settings were (item_limit vs duration_days, which accounts), the user asked for this to be visible in the app itself: a settings icon on a run's summary card opening a read-only bottom sheet with the run's configuration (scope: N дней / последние N публикаций, plus which accounts were included) — no more guessing or log-diving to answer "what did this run actually run with." Applies to **both** Review (`runs/[runId]`) and Analysis (`deep-analyses/[analysisId]`) result pages — the Analysis report page is exactly where this session's confusion started (its summary card shows counts but not scope).
 ### Acceptance Criteria
-- [ ] Summary tab's "Конкуренты" KPI row (or a new affordance near it) opens a `BottomSheet` (reuse `components/ui/bottom-sheet.tsx` — same component already used for the top-virality item detail on this page) listing every account included in the run: handle, display name/avatar if available, scrollable
-- [ ] Read-only — no remove/edit actions inside the sheet
-- [ ] Backend: confirm whether the account list for a run can already be derived from existing data (`AnalysisRun.account_ids`, a join via `ContentItem.account_id` for accounts that returned data, `Account.status`/`fail_reason` for ones that failed) or needs a new small endpoint — check before assuming new API surface is required
+- [ ] A settings-icon affordance on the run summary card (both the Review run-detail page's Summary tab and the Analysis report page's summary card) opens a `BottomSheet` (reuse `components/ui/bottom-sheet.tsx`)
+- [ ] Sheet shows the run's scope in the same "N дней" / "последние N публикаций" phrasing E3-S7 already established elsewhere (`duration_days` vs `item_limit`, exactly one set)
+- [ ] Sheet also lists every account included in the run: handle, display name/avatar if available, scrollable — this is the original AC, unchanged
+- [ ] Read-only throughout — no remove/edit actions inside the sheet
+- [ ] Backend: confirm whether scope + account list can already be derived from existing data (`AnalysisRun.duration_days`/`item_limit`/`account_ids`, a join via `ContentItem.account_id` for accounts that returned data, `Account.status`/`fail_reason` for ones that failed) or needs a new small endpoint/field added to `RunOut`/`DeepAnalysisOut` — check before assuming new API surface is required
 ### Definition of Done
 - [ ] All AC checked
 - [ ] Tests written and passing
@@ -2225,13 +2227,13 @@ Direct user request during E21-S1's scoping session: on a run's Summary tab, let
 - [ ] DONE.md updated
 - [ ] BACKLOG.md updated
 ### Smoke test
-Open a finished run with several competitors (including at least one that failed to scrape), tap into the drill-down, confirm all accounts appear with a sensible failed/succeeded indication if that ends up in scope.
+Open a finished Review run and a finished Analysis run, each with several competitors (including at least one that failed to scrape) and a known scope setting, tap into the settings sheet on each, confirm scope phrasing matches what was actually configured and all accounts appear with a sensible failed/succeeded indication if that ends up in scope.
 ### Files to read
-CLAUDE.md, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/components/ui/bottom-sheet.tsx, backend/src/api/runs.py, backend/src/models/analysis_run.py
+CLAUDE.md, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, frontend/components/ui/bottom-sheet.tsx, backend/src/api/runs.py, backend/src/api/deep_analyses.py, backend/src/models/analysis_run.py
 ### Files to create or modify
-frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, possibly backend/src/api/runs.py, frontend/lib/api.ts, frontend/messages/ru.json
+frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, possibly backend/src/api/runs.py, backend/src/api/deep_analyses.py, frontend/lib/api.ts, frontend/messages/ru.json
 ### Handover
-Opened 2026-08-03 from E21-S1's scoping discussion. Standalone, no dependency on E21.
+Opened 2026-08-03 from E21-S1's scoping discussion (accounts-only). Broadened 2026-08-04 (direct user request, same session as D48) to also cover run scope (duration_days/item_limit) and both result pages, not just Review — see this story's Goal for the concrete incident that prompted it. Standalone, no dependency on E21.
 
 ## [E16-S1] Analysis teaser page
 **Epic:** Analysis Teaser
@@ -3137,6 +3139,8 @@ CLAUDE.md, backend/src/worker.py, backend/src/services/deep_analysis.py, backend
 backend/src/worker.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_extraction.py, backend/src/api/deep_analyses.py, backend/src/models/ (possible schema change, new migration), frontend/components/run-dialog.tsx, frontend/components/run-type-picker-sheet.tsx, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, frontend/messages/ru.json, DECISIONS.md
 ### Handover
 Opened 2026-08-03 from `[E21-S1]`'s scoping session. This is the largest piece of E21 — likely worth its own further breakdown (schema/migration first, then worker pipeline, then frontend) once picked up, same pattern E14/E17 used for their own multi-step epics. Land `[E20-S1]` first (or at minimum coordinate closely) to avoid duplicating the comment-scraping call-site work.
+
+**Scope-change note, 2026-08-04 (direct user request, not yet reconciled into the AC above):** while debugging two real Analysis runs, the user described a different entry flow than this story's current "own account-selection step, up to 20 competitors" AC assumes — Analysis would instead offer two distinct starting modes: **(1)** pick a single account, then set scope (N days or N publications), or **(2)** paste the URL of one specific publication, then set the same scope. Read literally this replaces "select up to 20 competitors, multi-select" with "one account (or one anchor post) per Analysis run" — a materially different shape than the 20-competitor-cap AC above, not an additive tweak. Exactly what "scope" means for mode (2) (does pasting one post's URL mean analyze just that post, or that post's account starting from it?) wasn't nailed down in this conversation and needs its own quick scoping pass, the same way `[E21-S1]` resolved D40/D42 before this story's current AC was written. **Recommendation on timing:** resolve this in a short scoping conversation *before* E21-S2 is picked up for implementation — cheapest time to change course is now, before any of the 20-competitor-cap code exists. E21-S2 is already next-up-but-unscheduled behind Sprint 11's current items (E20-S1, then E8-S7); this scoping conversation should happen at whichever point E21-S2 would otherwise start, not as a separate standalone session.
 
 ## [E21-S3] Analysis publications tab
 **Epic:** Standalone Analysis Pipeline
