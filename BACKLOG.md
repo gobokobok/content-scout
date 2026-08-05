@@ -3436,3 +3436,152 @@ backend/src/services/telegram_notify.py, backend/src/services/run_summary.py, do
 - `docs/PROMPTS.md`'s "Run summary" section updated to match, per `run_summary.py`'s own "change there first" header comment (updated together this time since the fix was chat-driven, not a docs-first change).
 - 8 new/extended backend tests across `test_run_summary.py` (ТЕГИ parsing: real counts, no-block backward compat, malformed/out-of-range lines ignored, untagged topics stay plain, `_format_counts_line` unit tests, numbered-prompt-lines integration test) and `test_telegram_notify.py` (new target-format assertions, the progress_items-vs-progress_summarized regression test, updated failed-message header). Full suite 362 passed (up from 354). ruff/ruff format/mypy clean.
 - No frontend changes, no new dependencies, no ENV vars, no migration.
+
+## [E17-S12] Deep-analysis synthesis retry on malformed tool_use output
+**Epic:** Run Deep Analysis
+**Sprint:** 12
+**Status:** done
+**Completed:** 2026-08-04
+**Priority:** high
+**Depends on:** E17-S11
+### Goal
+Real DEV incident, found immediately after `[E17-S11]`'s truncation fix shipped: a new, distinct failure (`Не удалось сформировать отчёт`) surfaced on the very next Analysis run. Root-caused via `railway logs`: the Sonnet synthesis call completed normally (`stop_reason=tool_use`, not `max_tokens` — the truncation fix held), but the model's tool-call arguments contained only a `recommendations` key, omitting the required `stats` key entirely, despite `tool_choice` forcing the `submit_deep_analysis_report` tool. `tool_choice` guarantees a tool call happens, not that its arguments satisfy the schema's `required` list — a new failure mode, not a recurrence of E17-S11's.
+### Acceptance Criteria
+- [x] `synthesize_report` retries the Sonnet call once (`_MAX_SYNTHESIS_ATTEMPTS = 2`) when the tool_use output is missing or fails to include both `stats` and `recommendations`, before marking the analysis failed
+- [x] Every attempt is recorded as its own `usage_events` row — each is a real billed Anthropic call regardless of whether it parses, not just the successful one
+- [x] New regression test reproducing the incident shape (first response missing `stats`, second valid)
+### Definition of Done
+- [x] AC (code + tests) checked
+- [x] `ruff check`, `ruff format --check`, `mypy src` clean — full suite 340 passed (up 1)
+- [x] Deployed to DEV, CI green
+- [ ] Smoke test passed — deferred, see below
+- [x] DONE.md updated (folded into SPRINT.md's untracked-fix note at the time; this entry is the BACKLOG.md/DONE.md backfill)
+- [x] BACKLOG.md updated (this entry)
+### Smoke test
+DEFERRED at the time — confirmed only indirectly: the notification-timing fix from the prior session (`[E17-S11]`) was reconfirmed working live in the same investigation. A dedicated live confirmation that this specific retry path fires correctly on a real malformed response is still owed, same bucket as `[E19-S3]`'s other deferred items.
+### Files to read
+backend/src/services/deep_analysis_synthesis.py, backend/tests/test_deep_analysis_synthesis.py
+### Files to create or modify
+backend/src/services/deep_analysis_synthesis.py, backend/tests/test_deep_analysis_synthesis.py
+### Handover
+No new code beyond what already shipped in commit `11d412f` (2026-08-04) — this entry is documentation backfill only, per CLAUDE.md's story-tracking discipline (flagged at the time in SPRINT.md's "Untracked fix, 2026-08-04 (Sprint 12 start)" note, backfilled at the 2026-08-05 `/sprint-review`). See that SPRINT.md note for the original session narrative. **Part of a recurring-bug cluster** with `[E21-S4]`/`[E21-S5]` below — see this review's summary.
+
+## [E21-S4] Post-mode Analysis account resolution polluting the competitor list
+**Epic:** Standalone Analysis Pipeline
+**Sprint:** 12 (post-close, same day as Sprint 12's autonomous pass)
+**Status:** done
+**Completed:** 2026-08-04
+**Priority:** high
+**Depends on:** E21-S2
+### Goal
+Direct user report with a screenshot: running a post-mode Analysis (a single-publication URL, D49) was silently adding the resolved post's author to the user's real Конкуренты list — two such accounts (`@spoontamer`, `@tomafatalieva`) visibly polluting the run-creation competitor picker. Root cause: `worker.py:_resolve_or_create_account` always creates a real, visible `Account` row (needed for `ContentItem.account_id`'s non-nullable FK per D50's architecture), with no way to distinguish "a real competitor the user added" from "just resolved for one post's byline."
+### Acceptance Criteria
+- [x] New `Account.hidden` column (migration `e5f6a7b8c9d1`) — post-mode-created accounts are hidden by default
+- [x] Hidden accounts excluded from `GET /projects/{id}/accounts` (the picker) and `resolve_target_accounts` (so a "whole list" Review/Analysis run never scrapes one)
+- [x] Hidden accounts excluded from the 50-per-list cap trigger, extending the same non-archived-only rescoping `[E2-S4]`'s migration `a2b3c4d5e6f7` already did
+- [x] Explicitly re-adding the same handle via "Добавить конкурентов" un-hides the same row in place (mirrors the existing archived-account reactivation pattern) rather than erroring or creating a duplicate
+### Definition of Done
+- [x] AC (code + tests, 8 new/extended) checked
+- [x] `ruff check`, `ruff format --check`, `mypy src` clean; full suite 378 passed (up from 371)
+- [x] Deployed to DEV, CI green
+- [ ] Smoke test passed — deferred, see below
+- [x] DONE.md updated (this backfill)
+- [x] BACKLOG.md updated (this entry)
+### Smoke test
+DEFERRED — the user's own screenshot is what surfaced this; a follow-up look at the same run-creation picker (confirming no *new* hidden accounts appear after a fresh post-mode Analysis) is the natural live confirmation. Note left for the user at the time: the two already-visible accounts in the screenshot predate this fix and are not retroactively hidden — remove them manually via the existing competitor-removal UI if unwanted.
+### Files to read
+backend/src/worker.py, backend/src/models/account.py, backend/src/api/projects.py, backend/src/services/runs.py
+### Files to create or modify
+backend/src/worker.py, backend/src/models/account.py, backend/alembic/versions/e5f6a7b8c9d1_add_hidden_to_accounts.py, backend/src/api/projects.py, backend/src/services/runs.py, backend/tests/
+### Handover
+No new code beyond what already shipped in commit `7f31431` (2026-08-04) — this entry is documentation backfill only, per CLAUDE.md's story-tracking discipline (flagged at the time in SPRINT.md's "Post-Sprint-12" note, backfilled at the 2026-08-05 `/sprint-review`). **Part of a recurring-bug cluster** with `[E17-S12]`/`[E21-S5]` — see this review's summary.
+
+## [E21-S5] Deep-analysis synthesis priced at Sonnet rates + base per-run token charge (D51)
+**Epic:** Standalone Analysis Pipeline
+**Sprint:** 12 (post-close)
+**Status:** done
+**Completed:** 2026-08-04
+**Priority:** high
+**Depends on:** E21-S2, E17-S4
+### Goal
+Direct user question ("how much anthropic api costs do we incur with each review and analysis?") led to two confirmed findings: (1) `usage_events` recorded the deep-analysis synthesis call (the pipeline's one Sonnet 5 step, `[E17-S4]`/D33) at the flat Haiku unit cost every other Claude call site uses — Sonnet is ~3x Haiku's per-token cost on both axes, so every Analysis run's real internal cost accounting was under-recorded; (2) D50's incremental per-item/per-comment charging had **zero** charge for the synthesis call itself, whose real cost is fixed per run, not per item — a thin run (e.g. single-post mode) could cost more in real Anthropic spend (~$0.04–0.06 for the Sonnet call alone) than what per-item charging collected.
+### Acceptance Criteria
+- [x] New `claude_sonnet_input_token_cost_usd`/`claude_sonnet_output_token_cost_usd` config constants ($3/$15 per 1M, standard non-intro rate) used for the synthesis call's `usage_events` rows instead of the Haiku constants
+- [x] New flat `deep_analysis_base_charge_tokens` (default 5), charged once on the first response actually received from the synthesis call — not charged if the call raises before returning (no real Anthropic cost incurred), not doubled on a malformed-tool-input retry (flat per-run fee, not per-attempt)
+- [x] `estimate_deep_analysis_tokens`'s pre-confirm ceiling estimate includes the base charge
+- [x] D51 recorded in DECISIONS.md (billing/pricing change, per CLAUDE.md's constraint)
+### Definition of Done
+- [x] AC (code + tests, 7 new/extended) checked
+- [x] `ruff check`, `ruff format --check`, `mypy src` clean; full suite 380 passed (up from 378)
+- [x] Deployed to DEV then tagged `v0.8.0` → PROD, both green
+- [x] DECISIONS.md's D51 added
+- [x] DONE.md updated (this backfill)
+- [x] BACKLOG.md updated (this entry)
+### Smoke test
+DEFERRED — needs a real DEV/PROD Analysis run (ideally single-post mode, the thinnest case) to confirm the base charge shows up in `tokens_charged` and the synthesis `usage_events` rows carry the Sonnet unit cost, not the Haiku one.
+### Files to read
+backend/src/config.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_synthesis.py, DECISIONS.md (D33, D48, D50)
+### Files to create or modify
+backend/src/config.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_synthesis.py, backend/tests/test_deep_analysis_synthesis.py, backend/tests/test_deep_analysis_model.py, backend/tests/test_deep_analyses_api.py, DECISIONS.md
+### Handover
+No new code beyond what already shipped in commit `5dcb1fe` (2026-08-04) — this entry is documentation backfill only, per CLAUDE.md's story-tracking discipline. **Part of a recurring-bug cluster** with `[E17-S12]`/`[E21-S4]` — see this review's summary; three separate Analysis-pipeline bugs found and fixed within ~36 hours of `[E21-S2]` shipping is a real signal, not three unrelated coincidences.
+
+## [E3-S9] Item-limit mode: pinned posts no longer shrink "last N publications"
+**Epic:** Analysis Pipeline
+**Sprint:** 12 (post-close)
+**Status:** done
+**Completed:** 2026-08-05
+**Priority:** high
+**Depends on:** E3-S7
+### Goal
+Direct user report: "when i choose to analyze the last 5 publications, i mean 5, not 5 minus 1 pinned." Root cause: the Apify actor's `resultsLimit` is a raw item cap applied *before* our own pinned-post filtering in `platforms/instagram.py`, and pinned posts are returned ahead of chronological order regardless of age — so `resultsLimit=5` with 1 pinned post yielded `[pinned, item1, item2, item3, item4]`, and the old blanket "always drop pinned" filter then left only 4 real items. The old filter was also wrong in the other direction: it dropped a pinned post even when it genuinely *was* one of the most recent N by date.
+### Acceptance Criteria
+- [x] Item-limit ("last N publications") mode requests `limit + 3` (Instagram's max pinned-post count) from the actor as buffer
+- [x] All returned items (pinned and not) sorted by real `published_at` descending, then capped to the requested `limit` — a pinned post is excluded only when it's genuinely not among the most recent N by date, and included when it is
+- [x] Date-window (`since`) mode gets the same real-date sort plus a defensive client-side re-filter on top of the actor's own `onlyPostsNewerThan` cutoff (belt-and-braces against a pinned post the actor's own filter doesn't catch)
+- [x] New regression tests: old pinned post excluded from an item-limit count, recently-published pinned post included, since-mode defensive re-filter
+### Definition of Done
+- [x] AC (code + tests, 5 new/updated) checked
+- [x] `ruff check`, `ruff format --check`, `mypy src` clean; full suite 385 passed (up from 380)
+- [x] Deployed to DEV then tagged `v0.9.0` → PROD, both green
+- [x] DONE.md updated (this backfill)
+- [x] BACKLOG.md updated (this entry)
+### Smoke test
+DEFERRED — needs a real DEV/PROD Review or Analysis run against an account with at least one pinned post, count-mode scope (e.g. "last 5"), confirming exactly 5 real items come back regardless of pin status, and that a recently-published pinned post (if any) is correctly included rather than dropped.
+### Files to read
+backend/src/platforms/instagram.py, backend/tests/test_instagram_platform.py
+### Files to create or modify
+backend/src/platforms/instagram.py, backend/tests/test_instagram_platform.py
+### Handover
+No new code beyond what already shipped in commit `29cff7f` (2026-08-05) — this entry is documentation backfill only, per CLAUDE.md's story-tracking discipline. Shipped in the same commit/session as `[E22-S2]` below (bundled in the user's original report, split into separate stories here since they're functionally unrelated).
+
+## [E22-S2] Overarching Telegram-notify toggle + notify-skip logging
+**Epic:** Report & Notification Messaging
+**Sprint:** 12 (post-close)
+**Status:** done
+**Completed:** 2026-08-05
+**Priority:** high
+**Depends on:** E14-S6, E22-S1
+### Goal
+Direct user report: the «Уведомлять в Telegram о завершении» toggle (`[E14-S6]`) only ever rendered in run-dialog.tsx's Schedule flow — "run now" had no such field at all and was unconditionally notified, with no opt-out. Separately, the same user report noted a PROD run that produced no Telegram DM at all with no visible cause anywhere in the code or logs — investigated in the same session (see below).
+### Acceptance Criteria
+- [x] New `RunRequestIn.notify_on_complete` (backend, default `True` — preserves "run now"'s pre-existing unconditional-notify behavior for any caller that omits it)
+- [x] `run-dialog.tsx`'s notify toggle moved out of the schedule-only block so it renders for both "Сейчас" and "Запланировать", wired into both `createRun` and the pre-existing `createScheduledRun` call
+- [x] PROD investigation: `railway logs` showed the PROD **api** service successfully registering the Telegram webhook repeatedly, but the PROD **worker** service (the one that actually sends completion DMs) showed **zero** Telegram API calls ever — while the notify guard clauses (`telegram_notify.py`, `worker.py`) were completely silent about *why* a notification was skipped (missing bot token vs. no linked `telegram_id` vs. `notify_on_complete=False`)
+- [x] Added explicit `logger.warning`/`logger.info` at every notify-skip branch identifying the specific reason, so the next occurrence is immediately diagnosable via `railway logs` instead of requiring guesswork
+- [ ] Root cause of the specific PROD incident confirmed — **not resolved this story**, see Handover
+### Definition of Done
+- [x] AC (code + tests, 2 new) checked bar the one open item above
+- [x] `ruff check`, `ruff format --check`, `mypy src` clean; full suite 385 passed (up from 380); frontend `tsc`/`eslint`/`next build` clean
+- [x] Deployed to DEV then tagged `v0.9.0` → PROD, both green
+- [x] DONE.md updated (this backfill)
+- [x] BACKLOG.md updated (this entry)
+### Smoke test
+DEFERRED — needs a real DEV/PROD run created via "Сейчас" with the toggle turned off, confirming no DM arrives; and separately, the PROD worker's `TELEGRAM_BOT_TOKEN` needs checking directly in the Railway dashboard (blocked for the agent — reading Railway env vars is treated as a secret-read and denied by the sandbox's permission classifier).
+### Files to read
+frontend/components/run-dialog.tsx, frontend/lib/api.ts, backend/src/api/runs.py, backend/src/services/telegram_notify.py, backend/src/worker.py
+### Files to create or modify
+frontend/components/run-dialog.tsx, frontend/lib/api.ts, backend/src/api/runs.py, backend/src/services/telegram_notify.py, backend/src/worker.py, backend/tests/test_runs.py
+### Handover
+- No new code beyond what already shipped in commit `29cff7f` (2026-08-05) — this entry is documentation backfill only, per CLAUDE.md's story-tracking discipline.
+- **PROD notify-silence root cause is still open.** Leading hypothesis, in order of likelihood: (a) `TELEGRAM_BOT_TOKEN` is set on PROD's `api` service (confirmed live via successful `setWebhook` calls in its logs) but may not be set the same way on PROD's `worker` service — ENV.md's original Sprint 6 instruction called for setting it on **both**, and this is a plausible per-service Railway config gap (the same class of bug `[E20-S2]`'s memory-pin finding was); (b) the specific run/schedule the user was looking at had `notify_on_complete=False` from before this story's fix landed — very plausible given the toggle didn't exist for "run now" and schedules defaulted it off. **Next step for whoever picks this up**: check PROD worker's env vars directly (the user, not the agent — Railway secret reads are blocked in this sandbox), and/or re-trigger a run and check `railway logs --environment production --service worker` for the new skip-reason log line this story added.
