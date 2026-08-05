@@ -29,3 +29,14 @@ def test_estimate_by_item_limit_scales_with_accounts_and_limit() -> None:
     assert large.apify_units > small.apify_units
     assert small.apify_units == 25
     assert large.apify_units == 2500
+
+
+def test_estimate_tokens_includes_base_charge_distinct_from_apify_units() -> None:
+    """D52: estimated_tokens is the real user-facing token estimate — apify_units plus the
+    flat run-summary base charge — not the same value as apify_units, which stays a pure
+    Apify-unit count feeding estimated_cost_usd's internal $ math."""
+    settings = Settings(review_base_charge_tokens=5)
+    est = estimate_run(settings, accounts_count=5, duration_days=None, item_limit=5)
+
+    assert est.apify_units == 25
+    assert est.estimated_tokens == 30

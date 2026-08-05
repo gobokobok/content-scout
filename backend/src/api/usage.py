@@ -116,7 +116,12 @@ async def get_my_runs(
             duration_days=run.duration_days,
             item_limit=run.item_limit,
             progress_items=run.progress_items,
-            tokens_charged=run.progress_items,
+            # D52: run.progress_items is the total scraped count, not what actually got
+            # charged — same stale-field bug E22-S1 already fixed for the Telegram DM
+            # (progress_summarized there), except this ledger row never got that fix. Now uses
+            # the real per-run total (tokens_charged, D52), which also includes the new base
+            # charge that neither progress_items nor progress_summarized ever covered.
+            tokens_charged=run.tokens_charged,
             total_input_tokens=run.total_input_tokens,
             total_output_tokens=run.total_output_tokens,
             created_at=run.created_at,

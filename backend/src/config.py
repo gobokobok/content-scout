@@ -116,6 +116,14 @@ class Settings(BaseSettings):
     claude_sonnet_input_token_cost_usd: float = 0.000003
     claude_sonnet_output_token_cost_usd: float = 0.000015
 
+    # D52: base token charge per Review run, covering the one run-level Claude summary call
+    # (run_summary.py:generate_run_summary, Haiku) — the Review-side counterpart to D51's
+    # Analysis base charge below, for the same reason: that call previously had zero token
+    # charge attached to it anywhere, only the existing 1-token/publication per-item charge.
+    # Charged once, only if a real response actually comes back from that call (not charged if
+    # it raises before returning — no real Anthropic cost was incurred).
+    review_base_charge_tokens: int = 5
+
     # D51: base token charge per Analysis run, covering the one fixed-cost Sonnet synthesis call
     # (D33/E17-S4) that D50's incremental per-item charging never accounted for — that call's
     # real cost doesn't shrink with fewer items, so a thin run (e.g. single-post mode) could

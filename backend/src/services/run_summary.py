@@ -18,6 +18,7 @@ from src.models import (
     ContentType,
     RunSummaryStatus,
     UsageEvent,
+    User,
 )
 
 _TYPE_LABELS_RU = {
@@ -189,6 +190,17 @@ async def generate_run_summary(
                 }
             ],
         )
+        # D52: flat base charge for this one run-level call, applied once we know it actually
+        # got a response — mirrors D51's Analysis-side base charge and charge_tokens_for_item's
+        # floor-at-balance pattern rather than letting token_balance go negative.
+        requesting_user = await session.get(User, user_id)
+        if requesting_user is not None:
+            base_charge = min(
+                settings.review_base_charge_tokens, max(requesting_user.token_balance, 0)
+            )
+            requesting_user.token_balance -= base_charge
+            run.tokens_charged += base_charge
+
         text = "".join(block.text for block in response.content if block.type == "text").strip()
         summary_text, topics = parse_summary_response(text)
 

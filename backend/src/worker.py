@@ -205,6 +205,10 @@ async def _finish_run(session: AsyncSession, run: AnalysisRun, settings: Setting
                 http_client=http_client,
             )
             run.progress_summarized += len(batch)
+            # D52: tokens_charged is the real per-run total (this per-item charge here, plus
+            # generate_run_summary's own base charge below) — progress_summarized stays an
+            # item-count progress counter, tokens_charged is the billing-authoritative field.
+            run.tokens_charged += len(batch)
 
             if requesting_user is not None:
                 requesting_user.token_balance = max(0, requesting_user.token_balance - len(batch))

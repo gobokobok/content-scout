@@ -11,6 +11,11 @@ class RunEstimate:
     claude_input_tokens: int
     claude_output_tokens: int
     estimated_cost_usd: Decimal
+    # D52: the real user-facing token estimate — apify_units (1/publication) plus the flat
+    # run-summary base charge — distinct from apify_units itself, which stays a pure Apify-unit
+    # count feeding estimated_cost_usd's internal $ math and must not be inflated by a
+    # token-currency-only charge.
+    estimated_tokens: int
 
 
 def estimate_run(
@@ -41,4 +46,5 @@ def estimate_run(
         claude_input_tokens=claude_input_tokens,
         claude_output_tokens=claude_output_tokens,
         estimated_cost_usd=cost.quantize(Decimal("0.0001")),
+        estimated_tokens=apify_units + settings.review_base_charge_tokens,
     )

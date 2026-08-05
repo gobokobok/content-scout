@@ -86,6 +86,10 @@ async def test_process_run_scrapes_mock_content_and_completes(session: AsyncSess
     assert run.progress_accounts == 1
     assert run.progress_items == 3
     assert run.progress_summarized == 3
+    # D52: at minimum the per-item charge lands in tokens_charged too (generate_run_summary's
+    # own base charge only fires on a real Claude response, not exercised by this real-client,
+    # no-network-in-tests path, so no assertion on the exact base-charge amount here).
+    assert run.tokens_charged >= 3
     assert run.finished_at is not None
 
     items = (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()

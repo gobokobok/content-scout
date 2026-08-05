@@ -772,7 +772,7 @@ export function RunDialog({
                       ? t("costEstimateValue", { count: deepEstimateTokens })
                       : "…"
                     : estimate
-                      ? t("costEstimateValue", { count: estimate.apify_units })
+                      ? t("costEstimateValue", { count: estimate.estimated_tokens })
                       : "…"}
                 </span>
               </div>

@@ -28,7 +28,7 @@ def _make_run(
     status: RunStatus,
     items: int = 5,
     error: str | None = None,
-    progress_summarized: int | None = None,
+    tokens_charged: int | None = None,
 ) -> AnalysisRun:
     run = MagicMock(spec=AnalysisRun)
     run.id = uuid.uuid4()
@@ -37,9 +37,9 @@ def _make_run(
     run.progress_accounts = 2
     run.progress_items = items
     # Defaults to items (the common case: nothing truncated) unless a test wants to prove the
-    # two counters diverge (E22-S1 — progress_items is never adjusted down on a mid-run
-    # token-balance exhaustion, so it's the wrong field for "tokens actually spent").
-    run.progress_summarized = progress_summarized if progress_summarized is not None else items
+    # two counters diverge — tokens_charged (D52) is never inflated by a scrape that outran
+    # what actually got charged, unlike progress_items (E22-S1's finding).
+    run.tokens_charged = tokens_charged if tokens_charged is not None else items
     run.error_message = error
     run.summary_text = None
     return run
@@ -130,11 +130,12 @@ async def test_notify_done_sends_message_with_link():
 
 
 @pytest.mark.asyncio
-async def test_notify_done_tokens_spent_uses_progress_summarized_not_progress_items():
+async def test_notify_done_tokens_spent_uses_tokens_charged_not_progress_items():
     """E22-S1 real finding: progress_items is the total scraped count, never adjusted down when
     a mid-run token-balance exhaustion summarizes (and charges) fewer items than were scraped —
-    progress_summarized is the field that actually tracks what got charged."""
-    run = _make_run(RunStatus.done, items=50, progress_summarized=30)
+    tokens_charged (D52) is the field that actually tracks what got charged, and also includes
+    the run-summary base charge progress_summarized never did."""
+    run = _make_run(RunStatus.done, items=50, tokens_charged=35)
     user = _make_user(telegram_id=99999, token_balance=0)
 
     mock_post = AsyncMock()
@@ -156,7 +157,7 @@ async def test_notify_done_tokens_spent_uses_progress_summarized_not_progress_it
     payload = mock_post.call_args[1]["json"]
     text = payload["text"]
     assert "- Публикаций найдено: <b>50</b>" in text
-    assert "Потрачено токенов: <b>30</b>" in text
+    assert "Потрачено токенов: <b>35</b>" in text
 
 
 @pytest.mark.asyncio

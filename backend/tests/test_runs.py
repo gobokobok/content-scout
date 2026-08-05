@@ -86,6 +86,9 @@ async def test_estimate_with_item_limit(session: AsyncSession) -> None:
         assert resp.status_code == 200
         body = resp.json()
         assert body["apify_units"] == 40  # 4 accounts * 10 items
+        # D52: real user-facing token estimate includes the run-summary base charge (default
+        # 5), distinct from apify_units which stays a pure Apify-unit count.
+        assert body["estimated_tokens"] == 45
 
 
 async def test_run_request_rejects_both_duration_and_item_limit(session: AsyncSession) -> None:

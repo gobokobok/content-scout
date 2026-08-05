@@ -108,6 +108,9 @@ class EstimateOut(BaseModel):
     claude_output_tokens: int
     estimated_cost_usd: Decimal
     accounts_count: int
+    # D52: real user-facing token estimate (apify_units + the run-summary base charge) — what
+    # the run-dialog's "≈ N ток." figure should show, distinct from apify_units.
+    estimated_tokens: int
 
 
 class RunOut(BaseModel):
@@ -255,6 +258,7 @@ async def estimate_project_run(
         claude_output_tokens=est.claude_output_tokens,
         estimated_cost_usd=est.estimated_cost_usd,
         accounts_count=len(accounts),
+        estimated_tokens=est.estimated_tokens,
     )
 
 

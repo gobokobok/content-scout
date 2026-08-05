@@ -220,7 +220,7 @@ async def test_generate_run_summary_falls_back_to_caption(session: AsyncSession)
 
 
 async def test_generate_run_summary_no_items_marks_failed(session: AsyncSession) -> None:
-    user = await make_user(session)
+    user = await make_user(session, token_balance=100)
     run = await make_run(session, requested_by=user)
     await session.commit()
 
@@ -230,10 +230,13 @@ async def test_generate_run_summary_no_items_marks_failed(session: AsyncSession)
     assert run.summary_status == RunSummaryStatus.failed
     assert run.summary_generated_at is not None
     fake_client.messages.create.assert_not_awaited()
+    # D52: no real Anthropic cost incurred (the call never happened), so no base charge either.
+    assert run.tokens_charged == 0
+    assert user.token_balance == 100
 
 
 async def test_generate_run_summary_api_error_is_non_fatal(session: AsyncSession) -> None:
-    user = await make_user(session)
+    user = await make_user(session, token_balance=100)
     run = await make_run(session, requested_by=user)
     account = await make_account(session, handle="acc")
     await make_content_item(session, run=run, account=account, summary="Что-то интересное")
@@ -247,6 +250,50 @@ async def test_generate_run_summary_api_error_is_non_fatal(session: AsyncSession
     assert run.summary_status == RunSummaryStatus.failed
     usage = (await session.scalars(select(UsageEvent).where(UsageEvent.run_id == run.id))).all()
     assert usage == []
+    # D52: the call raised before any response came back — no real Anthropic cost was
+    # incurred, so the base charge must not apply either.
+    assert run.tokens_charged == 0
+    assert user.token_balance == 100
+
+
+# ---------------------------------------------------------------------------
+# D52: base charge for this one run-level call
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_run_summary_charges_base_fee_on_success(session: AsyncSession) -> None:
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(session, requested_by=user)
+    account = await make_account(session, handle="travel_blog")
+    await make_content_item(session, run=run, account=account, summary="Ролик про поездку")
+    await session.commit()
+
+    fake_client = _FakeClient(_fake_response(_VALID_RESPONSE))
+    await generate_run_summary(session, run, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert run.summary_status == RunSummaryStatus.done
+    assert run.tokens_charged == 5
+    await session.refresh(user)
+    assert user.token_balance == 995
+
+
+async def test_generate_run_summary_base_charge_floors_at_remaining_balance(
+    session: AsyncSession,
+) -> None:
+    user = await make_user(session, token_balance=2)
+    run = await make_run(session, requested_by=user)
+    account = await make_account(session, handle="acc")
+    await make_content_item(session, run=run, account=account, summary="Что-то")
+    await session.commit()
+
+    fake_client = _FakeClient(_fake_response(_VALID_RESPONSE))
+    await generate_run_summary(session, run, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert run.tokens_charged == 2
+    await session.refresh(user)
+    assert user.token_balance == 0
 
 
 async def test_generate_run_summary_unparseable_response_still_stores_text(

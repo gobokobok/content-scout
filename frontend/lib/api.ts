@@ -136,6 +136,9 @@ export interface EstimateResponse {
   claude_output_tokens: number;
   estimated_cost_usd: string;
   accounts_count: number;
+  // Real user-facing token estimate (apify_units + the run-summary base charge) — show this,
+  // not apify_units, wherever the estimate is displayed as a token count.
+  estimated_tokens: number;
 }
 
 export type AnalysisMode = "account" | "post";

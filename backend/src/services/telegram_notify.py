@@ -105,9 +105,10 @@ async def notify_run_complete(run: AnalysisRun, user: User, session: AsyncSessio
         items = run.progress_items or 0
         # progress_items is the total scraped count, not what actually got charged — a
         # token-balance exhaustion mid-run can summarize (and charge) fewer items than were
-        # scraped, and progress_items is never adjusted down to reflect that. progress_summarized
-        # is the real per-batch-debited count (worker.py's _finish_run), the correct field here.
-        tokens_spent = run.progress_summarized or 0
+        # scraped, and progress_items is never adjusted down to reflect that. tokens_charged
+        # (D52) is the real per-run total — per-item charges plus the run-summary base charge —
+        # superseding progress_summarized (item count only, doesn't include the base charge).
+        tokens_spent = run.tokens_charged or 0
         link = f"{settings.web_url.rstrip('/')}/projects/{run.project_id}/runs/{run.id}"
 
         parts = [

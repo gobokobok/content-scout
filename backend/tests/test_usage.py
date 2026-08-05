@@ -301,6 +301,9 @@ async def test_my_runs_includes_both_runs_and_deep_analyses(session: AsyncSessio
         requested_by=user,
         status="done",
         progress_items=4,
+        # D52: tokens_charged is now its own field, distinct from progress_items (the ledger
+        # used to read progress_items directly, a real pre-existing bug — see api/usage.py).
+        tokens_charged=4,
         created_at=now - timedelta(hours=2),
     )
     analysis = await make_deep_analysis(
