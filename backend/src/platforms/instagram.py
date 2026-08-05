@@ -28,6 +28,12 @@ _TYPE_MAP = {
 
 _MAX_ATTEMPTS = 3
 _RESULTS_LIMIT = 50
+# Instagram allows up to 3 pinned posts per profile; the actor returns them ahead of
+# chronological order regardless of age. In item-limit ("last N publications") mode, requesting
+# exactly `limit` results risks pinned posts silently eating into that budget, under-delivering
+# real recent items. Request this many extra so at least `limit` real candidates remain after
+# the real-published_at sort+cap in _fetch_once below.
+_PINNED_POST_BUFFER = 3
 
 
 class InstagramPlatform:
@@ -79,10 +85,13 @@ class InstagramPlatform:
         run_input: dict[str, Any] = {
             "directUrls": [account.normalized_url],
             "resultsType": "posts",
-            "resultsLimit": limit if limit is not None else _RESULTS_LIMIT,
+            "resultsLimit": (
+                (limit + _PINNED_POST_BUFFER) if limit is not None else _RESULTS_LIMIT
+            ),
         }
         # since=None means "last N publications" mode (item_limit) — no date cutoff, just the
-        # most recent `limit` posts regardless of when they were published.
+        # most recent `limit` posts by real published_at (see the sort+cap below, not just
+        # however many the actor happens to return before hitting resultsLimit).
         if since is not None:
             run_input["onlyPostsNewerThan"] = since.date().isoformat()
 
@@ -103,17 +112,28 @@ class InstagramPlatform:
         page = await self._client.dataset(run.default_dataset_id).list_items()
         # The actor emits an {"error": ...} placeholder instead of a post when a profile is
         # private/deleted/blocked — treat that as a fetch failure (caught per-account by the
-        # worker), never as a real content item. Also skip pinned posts: they appear at the top
-        # of the profile regardless of date and can be months/years old.
-        valid_items = [
-            item for item in page.items if "error" not in item and not item.get("isPinned", False)
-        ]
+        # worker), never as a real content item.
+        valid_items = [item for item in page.items if "error" not in item]
         error_items = [item for item in page.items if "error" in item]
         if error_items and not valid_items:
             reason = error_items[0].get("errorDescription") or error_items[0]["error"]
             raise ApifyRunFailedError(f"@{account.handle}: {reason}")
 
-        return [_normalize(item) for item in valid_items]
+        items = [_normalize(item) for item in valid_items]
+        # Pinned posts appear at the top of the profile regardless of real publish date, and can
+        # be months/years old — sort by real published_at (descending) rather than trusting the
+        # actor's pin-first ordering, so a pinned post is only kept when it genuinely is among
+        # the most recent items, and item-limit mode's `limit` below reflects real chronological
+        # order (the "last N publications" the user actually asked for).
+        items.sort(key=lambda i: i.published_at, reverse=True)
+        if since is not None:
+            # Defensive re-filter on top of the actor's own onlyPostsNewerThan — a pinned old
+            # post is not guaranteed to be excluded by the actor's date cutoff the same way a
+            # normal chronological post would be.
+            items = [i for i in items if i.published_at >= since]
+        if limit is not None:
+            items = items[:limit]
+        return items
 
     async def _fetch_post_once(self, post_url: str) -> RawContentItem:
         """directUrls also accepts a direct post/reel URL (not just a profile URL) — the same

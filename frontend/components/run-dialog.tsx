@@ -119,7 +119,9 @@ export function RunDialog({
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("recurring");
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [timeOfDay, setTimeOfDay] = useState("09:00");
-  const [notifyEnabled, setNotifyEnabled] = useState(false);
+  // Was schedule-only, defaulted off; now overarching (applies to "run now" too) — defaults on
+  // to preserve "run now"'s pre-existing unconditional-notify behavior.
+  const [notifyEnabled, setNotifyEnabled] = useState(true);
   const [timezone] = useState(() => detectLocalTimezone());
   const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
   const [deepEstimateTokens, setDeepEstimateTokens] = useState<number | null>(null);
@@ -307,6 +309,7 @@ export function RunDialog({
         const created = await api.createRun(projectId, {
           ...scopeFields,
           run_type: runType,
+          notify_on_complete: notifyEnabled,
         });
         track(created, projectId, projectName);
         setRunId(created.id);
@@ -745,15 +748,16 @@ export function RunDialog({
                     <p className="text-xs text-secondary">
                       {repeatMode === "once" ? t("repeatModeOnceHint") : t("repeatModeRecurringHint")}
                     </p>
-                    <div className="border-t border-border pt-3">
-                      <ToggleSwitch
-                        checked={notifyEnabled}
-                        onChange={() => setNotifyEnabled((v) => !v)}
-                        label={t("notifyLabel")}
-                      />
-                    </div>
                   </div>
                 )}
+                {/* Overarching — applies whether this run starts now or is scheduled. */}
+                <div className="rounded-[14px] bg-bg p-3">
+                  <ToggleSwitch
+                    checked={notifyEnabled}
+                    onChange={() => setNotifyEnabled((v) => !v)}
+                    label={t("notifyLabel")}
+                  />
+                </div>
               </div>
 
               {/* Cost estimate */}

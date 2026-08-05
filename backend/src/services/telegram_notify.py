@@ -35,6 +35,24 @@ def _esc(text: str) -> str:
     return html.escape(text, quote=False)
 
 
+def _log_skip_reason(run_id: object, settings: Settings, user: User) -> None:
+    """Previously a silent no-op — a real PROD incident (2026-08-05) had zero record anywhere
+    of *why* a run's completion DM never arrived, only that it didn't. Distinguishes the two
+    independent causes so a `railway logs` check settles it immediately instead of guessing."""
+    if not settings.telegram_bot_token:
+        logger.warning(
+            "Telegram notification skipped for run_id=%s: TELEGRAM_BOT_TOKEN not configured "
+            "on this service",
+            run_id,
+        )
+    elif user.telegram_id is None:
+        logger.warning(
+            "Telegram notification skipped for run_id=%s: user_id=%s has no linked telegram_id",
+            run_id,
+            user.id,
+        )
+
+
 async def _top_items_lines(session: AsyncSession, run: AnalysisRun) -> list[str]:
     """Plain-text (no KPIs) rundown of the run's top posts by virality, for the bot
     message — same ranking as the run detail page's Summary tab (api/items.py's
@@ -77,6 +95,7 @@ async def notify_run_complete(run: AnalysisRun, user: User, session: AsyncSessio
     """Send a Telegram DM if the user has a linked telegram_id. Never raises."""
     settings = get_settings()
     if not settings.telegram_bot_token or user.telegram_id is None:
+        _log_skip_reason(run.id, settings, user)
         return
 
     balance_line = f"Баланс токенов: <b>{user.token_balance}</b>"
@@ -123,6 +142,7 @@ async def notify_deep_analysis_complete(
     summary of a run they asked to Analyze, minutes before the real result was ready."""
     settings = get_settings()
     if not settings.telegram_bot_token or user.telegram_id is None:
+        _log_skip_reason(run.id, settings, user)
         return
 
     balance_line = f"Баланс токенов: <b>{user.token_balance}</b>"

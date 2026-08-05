@@ -73,6 +73,11 @@ class RunRequestIn(BaseModel):
     analysis_mode: Literal["account", "post"] | None = None
     target_post_url: str | None = None
     comments_limit: int | None = Field(default=None, ge=1, le=100)
+    # Was schedule-only (ScheduledRunIn.notify_enabled) — now overarching, so "run now" gets
+    # the same choice a schedule always had instead of being unconditionally notified with no
+    # opt-out. Defaults True to preserve "run now"'s pre-existing unconditional-notify behavior
+    # for any caller that omits this field.
+    notify_on_complete: bool = True
 
     @model_validator(mode="after")
     def _validate_scope(self) -> "RunRequestIn":
@@ -304,6 +309,7 @@ async def create_run(
         analysis_mode=body.analysis_mode,
         target_post_url=target_post_url,
         comments_limit=body.comments_limit,
+        notify_on_complete=body.notify_on_complete,
     )
     session.add(run)
     await session.commit()

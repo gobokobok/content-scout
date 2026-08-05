@@ -208,6 +208,8 @@ export interface RunRequest {
   analysis_mode?: AnalysisMode;
   target_post_url?: string;
   comments_limit?: number;
+  // Overarching notify toggle (was schedule-only) — applies to "run now" too.
+  notify_on_complete?: boolean;
 }
 
 export interface ContentItemResponse {

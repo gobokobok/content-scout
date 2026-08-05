@@ -65,10 +65,15 @@ async def test_fetch_content_normalizes_fixture() -> None:
     run_result = SimpleNamespace(default_dataset_id="dataset-1", status="SUCCEEDED")
     platform = _platform_with(_FakeActorClient(run_result), _FakeDatasetClient(items))
 
-    result = await platform.fetch_content(_account(), since=datetime.now(UTC) - timedelta(days=3))
+    # since is anchored to the fixture's own dates (07-15/16/17), not datetime.now(UTC) — the
+    # code below now defensively re-filters by real published_at, so an unrelated relative
+    # cutoff would silently drop every fixture item.
+    result = await platform.fetch_content(_account(), since=datetime(2026, 7, 10, tzinfo=UTC))
 
     assert len(result) == 3
-    reel, post, carousel = result
+    # Sorted by real published_at descending (fixture is stored in ascending order), not the
+    # actor's raw item order.
+    carousel, post, reel = result
 
     assert reel.type == ContentType.reel
     assert reel.views == 20000
@@ -110,7 +115,8 @@ async def test_fetch_content_passes_since_and_url() -> None:
 
 async def test_fetch_content_item_limit_mode_omits_date_cutoff() -> None:
     """since=None (item_limit / "last N publications" mode) must not send onlyPostsNewerThan,
-    and resultsLimit should reflect the requested limit rather than the day-window default."""
+    and resultsLimit should request a pinned-post buffer above the requested limit — see
+    test_fetch_content_item_limit_mode_excludes_old_pinned_post_from_the_count for why."""
     items = json.loads(FIXTURE_PATH.read_text())
     run_result = SimpleNamespace(default_dataset_id="dataset-1", status="SUCCEEDED")
     actor_client = _FakeActorClient(run_result)
@@ -121,7 +127,92 @@ async def test_fetch_content_item_limit_mode_omits_date_cutoff() -> None:
     assert actor_client.call_kwargs is not None
     run_input = actor_client.call_kwargs["run_input"]
     assert "onlyPostsNewerThan" not in run_input
-    assert run_input["resultsLimit"] == 10
+    assert run_input["resultsLimit"] == 13  # 10 + the 3-post pinned buffer
+
+
+async def test_fetch_content_item_limit_mode_excludes_old_pinned_post_from_the_count() -> None:
+    """Reproduces the real bug: an old pinned post returned ahead of chronological order must
+    not count against item_limit's budget — "last 5 publications" must mean 5 real recent
+    items, not 4, even though the actor's resultsLimit is a raw item cap that includes pinned
+    posts. The buffered resultsLimit (see the test above) plus a real-date sort+cap is what
+    fixes this."""
+    old_pinned = {
+        "id": "pinned-1",
+        "type": "Image",
+        "url": "https://www.instagram.com/p/pinned1/",
+        "caption": "Old pinned announcement",
+        "timestamp": "2020-01-01T00:00:00.000Z",
+        "isPinned": True,
+        "likesCount": 10,
+        "commentsCount": 1,
+    }
+    fixture_items = json.loads(FIXTURE_PATH.read_text())  # 3 real items, 07-15/16/17
+    run_result = SimpleNamespace(default_dataset_id="dataset-1", status="SUCCEEDED")
+    # The actor returns the pinned post first, then the 3 chronological items — exactly what a
+    # resultsLimit=3 request (no buffer) would have truncated to [pinned, item1, item2], losing
+    # one real recent item.
+    platform = _platform_with(
+        _FakeActorClient(run_result), _FakeDatasetClient([old_pinned, *fixture_items])
+    )
+
+    result = await platform.fetch_content(_account(), since=None, limit=3)
+
+    assert len(result) == 3
+    assert all(item.title != "Old pinned announcement" for item in result)
+    # Real chronological order, most recent first.
+    assert [i.published_at for i in result] == sorted(
+        (i.published_at for i in result), reverse=True
+    )
+
+
+async def test_fetch_content_item_limit_mode_includes_recently_published_pinned_post() -> None:
+    """A pinned post that genuinely is among the most recent N by date must still be included —
+    pinned status alone is not a reason to exclude it."""
+    recent_pinned = {
+        "id": "pinned-2",
+        "type": "Image",
+        "url": "https://www.instagram.com/p/pinned2/",
+        "caption": "Recent pinned post",
+        "timestamp": "2026-07-18T00:00:00.000Z",  # newer than every fixture item
+        "isPinned": True,
+        "likesCount": 10,
+        "commentsCount": 1,
+    }
+    fixture_items = json.loads(FIXTURE_PATH.read_text())
+    run_result = SimpleNamespace(default_dataset_id="dataset-1", status="SUCCEEDED")
+    platform = _platform_with(
+        _FakeActorClient(run_result), _FakeDatasetClient([recent_pinned, *fixture_items])
+    )
+
+    result = await platform.fetch_content(_account(), since=None, limit=1)
+
+    assert len(result) == 1
+    assert result[0].title == "Recent pinned post"
+
+
+async def test_fetch_content_since_mode_defensively_excludes_old_pinned_post() -> None:
+    """Belt-and-braces: even if the actor's own onlyPostsNewerThan cutoff doesn't apply to
+    pinned posts, the real-published_at re-filter here must still exclude one."""
+    old_pinned = {
+        "id": "pinned-3",
+        "type": "Image",
+        "url": "https://www.instagram.com/p/pinned3/",
+        "caption": "Old pinned announcement",
+        "timestamp": "2020-01-01T00:00:00.000Z",
+        "isPinned": True,
+        "likesCount": 10,
+        "commentsCount": 1,
+    }
+    fixture_items = json.loads(FIXTURE_PATH.read_text())
+    run_result = SimpleNamespace(default_dataset_id="dataset-1", status="SUCCEEDED")
+    platform = _platform_with(
+        _FakeActorClient(run_result), _FakeDatasetClient([old_pinned, *fixture_items])
+    )
+
+    result = await platform.fetch_content(_account(), since=datetime(2026, 7, 1, tzinfo=UTC))
+
+    assert len(result) == 3
+    assert all(item.title != "Old pinned announcement" for item in result)
 
 
 async def test_fetch_content_treats_error_placeholder_as_failure() -> None:

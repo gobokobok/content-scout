@@ -238,8 +238,13 @@ async def _finish_run(session: AsyncSession, run: AnalysisRun, settings: Setting
     # deep_analysis runs defer their completion notification until run_deep_analysis_pipeline
     # actually finishes — notifying here would tell the user the run is "done" while only the
     # scrape has finished, before the real Analysis result exists.
-    if requesting_user and run.notify_on_complete and run.run_type != "deep_analysis":
-        await notify_run_complete(run, requesting_user, session)
+    if run.run_type != "deep_analysis":
+        if requesting_user and run.notify_on_complete:
+            await notify_run_complete(run, requesting_user, session)
+        elif requesting_user:
+            logger.info(
+                "run_id=%s: notify_on_complete is False, skipping Telegram notification", run.id
+            )
 
 
 async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
@@ -374,6 +379,11 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             requesting_user = await session.get(User, run.requested_by)
             if requesting_user and run.notify_on_complete:
                 await notify_run_complete(run, requesting_user, session)
+            elif requesting_user:
+                logger.info(
+                    "run_id=%s: notify_on_complete is False, skipping Telegram notification",
+                    run.id,
+                )
         except Exception:  # noqa: BLE001
             pass
         raise
@@ -387,6 +397,11 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
             requesting_user = await session.get(User, run.requested_by)
             if requesting_user and run.notify_on_complete:
                 await notify_run_complete(run, requesting_user, session)
+            elif requesting_user:
+                logger.info(
+                    "run_id=%s: notify_on_complete is False, skipping Telegram notification",
+                    run.id,
+                )
         except Exception:  # noqa: BLE001
             pass
 
@@ -449,6 +464,10 @@ async def _notify_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -
         user = await session.get(User, analysis.requested_by)
         if run and user and run.notify_on_complete:
             await notify_deep_analysis_complete(analysis, run, user, session)
+        elif run and user:
+            logger.info(
+                "run_id=%s: notify_on_complete is False, skipping Telegram notification", run.id
+            )
     except Exception:  # noqa: BLE001
         pass
 

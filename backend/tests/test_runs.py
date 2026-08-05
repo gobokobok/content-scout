@@ -9,6 +9,7 @@ from src.db import get_session
 from src.main import app
 from src.models import (
     AccountStatus,
+    AnalysisRun,
     DeepAnalysisItem,
     DeepAnalysisItemStatus,
     DeepAnalysisStatus,
@@ -142,6 +143,50 @@ async def test_create_run_enqueues_job(mock_enqueue: AsyncMock, session: AsyncSe
         assert body["total_output_tokens"] == 0
 
     mock_enqueue.assert_awaited_once()
+
+
+@patch("src.api.runs.enqueue_run", new_callable=AsyncMock)
+async def test_create_run_defaults_notify_on_complete_true(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    """Overarching notify toggle (was schedule-only, default off there) — a "run now" caller
+    that omits the field must keep the pre-existing unconditional-notify behavior."""
+    owner, project = await _setup_project_with_accounts(session, n=2)
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs",
+            json={"duration_days": 5},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 201
+        run_id = resp.json()["id"]
+
+    run = await session.get(AnalysisRun, uuid.UUID(run_id))
+    assert run is not None
+    assert run.notify_on_complete is True
+
+
+@patch("src.api.runs.enqueue_run", new_callable=AsyncMock)
+async def test_create_run_respects_notify_on_complete_false(
+    mock_enqueue: AsyncMock, session: AsyncSession
+) -> None:
+    """The toggle is overarching — "run now" can opt out of the Telegram notification just
+    like a schedule always could."""
+    owner, project = await _setup_project_with_accounts(session, n=2)
+
+    async with await client(session) as c:
+        resp = await c.post(
+            f"/projects/{project.id}/runs",
+            json={"duration_days": 5, "notify_on_complete": False},
+            headers=auth_headers(owner.id),
+        )
+        assert resp.status_code == 201
+        run_id = resp.json()["id"]
+
+    run = await session.get(AnalysisRun, uuid.UUID(run_id))
+    assert run is not None
+    assert run.notify_on_complete is False
 
 
 @patch("src.api.runs.enqueue_run", new_callable=AsyncMock)
