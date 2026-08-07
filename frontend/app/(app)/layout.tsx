@@ -135,7 +135,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {children}
 
-      <SideDrawer open={menuOpen} onClose={() => setMenuOpen(false)} side="left">
+      <SideDrawer
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        side="left"
+        closeLabel={t("closeDrawerLabel")}
+      >
         <Link
           href="/settings"
           onClick={() => setMenuOpen(false)}
@@ -202,7 +207,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </SideDrawer>
 
-      <SideDrawer open={notifOpen} onClose={() => setNotifOpen(false)} side="right">
+      <SideDrawer
+        open={notifOpen}
+        onClose={() => setNotifOpen(false)}
+        side="right"
+        closeLabel={t("closeDrawerLabel")}
+      >
         <div className="border-b border-border px-4 py-4">
           <p className="text-base font-semibold text-ink">{t("notificationsLabel")}</p>
         </div>

@@ -35,6 +35,7 @@
   "notificationsLabel": "Анализы",
   "noRuns": "Пока нет запущенных анализов.",
   "menuLabel": "Меню",
+  "closeDrawerLabel": "Закрыть",
   "tokensLabel": "Остаток токенов",
   "skipReasonNoAccounts": "Запуск по расписанию не состоялся: нет активных конкурентов",
   "skipReasonNoTokens": "Запуск по расписанию не состоялся: недостаточно токенов",

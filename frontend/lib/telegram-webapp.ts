@@ -21,6 +21,13 @@ declare global {
           url: string,
           callback?: (status: "paid" | "cancelled" | "failed" | "pending") => void,
         ) => void;
+        // Bot API 6.1+ (E18-S7) — colors Telegram's own native chrome (the top bar outside
+        // this app's own DOM) and the Mini App's outer background respectively. Accepts either
+        // 'bg_color'/'secondary_bg_color' (always supported, every client since 6.1) or an
+        // arbitrary #rrggbb hex (client-version-dependent — newer clients only; older ones
+        // silently ignore an unsupported value rather than erroring, per Telegram's docs).
+        setHeaderColor?: (color: string) => void;
+        setBackgroundColor?: (color: string) => void;
       };
     };
   }
@@ -40,6 +47,24 @@ export function initTelegramWebApp(): void {
   window.Telegram!.WebApp!.ready();
   window.Telegram!.WebApp!.expand();
   window.Telegram!.WebApp!.disableVerticalSwipes?.();
+  applyTelegramChrome();
+}
+
+/** E18-S7: first-user report — on a light-theme phone, the side drawers' white bg-card read
+ * as continuous with Telegram's own native top chrome bar (outside this app's DOM), so the
+ * instinct to tap "close" hit Telegram's native X and exited the whole Mini App instead of the
+ * drawer. Telegram's own light theme's default header color is typically 'bg_color' (white,
+ * same as our drawer) — explicitly requesting the theme's 'secondary_bg_color' key (its own
+ * light-gray surface color, distinct from white) separates the two without picking an
+ * arbitrary hex outside the palette the client itself defines. Uses the theme-key form (not a
+ * literal hex) since it's supported by every client since Bot API 6.1 — a raw hex needs a
+ * newer client and would otherwise silently no-op on the collision it's meant to fix. Live
+ * verification across Telegram clients/themes deferred — no Telegram client in this sandbox,
+ * same established constraint as every other Telegram-behavior change in this project. */
+export function applyTelegramChrome(): void {
+  const app = window.Telegram?.WebApp;
+  app?.setHeaderColor?.("secondary_bg_color");
+  app?.setBackgroundColor?.("secondary_bg_color");
 }
 
 /** True when the Telegram client supports the native downloadFile popup (Bot API 8.0+). Regular

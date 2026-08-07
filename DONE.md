@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E18-S7] Side drawers: close/X button, easier-to-hit dismiss area, and Telegram-chrome color collision
+**Completed:** 2026-08-07
+**Handover:**
+- First live-user feedback: a real accidental-exit trap — the side drawers (left menu, right notifications) had no in-drawer close control and, on a light-theme phone, read as visually continuous with Telegram's own native top chrome bar, so the instinct to tap "close" hit Telegram's native X and exited the whole Mini App.
+- `side-drawer.tsx` gained a dedicated close row (lucide `X`) rendered above each drawer's own header content — added once, new required `closeLabel` prop, no per-call-site duplication. Deliberately not an overlay, to avoid competing with the left drawer's existing full-width profile-link tap target.
+- New `applyTelegramChrome()` in `telegram-webapp.ts` (`WebApp.setHeaderColor`/`setBackgroundColor`, called from `initTelegramWebApp`) sets Telegram's native chrome to the `'secondary_bg_color'` theme key — distinct from the `'bg_color'` white both Telegram's default header and this app's drawer (`bg-card`) share. Chose the theme-key form over a literal hex specifically for backward compatibility (supported since Bot API 6.1, unlike hex which needs a newer client and silently no-ops otherwise).
+- Width narrowing (the AC's second item) explicitly not done — the close button already solves the "hard to hit" backdrop problem, documented as the reason in BACKLOG.md.
+- No backend changes, no tests (pure presentational + Telegram-API-surface change, no existing test suite for this component per CONVENTIONS.md's frontend bar). `tsc --noEmit`/`next lint`/`next build` all clean. No new dependencies.
+**Smoke test:** DEFERRED — no Telegram client in this sandbox. The color-collision fix (`setHeaderColor`/`setBackgroundColor`) is the one piece genuinely unverifiable without a live client; flagged explicitly with a documented fallback if `secondary_bg_color` doesn't separate visually enough on some client/theme.
+**Promoted to backlog:**
+- (none)
+
 ## [E22-S3] Global notification-preference toggles on Settings, replacing per-run overrides
 **Completed:** 2026-08-07
 **Handover:**
