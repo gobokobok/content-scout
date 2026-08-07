@@ -2975,7 +2975,7 @@ backend/src/services/telegram_notify.py, backend/src/api/telegram_webhook.py (ex
 ### Files to create or modify
 backend/src/services/telegram_notify.py, backend/tests/test_telegram_notify.py
 ### Handover
-—
+**2026-08-07, first live-user feedback (item 4 of a 4-item batch — see `[E8-S10]`, `[E18-S7]`, `[E22-S3]`):** user independently re-reported this exact issue (tapping the completion-DM link opens the external browser and forces re-auth instead of opening the already-authenticated Mini App), and guessed it might already be fixed on DEV. **Re-checked `backend/src/services/telegram_notify.py` this session: still unimplemented** — `notify_run_complete` still sends a plain HTML `<a href>` anchor, no `reply_markup`/`web_app` inline-keyboard button anywhere in the file. The user's belief appears to be a mix-up with `[E8-S6]` (a separate, already-shipped fix for the Mini App's *auto-login bootstrap* on open, not for links arriving via a Telegram DM) — that fix doesn't touch how the DM's link itself opens. Story remains accurately `backlog`/unassigned; no code changed this session, just this correction on record so it isn't assumed done later.
 
 ## [E17-S10] Deep-analysis job-cancellation bug fix
 **Epic:** Run Deep Analysis
@@ -3569,19 +3569,141 @@ Direct user report: the «Уведомлять в Telegram о завершени
 - [x] `run-dialog.tsx`'s notify toggle moved out of the schedule-only block so it renders for both "Сейчас" and "Запланировать", wired into both `createRun` and the pre-existing `createScheduledRun` call
 - [x] PROD investigation: `railway logs` showed the PROD **api** service successfully registering the Telegram webhook repeatedly, but the PROD **worker** service (the one that actually sends completion DMs) showed **zero** Telegram API calls ever — while the notify guard clauses (`telegram_notify.py`, `worker.py`) were completely silent about *why* a notification was skipped (missing bot token vs. no linked `telegram_id` vs. `notify_on_complete=False`)
 - [x] Added explicit `logger.warning`/`logger.info` at every notify-skip branch identifying the specific reason, so the next occurrence is immediately diagnosable via `railway logs` instead of requiring guesswork
-- [ ] Root cause of the specific PROD incident confirmed — **not resolved this story**, see Handover
+- [x] Root cause of the specific PROD incident confirmed 2026-08-05, the very next time a PROD run completed: the new diagnostic logging (previous AC item) caught it directly — `Telegram notification skipped for run_id=...: TELEGRAM_BOT_TOKEN not configured on this service`. Confirmed hypothesis (a) from this story's original Handover: PROD's `worker` service never had `TELEGRAM_BOT_TOKEN` set, only PROD's `api` service did. **Fix is a Railway env var, not code** — out of scope for the agent (blocked from reading/writing Railway secrets); user needs to set it on the `production` `worker` service to match `api`'s value
 ### Definition of Done
-- [x] AC (code + tests, 2 new) checked bar the one open item above
+- [x] AC (code + tests, 2 new) checked
 - [x] `ruff check`, `ruff format --check`, `mypy src` clean; full suite 385 passed (up from 380); frontend `tsc`/`eslint`/`next build` clean
 - [x] Deployed to DEV then tagged `v0.9.0` → PROD, both green
 - [x] DONE.md updated (this backfill)
 - [x] BACKLOG.md updated (this entry)
 ### Smoke test
-DEFERRED — needs a real DEV/PROD run created via "Сейчас" with the toggle turned off, confirming no DM arrives; and separately, the PROD worker's `TELEGRAM_BOT_TOKEN` needs checking directly in the Railway dashboard (blocked for the agent — reading Railway env vars is treated as a secret-read and denied by the sandbox's permission classifier).
+PASSED (diagnostic half) — the new logging correctly identified the exact skip reason on the very next real PROD run, confirming the root cause. **Still outstanding**: confirm notifications actually resume once the user sets `TELEGRAM_BOT_TOKEN` on PROD's `worker` service, and a real DEV/PROD run created via "Сейчас" with the toggle turned off, confirming no DM arrives.
 ### Files to read
 frontend/components/run-dialog.tsx, frontend/lib/api.ts, backend/src/api/runs.py, backend/src/services/telegram_notify.py, backend/src/worker.py
 ### Files to create or modify
 frontend/components/run-dialog.tsx, frontend/lib/api.ts, backend/src/api/runs.py, backend/src/services/telegram_notify.py, backend/src/worker.py, backend/tests/test_runs.py
 ### Handover
 - No new code beyond what already shipped in commit `29cff7f` (2026-08-05) — this entry is documentation backfill only, per CLAUDE.md's story-tracking discipline.
-- **PROD notify-silence root cause is still open.** Leading hypothesis, in order of likelihood: (a) `TELEGRAM_BOT_TOKEN` is set on PROD's `api` service (confirmed live via successful `setWebhook` calls in its logs) but may not be set the same way on PROD's `worker` service — ENV.md's original Sprint 6 instruction called for setting it on **both**, and this is a plausible per-service Railway config gap (the same class of bug `[E20-S2]`'s memory-pin finding was); (b) the specific run/schedule the user was looking at had `notify_on_complete=False` from before this story's fix landed — very plausible given the toggle didn't exist for "run now" and schedules defaulted it off. **Next step for whoever picks this up**: check PROD worker's env vars directly (the user, not the agent — Railway secret reads are blocked in this sandbox), and/or re-trigger a run and check `railway logs --environment production --service worker` for the new skip-reason log line this story added.
+- **PROD notify-silence root cause confirmed 2026-08-05** (same day, next real PROD run): `railway logs --environment production --service worker` showed the new diagnostic logging firing directly — `TELEGRAM_BOT_TOKEN not configured on this service`. Hypothesis (a) from the original investigation was correct: PROD's `api` service has the token (confirmed live via successful `setWebhook` calls), PROD's `worker` service never did — the exact per-service Railway config gap ENV.md's original Sprint 6 instruction (set it on **both**) was meant to prevent, same class of bug as `[E20-S2]`'s memory-pin finding. **This is a Railway env var fix, not code** — flagged directly to the user; the agent is blocked from reading/writing Railway secrets in this sandbox.
+
+## [E3-S10] Review base token charge (D52), tokens_charged ledger fixes
+**Epic:** Analysis Pipeline
+**Sprint:** 12 (post-close)
+**Status:** done
+**Completed:** 2026-08-05
+**Priority:** high
+**Depends on:** E17-S4, E21-S5
+### Goal
+Direct user question: "every run, Review or Analysis, should consume +10 token or the Claud API consumption... Looks like Analysis task already does so. Check if Review does it as well." Investigation confirmed Analysis's base charge (`[E21-S5]`/D51) was actually 5 tokens, not 10, and that Review had **no equivalent charge at all** — only its existing 1 token/publication per-item charge, with `run_summary.py:generate_run_summary`'s one run-level Claude call (Haiku, the "Резюме" overview) entirely uncharged. User confirmed via a clarifying question: 5 tokens, both task types.
+### Acceptance Criteria
+- [x] New `review_base_charge_tokens` config constant (default 5), charged once on the first response actually received from `generate_run_summary`'s Claude call — not charged if it raises before returning
+- [x] New `AnalysisRun.tokens_charged` column (migration `befd37ff1176`, backfilled from `progress_summarized` for existing rows) — the single authoritative per-run token total, written by both the existing per-item charge (`worker.py:_finish_run`) and the new base charge, mirroring `DeepAnalysis.tokens_charged`
+- [x] `telegram_notify.py`'s "Потрачено токенов" line and `api/usage.py`'s `GET /me/runs` ledger both read `tokens_charged` — **real pre-existing bug found and fixed on the ledger side**: it was still reading `progress_items` (total scraped, not charged), the same wrong-field bug `[E22-S1]` fixed for the Telegram DM but never applied to this second call site
+- [x] `estimator.py:estimate_run` gained `estimated_tokens` (`apify_units` + the base charge), distinct from `apify_units` itself; the run-dialog's "≈ N ток." pre-confirm figure now shows it
+- [x] D52 recorded in DECISIONS.md (billing/pricing change, per CLAUDE.md's constraint)
+### Definition of Done
+- [x] AC (code + tests, 9 new/extended) checked
+- [x] `ruff check`, `ruff format --check`, `mypy src` clean; full suite 388 passed (up from 385)
+- [x] Migration upgrade/downgrade/upgrade round-trip verified against local Postgres
+- [x] Deployed to DEV then tagged `v0.10.0` → PROD, both green
+- [x] DECISIONS.md's D52 added
+- [x] DONE.md updated (this backfill)
+- [x] BACKLOG.md updated (this entry)
+### Smoke test
+DEFERRED — needs a real DEV/PROD Review run to confirm the base charge appears in `tokens_charged`, the Usage page's per-run row and "spent this period" total now show the corrected (previously wrong, too-high-on-truncation) number, and the run-dialog's cost estimate matches the real post-run charge.
+### Files to read
+backend/src/config.py, backend/src/models/analysis_run.py, backend/src/services/run_summary.py, backend/src/worker.py, backend/src/services/telegram_notify.py, backend/src/api/usage.py, backend/src/services/estimator.py, backend/src/api/runs.py, DECISIONS.md (D50, D51)
+### Files to create or modify
+backend/src/config.py, backend/src/models/analysis_run.py, backend/alembic/versions/befd37ff1176_add_tokens_charged_to_analysis_runs.py, backend/src/services/run_summary.py, backend/src/worker.py, backend/src/services/telegram_notify.py, backend/src/api/usage.py, backend/src/services/estimator.py, backend/src/api/runs.py, frontend/components/run-dialog.tsx, frontend/lib/api.ts, frontend/messages/ru.json, backend/tests/, DECISIONS.md
+### Handover
+No new code beyond what already shipped in commit `dc32712` (2026-08-05) — this entry is documentation backfill only, per CLAUDE.md's story-tracking discipline. Thematically related to `[E21-S5]`/D51 (same "base charge for the one per-run Claude call" pattern) but not part of that story's recurring-bug cluster — this was a deliberate parity extension from a direct user question, not an unplanned regression found via a live incident.
+
+## [E8-S10] Investigate: Mini App hardware back / swipe-back exits to bot chat instead of navigating in-app
+**Epic:** Telegram Integration & Monetization
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** none
+### Goal
+First live-user feedback (2026-08-07): inside the Mini App, the phone's hardware/gesture back action (Android back button, iOS edge-swipe) does not navigate back within the app — it exits the Mini App entirely, dropping the user back into the Telegram bot chat. Only the app's own in-app "return" control (top of screen) navigates within the app. This may be a hard Telegram platform constraint rather than a bug: Telegram's Mini App `BackButton` API (`window.Telegram.WebApp.BackButton`) only controls a button Telegram renders in its own chrome, and is meant to be shown/hidden per-screen with a `click` handler wired to in-app navigation — it does not intercept the OS-level swipe/hardware-back gesture, which Telegram treats as "close the Mini App" unless the client explicitly binds it to `BackButton` too (behavior has varied across Bot API versions and platforms). No `BackButton` usage exists in this codebase yet (`frontend/lib/telegram-webapp.ts` currently only wraps `ready`/`expand`/`disableVerticalSwipes`/`downloadFile`/`openInvoice`).
+### Acceptance Criteria
+- [ ] Confirm current Bot API version behavior (check Telegram's official Mini Apps docs, not assumption) for: does enabling `WebApp.BackButton` + wiring its `click` event to in-app back navigation also capture the hardware/gesture back action, or are they genuinely independent (hardware back always closes, regardless of `BackButton` state)?
+- [ ] If capturable: wire `BackButton.show()`/`.hide()` per screen (shown on any non-root screen, hidden on the app's root/home) with a `click` handler that calls the same in-app "return" logic the current top button uses, in `frontend/lib/telegram-webapp.ts` + `frontend/app/(app)/layout.tsx`
+- [ ] If not capturable (hard platform constraint): document that finding here and in DECISIONS.md if it forecloses a class of future UX ideas; consider whether a confirmation prompt before exit (`WebApp.enableClosingConfirmation`) is an acceptable partial mitigation, and ask the user before assuming it's wanted
+- [ ] Either way, verify behavior separately on Android and iOS (gesture back and hardware back are implemented differently across Telegram's own clients) rather than assuming one platform's result generalizes
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests updated if behavior changes (no test suite currently covers this — presentational/platform-integration only)
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On a real Android and a real iOS device inside Telegram, navigate two levels deep into the Mini App, then use the hardware back button (Android) and edge-swipe (iOS): confirm it now navigates back within the app rather than exiting to the bot chat, on both platforms.
+### Files to read
+CLAUDE.md, frontend/lib/telegram-webapp.ts, frontend/app/(app)/layout.tsx, Telegram Bot API Mini Apps docs (`BackButton`, `enableClosingConfirmation`)
+### Files to create or modify
+frontend/lib/telegram-webapp.ts, frontend/app/(app)/layout.tsx (exact scope depends on the investigation's outcome)
+### Handover
+Opened 2026-08-07 from direct first-user feedback (item 1 of a 4-item feedback batch — see `[E18-S7]`, `[E22-S3]`, and `[E8-S9]`'s Handover for the other three). Not yet investigated — genuinely unknown whether this is fixable in-app or a hard Telegram platform constraint; the AC's first item is the actual next step, not a guess at implementation.
+
+## [E18-S7] Side drawers: close/X button, easier-to-hit dismiss area, and Telegram-chrome color collision
+**Epic:** Run-Centric Navigation & Redesign
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** none
+### Goal
+First live-user feedback (2026-08-07) on the two `SideDrawer` instances in `frontend/app/(app)/layout.tsx` (left menu, right notifications) — both use `frontend/components/ui/side-drawer.tsx`, currently `w-[90%] max-w-sm`, dismissible only via a tap on the remaining ~10% backdrop sliver or Escape (no on-screen key on a phone). Two confirmed usability problems: (1) the backdrop-tap target is too small to reliably hit one-handed on a phone; neither drawer renders a close/X control inside itself. (2) On a light-theme phone, the drawer's `bg-card` background reads as visually continuous with Telegram's own native top chrome bar (outside the Mini App, not part of this codebase), which has its own native close/X. The user reported instinctively tapping that native X to close the drawer — it instead exits the whole Mini App. This is a real, reported accidental-exit trap, not a cosmetic nit.
+### Acceptance Criteria
+- [ ] Both `SideDrawer` instances (left menu, right notifications, in `layout.tsx`) get an explicit close/X button (lucide-react `X`, per CLAUDE.md — no emoji) inside the drawer's own header area, calling the existing `onClose` prop — add it once in `side-drawer.tsx` (e.g. an optional header slot or a built-in top-right close affordance) rather than duplicating markup in both call sites
+- [ ] Confirm whether narrowing the drawer width (e.g. `w-[85%]` or a `max-w` tightened further) meaningfully grows the tappable backdrop without hurting content legibility at 375px (D16) — try before assuming; the close button from the previous item may make this moot
+- [ ] Investigate the color-collision report: check what color/theme Telegram's own Mini App chrome renders in a light-theme client (`WebApp.headerColor`/`WebApp.backgroundColor`/`setHeaderColor` Bot API surface, not currently used anywhere in this codebase per a scan of `frontend/lib/telegram-webapp.ts`) and whether setting an explicit, distinct header color via that API measurably separates the drawer visually from Telegram's own bar — must stay within the light-only design-token palette (D28), no `dark:` classes
+- [ ] Re-confirm the existing Escape-key dismiss and backdrop-tap dismiss both still work after the change
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing (`tsc --noEmit`/`eslint`, per CONVENTIONS.md's frontend test bar — no existing test suite for this presentational component)
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On a real phone inside Telegram with the client in light theme, open each drawer: confirm a visible close/X inside the drawer closes it, confirm the drawer is visually distinguishable from Telegram's own native top bar, and confirm tapping Telegram's native chrome close button no longer happens as a natural mistake (i.e. the drawer's own close control is the obvious, well-separated choice).
+### Files to read
+CLAUDE.md (D16 375px constraint, D28 light-theme-only), frontend/components/ui/side-drawer.tsx, frontend/app/(app)/layout.tsx, frontend/lib/telegram-webapp.ts, globals.css (design tokens)
+### Files to create or modify
+frontend/components/ui/side-drawer.tsx, frontend/app/(app)/layout.tsx, frontend/lib/telegram-webapp.ts (if `setHeaderColor`/`WebApp.backgroundColor` is used), frontend/messages/ru.json (if a new aria-label/tooltip string is added), globals.css
+### Handover
+Opened 2026-08-07 from direct first-user feedback (item 2 of a 4-item batch — see `[E8-S10]`, `[E22-S3]`, `[E8-S9]`'s Handover). The color-collision half is the more novel part — no prior story in this project has touched Telegram's `WebApp.headerColor`/`backgroundColor` API at all, so that AC item may need its own small spike before the fix is obvious.
+
+## [E22-S3] Global notification-preference toggles on Settings, replacing per-run overrides
+**Epic:** Report & Notification Messaging
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E14-S6, E22-S2
+### Goal
+First live-user feedback (2026-08-07) — this is the concrete detail Sprint 12's PBR flagged as still missing before more E22 stories could open (see SPRINT.md: "the Analysis-side/report-page half of the PBR's notification-messaging item — still needs concrete detail from the user"). Today, Telegram completion notifications are controlled by a **per-run** `notify_on_complete`/`notify_enabled` toggle, set independently on every manual run (`frontend/components/run-dialog.tsx`) and every scheduled run (`frontend/components/scheduled-run-dialog.tsx`, `[E14-S6]`), unified to also cover "run now" by `[E22-S2]`. The user's explicit direction: replace this entirely with **two global toggles on the Settings page** (`frontend/app/(app)/settings/page.tsx`) — one for Review-run notifications, one for Analysis-run notifications — that govern every run of that type on the account, present and future. **Explicit decision: no per-run override.** Rationale given directly by the user: with per-run overrides, a user with several active scheduled runs configured individually has no single place to turn all notifications for a run type off at once; a single global setting per run type is simpler and avoids that trap. The existing per-run toggle UI in both dialogs should be removed (or hidden) and replaced with a short note directing the user to Settings for notification control.
+### Acceptance Criteria
+- [ ] New user-level preference fields (e.g. `notify_review_enabled`, `notify_analysis_enabled` on the `User` model or a small settings sub-object — confirm which during implementation), migration, default `True` for both (preserves today's default-on behavior for existing accounts)
+- [ ] `GET`/`PATCH` on the user settings endpoint (or a new small endpoint) to read/write both toggles
+- [ ] Settings page (`frontend/app/(app)/settings/page.tsx`) gets a new "Уведомления" section with the two toggles, following the page's existing save-state pattern (see `handleSaveName`'s saving/saved/error states for the established UX)
+- [ ] `run-dialog.tsx` and `scheduled-run-dialog.tsx`'s per-run notify toggle UI removed (or hidden — confirm which with the user during implementation), replaced with a short RU note: "Уведомления настраиваются в разделе «Настройки»" (exact copy TBD, next-intl per CLAUDE.md's no-hardcoded-strings constraint)
+- [ ] Backend notify-decision path (`backend/src/services/telegram_notify.py`, `backend/src/worker.py`'s notify call sites, both the Review and Analysis/deep-analysis branches) reads the new global per-type setting instead of the per-run field; confirm what happens to the now-unused `notify_on_complete`/`notify_enabled` request fields (keep accepted-but-ignored for backward compat vs. remove from the schema — decide during implementation, note the choice here)
+- [ ] Existing scheduled runs with a per-run `notify_enabled` already saved: confirm the migration path (global setting wins outright per the user's explicit "ignore individual overrides" decision — no per-schedule value should ever be consulted post-migration, not even as a fallback)
+- [ ] `[E14-S6]`'s scheduled-run notify toggle and `[E22-S2]`'s run-now notify toggle are both superseded by this story where they conflict — read both before starting, this net-removes UI they added
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing (backend: new settings fields + notify-decision logic; frontend: `tsc --noEmit`/`eslint`)
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV, toggle each global setting off, run one Review and one Analysis of each notify-state combination, confirm Telegram DMs arrive only when the corresponding global toggle is on, regardless of anything previously configured per-run/per-schedule.
+### Files to read
+CLAUDE.md, SPRINT.md (Sprint 12's PBR note on this exact gap), frontend/app/(app)/settings/page.tsx, frontend/components/run-dialog.tsx, frontend/components/scheduled-run-dialog.tsx, backend/src/services/telegram_notify.py, backend/src/worker.py, backend/src/models/user.py (or wherever user settings live), `[E14-S6]`, `[E22-S2]` entries above
+### Files to create or modify
+backend/src/models/user.py (or equivalent), a new alembic migration, backend user-settings API route, frontend/app/(app)/settings/page.tsx, frontend/components/run-dialog.tsx, frontend/components/scheduled-run-dialog.tsx, backend/src/services/telegram_notify.py, backend/src/worker.py, frontend/lib/api.ts, frontend/messages/ru.json
+### Handover
+Opened 2026-08-07 from direct first-user feedback (item 3 of a 4-item batch — see `[E8-S10]`, `[E18-S7]`, `[E8-S9]`'s Handover). This is explicitly the missing detail SPRINT.md's Sprint 12 section was waiting on ("still needs concrete detail from the user before more E22 stories open") — safe to treat as unblocking further E22 planning. Net effect on shipped functionality: this **removes** per-run notify control that `[E14-S6]` and `[E22-S2]` both explicitly added — worth flagging to the user again at implementation time in case that trade-off deserves a second look before the per-run UI is actually deleted (vs. just hidden, which is reversible).

@@ -2,14 +2,26 @@
 
 Completed stories land here, newest first. Format:
 
+## [E3-S10] Review base token charge (D52), tokens_charged ledger fixes
+**Completed:** 2026-08-05
+**Handover:**
+- Direct user question ("every run, Review or Analysis, should consume +10 token... Looks like Analysis task already does so. Check if Review does it as well.") — investigation found Analysis's base charge (`[E21-S5]`/D51) was actually 5 tokens (not 10, as recalled) and Review had no equivalent at all. User confirmed via a clarifying question: 5 tokens, both.
+- New `review_base_charge_tokens` (default 5), charged once on the first real response from `generate_run_summary`'s one run-level Claude call. New `AnalysisRun.tokens_charged` column (migration `befd37ff1176`, backfilled from `progress_summarized`) — the single authoritative per-run token total, mirroring `DeepAnalysis.tokens_charged`.
+- **Real pre-existing bug found and fixed while wiring this in**: `api/usage.py`'s `GET /me/runs` ledger (Usage page rows + "spent this period" total) was still reading `run.progress_items` (total scraped, not charged) — the same wrong-field bug `[E22-S1]` fixed for the Telegram DM, but never applied to this second call site. Both now read the new `tokens_charged` field.
+- `estimator.py` gained `estimated_tokens` (distinct from `apify_units`, which stays a pure Apify-unit count) — the run-dialog's "≈ N ток." estimate now includes the base charge.
+- 9 new/extended backend tests; full suite 388 passed (up from 385). ruff/ruff format/mypy clean. Migration upgrade/downgrade/upgrade round-trip verified against local Postgres. Frontend `tsc --noEmit`/`next lint`/`next build` clean. No new dependencies.
+**Smoke test:** DEFERRED — needs a real DEV/PROD Review run to confirm the base charge lands in `tokens_charged`, the Usage page shows the corrected total, and the estimate matches the real post-run charge.
+**Promoted to backlog:**
+- (none)
+
 ## [E22-S2] Overarching Telegram-notify toggle + notify-skip logging
 **Completed:** 2026-08-05
 **Handover:**
 - Direct chat bug report: the notify toggle (`[E14-S6]`) only ever rendered in `run-dialog.tsx`'s Schedule flow — "run now" had no such field and was unconditionally notified with no opt-out. New `RunRequestIn.notify_on_complete` (backend, default `True`, preserving "run now"'s old unconditional behavior for any omitting caller); frontend toggle moved out of the schedule-only block, wired into both `createRun` and the pre-existing `createScheduledRun`.
 - Same report flagged a PROD run with no Telegram DM and no visible cause. Investigated via `railway logs`: PROD **api** service successfully registers the Telegram webhook repeatedly; PROD **worker** service (the one that actually sends completion DMs) shows **zero** Telegram API calls ever in its recent history. The notify guard clauses were completely silent about why — added explicit `logger.warning`/`logger.info` at every skip branch (missing bot token / no linked `telegram_id` / `notify_on_complete=False`) so the next occurrence is immediately diagnosable.
-- **Root cause of the specific PROD incident not confirmed** — blocked from reading Railway env vars directly (sandbox permission classifier treats it as a secret read). Leading hypotheses documented in BACKLOG.md's `[E22-S2]` Handover: `TELEGRAM_BOT_TOKEN` possibly unset on PROD's `worker` service specifically (set on `api`, confirmed live), or the affected run/schedule simply had `notify_on_complete=False` from before this fix landed.
+- **Root cause of the specific PROD incident confirmed 2026-08-05**, the very next time a PROD run completed: the new diagnostic logging caught it directly — `Telegram notification skipped for run_id=...: TELEGRAM_BOT_TOKEN not configured on this service`. PROD's `worker` service never had `TELEGRAM_BOT_TOKEN` set, only PROD's `api` service did. Fix is a Railway env var, not code — flagged to the user directly, not resolvable by the agent (blocked from reading/writing Railway secrets).
 - 2 new backend tests (`test_runs.py`); full suite 385 passed (up from 380). ruff/ruff format/mypy clean; frontend `tsc --noEmit`/`next lint`/`next build` clean. No new dependencies, no migration.
-**Smoke test:** DEFERRED — needs a real DEV/PROD run created via "Сейчас" with the toggle off (confirm no DM), and the user checking PROD worker's `TELEGRAM_BOT_TOKEN` directly in the Railway dashboard.
+**Smoke test:** PASSED (diagnostic half — the new logging correctly identified the exact skip reason on the next real PROD run). DEFERRED (remaining half) — confirm notifications resume once the user sets `TELEGRAM_BOT_TOKEN` on PROD's `worker` service, and a real DEV/PROD run created via "Сейчас" with the toggle off (confirm no DM).
 **Promoted to backlog:**
 - (none — the open PROD root-cause question is tracked in this story's own Handover, not spun out separately)
 
