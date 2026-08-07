@@ -3182,11 +3182,13 @@ backend/src/services/apify_governor.py (new), backend/src/platforms/instagram.py
 ## [E20-S4] Reduce competitor account cap (50 → 20)
 **Epic:** Performance & Scale
 **Sprint:** unassigned
-**Status:** backlog — pending product decision, not yet approved
+**Status:** backlog — deprioritized, not a near-term concern (2026-08-07)
 **Priority:** low (blocked on a decision, not effort)
 **Depends on:** none
 ### Goal
 D13 set the competitor-list cap at ≤50 accounts per list as the original product spec. The user raised lowering it to 20 during this session's scale discussion. Worth separating two distinct motivations before implementing: (a) a smaller cap reduces per-run cost and duration and the odds of tripping Apify/Claude provider limits during a burst (a real lever for E20-S2/S3's concerns), but (b) it doesn't change *concurrent-user* capacity at all — that's governed by worker/DB/provider concurrency (E20-S2, E20-S3), not by how many accounts any single run covers. This story should not be implemented until the user confirms it's still wanted after seeing that distinction, since it's a user-facing product restriction (existing projects with 21-50 accounts would need a migration/grandfathering decision too).
+
+**2026-08-07 decision (backlog grooming session):** asked the user directly whether to proceed with 50→20. Answer: "for the moment our only case is one competitor. we will not consider more than one for the moment." — real current usage is single-competitor scale, so the cap question is moot at present; this is not a yes/no on the number, just confirmation there's no near-term pressure to decide. Left `backlog`/unassigned; revisit once real usage approaches double digits.
 ### Acceptance Criteria
 - [ ] Explicit user confirmation to proceed, after the cost/concurrency distinction above
 - [ ] `AccountList`/account-add validation lowered from 50 to 20 (find current enforcement point — likely `backend/src/api/*.py` competitor-list add/import endpoints)
@@ -3209,38 +3211,41 @@ DECISIONS.md (D13), backend/src/api/ (competitor-list endpoints — exact file n
 TBD — depends on where the 50-limit is currently enforced (not yet located)
 ### Handover
 Not started — explicitly gated on user confirmation per the Goal section. The 50→20 change itself is small; the grandfathering decision for existing projects is the part that needs a real answer before writing code.
+**2026-08-07:** see the decision note added to the Goal section above — deprioritized, not gated on grandfathering-design work right now, gated on real usage growing past single-digit competitors.
 
 ## [E20-S5] Resolve Apify Free Plan comment-count ceiling
 **Epic:** Performance & Scale
-**Sprint:** unassigned
-**Status:** backlog — pending product/business decision, not yet approved
+**Sprint:** unassigned — BrightData-provisioning half is schedulable once the user has real credentials; Apify-upgrade half stays deferred
+**Status:** backlog — partially decided 2026-08-07 (see below)
 **Priority:** medium (blocks re-enabling a shipped-but-disabled feature, not a live bug)
 **Depends on:** none; blocks re-enabling the disabled comment-limit options `[E21-S2]` shipped
 ### Goal
 Found live on DEV 2026-08-04 while smoke-testing `[E21-S2]`'s publication-mode Analysis: `apidojo/instagram-comments-scraper-api` — the primary comment-scraping vendor — silently caps its real output at **10 comments per post** on the account's current Apify **Free Plan**, no matter what `resultsLimit` the API call requests. The actor logs the restriction explicitly ("Users with the Free Plan can retrieve a maximum of 10 items... doesn't allow the use of API in the Free Plan") but still reports the overall run status as `SUCCEEDED`, so our code has no way to detect this as a failure — it just silently gets fewer comments than requested. The `BrightDataCommentsClient` fallback vendor (`comment_scraper.py`, D32) exists specifically for primary-vendor failures, but doesn't help here since the primary "succeeds," and separately isn't even configured on DEV right now (`railway variables --service worker --environment dev` shows no `BRIGHTDATA_API_TOKEN`/`BRIGHTDATA_IG_COMMENTS_DATASET_ID` set at all).
 
-This needs a business/account decision, not a code fix: either (a) upgrade the Apify account to a paid plan that lifts this actor's 10-item ceiling, or (b) provision real BrightData credentials as a working fallback and consider having the fetch path treat "fewer items than requested" as a soft-failure worth trying the fallback for (today only an outright exception triggers it). Until one of these happens, `[E21-S2]`'s comments_limit options above 10 (15/25/50/100) are shipped but intentionally disabled as greyed-out teaser chips in `run-dialog.tsx`/`scheduled-run-dialog.tsx` — real, not a bug, just gated on this story.
+**2026-08-07 decision (backlog grooming session):** the user resolved this into two separate tracks rather than one either/or —
+- **Apify plan upgrade: explicitly deferred.** Stay on the Free Plan (10-comment ceiling stays real) through the current pilot — 2 internal team users already involved, 5 more external test users still to come. Revisit upgrading only once those 5 external users have confirmed the product's value.
+- **BrightData fallback: approved to provision now**, independent of the Apify-upgrade timing — the user wants a working fallback vendor in place regardless of whether/when Apify gets upgraded.
+- **Teaser UI (`ACTIVE_COMMENTS_LIMIT_OPTIONS` above 10) stays disabled for now** — re-enabling it is still gated on the ceiling actually lifting (via BrightData covering the gap, or the later Apify upgrade), neither of which is true yet.
 ### Acceptance Criteria
-- [ ] Explicit user/product decision: upgrade the Apify plan for the comments actor, configure a working BrightData fallback, both, or neither (accept the 10-comment ceiling as permanent and remove the teaser UI instead)
-- [ ] If upgrading Apify: confirm live on DEV that a `comments_limit` above 10 (e.g. 25) actually returns more than 10 real comments post-upgrade
-- [ ] If provisioning BrightData: set `BRIGHTDATA_API_TOKEN`/`BRIGHTDATA_IG_COMMENTS_DATASET_ID` on the DEV/PROD worker services (Railway), confirm a forced primary-vendor failure actually falls through to a working Bright Data fetch
-- [ ] Consider (needs its own sign-off, not assumed): should `fetch_comments` treat "returned fewer comments than requested" as a soft-failure worth trying the fallback vendor for, given the primary vendor's Free Plan behavior returns `SUCCEEDED` with silently-truncated data rather than raising?
-- [ ] Once resolved, re-enable the disabled options: `ACTIVE_COMMENTS_LIMIT_OPTIONS` in `frontend/components/run-dialog.tsx` and `frontend/components/scheduled-run-dialog.tsx` (currently hardcoded to `{5, 10}`)
+- [ ] **Human prerequisite, not agent-doable:** the user creates a BrightData account and obtains `BRIGHTDATA_API_TOKEN`/`BRIGHTDATA_IG_COMMENTS_DATASET_ID` (account creation and payment/credential entry are both outside what an agent session can do on the user's behalf) and sets them on DEV/PROD's **worker** service in Railway
+- [ ] Once credentials exist: confirm a forced primary-vendor failure actually falls through to a working BrightData fetch (real call, not just unit-mocked)
+- [ ] Consider (needs its own sign-off, not assumed): should `fetch_comments` treat "returned fewer comments than requested" as a soft-failure worth trying the fallback vendor for, given the primary vendor's Free Plan behavior returns `SUCCEEDED` with silently-truncated data rather than raising? This is the piece that would make BrightData actually cover today's 10-comment ceiling, not just genuine outright failures — confirm the user wants that behavior (it changes when the fallback fires, a real behavior change) before assuming yes
+- [ ] Apify plan upgrade and re-enabling `ACTIVE_COMMENTS_LIMIT_OPTIONS` above 10: **do not implement yet** — explicitly deferred per the decision above, revisit after the 5-external-user milestone
 ### Definition of Done
 - [ ] All AC checked
-- [ ] Tests written and passing (if the soft-failure/fallback-trigger behavior changes)
+- [ ] Tests written and passing (soft-failure/fallback-trigger logic, mockable without real credentials)
 - [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
+- [ ] Smoke test passed (needs real BrightData credentials — blocked until the human prerequisite above is done)
 - [ ] DONE.md updated
 - [ ] BACKLOG.md updated
 ### Smoke test
-On DEV, run a publication-mode Analysis with `comments_limit` set above 10 and confirm the analyzed-comments count actually reflects the requested limit (not silently capped at 10).
+Once BrightData credentials are live on DEV: force a primary-vendor failure and confirm the fallback actually returns real comments. The Apify-upgrade-side smoke test (confirming `comments_limit` above 10 returns more than 10 comments) stays out of scope until that track is picked back up.
 ### Files to read
 CLAUDE.md, backend/src/services/comment_scraper.py, ENV.md (`BRIGHTDATA_API_TOKEN`/`BRIGHTDATA_IG_COMMENTS_DATASET_ID`), frontend/components/run-dialog.tsx, frontend/components/scheduled-run-dialog.tsx
 ### Files to create or modify
-Depends on the decision — likely `backend/src/services/comment_scraper.py` (soft-failure/fallback trigger logic) and both frontend dialog files (`ACTIVE_COMMENTS_LIMIT_OPTIONS`), plus Railway env vars if provisioning BrightData
+backend/src/services/comment_scraper.py (soft-failure/fallback trigger logic, if approved), backend/tests/; Railway env vars are a human step, not a code change
 ### Handover
-Opened 2026-08-04 from `[E21-S2]`'s second smoke-test round — see that story's Changelog for the full `railway logs` trace that found this. Not a code bug; genuinely blocked on an account-level decision the user needs to make (and likely a real cost trade-off between an Apify plan upgrade and a BrightData subscription) before more code can usefully be written here.
+Opened 2026-08-04 from `[E21-S2]`'s second smoke-test round — see that story's Changelog for the full `railway logs` trace that found this. **2026-08-07:** user decision narrows this story's near-term scope to "provision + verify BrightData fallback," with the Apify-upgrade half explicitly parked until 5 external test users confirm product value. The credential-provisioning step itself needs the user to act outside this session (create the BrightData account, set Railway env vars) before the remaining AC items are workable.
 
 ## [E21-S1] Scope standalone Analysis pipeline: Apify usage audit + worker capacity
 **Epic:** Standalone Analysis Pipeline (new, D40)
@@ -3707,3 +3712,33 @@ CLAUDE.md, SPRINT.md (Sprint 12's PBR note on this exact gap), frontend/app/(app
 backend/src/models/user.py (or equivalent), a new alembic migration, backend user-settings API route, frontend/app/(app)/settings/page.tsx, frontend/components/run-dialog.tsx, frontend/components/scheduled-run-dialog.tsx, backend/src/services/telegram_notify.py, backend/src/worker.py, frontend/lib/api.ts, frontend/messages/ru.json
 ### Handover
 Opened 2026-08-07 from direct first-user feedback (item 3 of a 4-item batch — see `[E8-S10]`, `[E18-S7]`, `[E8-S9]`'s Handover). This is explicitly the missing detail SPRINT.md's Sprint 12 section was waiting on ("still needs concrete detail from the user before more E22 stories open") — safe to treat as unblocking further E22 planning. Net effect on shipped functionality: this **removes** per-run notify control that `[E14-S6]` and `[E22-S2]` both explicitly added — worth flagging to the user again at implementation time in case that trade-off deserves a second look before the per-run UI is actually deleted (vs. just hidden, which is reversible).
+
+## [E21-S6] Analysis-pipeline regression sweep: synthesis retry, hidden-account flow, and pricing model audited together
+**Epic:** Standalone Analysis Pipeline
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E17-S12, E21-S4, E21-S5
+### Goal
+Formalized 2026-08-07 (previously a working-title proposal only, flagged at the 2026-08-05 `/sprint-review`, not added to BACKLOG.md pending go-ahead — now approved). Three separate, real bugs landed in the Analysis pipeline within ~36 hours of `[E21-S2]` shipping — `[E17-S12]` (synthesis retry on malformed `tool_use`), `[E21-S4]` (post-mode account resolution polluting the competitor list), `[E21-S5]`/D51 (synthesis mispriced at Haiku rates, no base charge) — none caught by the test suite at the time, all found via a real DEV/PROD run or a direct user question. A near-identical cluster shape hit the same pipeline one sprint earlier (`[E17-S11]`: synthesis truncation, logging visibility, timeout headroom, notification timing, D48). Two clusters in two sprints on the same subsystem is a signal that fixing bugs one at a time as they're found isn't closing the actual gap — this story is a deliberate step back to audit the three most recent fixes *together* for the class of gap a single-bug-at-a-time fix wouldn't catch (e.g. other tool-schema fields the model could omit besides `stats`; other places `_resolve_or_create_account`-style helpers create visible side-effect rows; other charge paths that could still be priced at the wrong model's rate).
+### Acceptance Criteria
+- [ ] Re-read `[E17-S12]`, `[E21-S4]`, `[E21-S5]` (and `[E17-S11]` for the prior cluster) together, not sequentially — look for the common root shape across all four rather than re-verifying each fix in isolation
+- [ ] Synthesis retry (`deep_analysis_synthesis.py`): audit `REPORT_TOOL`'s full schema for *other* fields the model could plausibly omit the way it omitted `stats` — confirm the retry/validation logic catches any required-field gap, not just the one specific shape that happened to occur
+- [ ] Hidden-account flow (`worker.py:_resolve_or_create_account`, `Account.hidden`): confirm there is no other code path that creates a visible `Account`/`ContentItem`-adjacent row as a side effect of resolving a single post or account reference, outside the post-mode Analysis flow `[E21-S4]` fixed
+- [ ] Pricing model (D48/D50/D51/D52): confirm every real Anthropic call in both the Review and Analysis pipelines (per-item extraction, synthesis, run-summary) is billed at that call's actual model rate and actually charged somewhere in `usage_events` — build a small checklist cross-referencing "every `client.messages.create` call site" against "every place a charge is recorded," rather than trusting each prior fix's own scope
+- [ ] Decide whether any finding from the above needs a new regression test category (e.g. a schema-fuzzing test for the synthesis tool call) versus one-off fixes, and document that decision here
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing for any new gap found
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+Run a real DEV Analysis (account mode and post mode) after the audit, confirming no regression in the three already-fixed behaviors (synthesis retry, hidden accounts, correct pricing) and that any newly-found gap is closed.
+### Files to read
+CLAUDE.md, DECISIONS.md (D48, D49, D50, D51, D52), backend/src/services/deep_analysis_synthesis.py, backend/src/worker.py, backend/src/models/account.py, backend/src/services/run_summary.py, backend/src/api/usage.py, `[E17-S11]`, `[E17-S12]`, `[E21-S4]`, `[E21-S5]` entries above
+### Files to create or modify
+Depends on what the audit finds — likely backend/src/services/deep_analysis_synthesis.py, backend/src/worker.py, backend/tests/
+### Handover
+Formalized 2026-08-07 during a backlog grooming session, per direct user go-ahead ("add it now, include in planning"). No code written yet.

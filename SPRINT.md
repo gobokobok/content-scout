@@ -291,6 +291,24 @@ All three: full suite 385 passed (up from 378), ruff/mypy clean, frontend tsc/es
 - **`[E22-S3]`** — replaces the existing per-run notify toggle (`[E14-S6]`/`[E22-S2]`) with two global Settings-page toggles (Review, Analysis) covering every run of that type, present and future, **no per-run override** (explicit user decision, so a user with several active runs always has one place to turn a run type's notifications off). This is the concrete detail this file's Sprint 12 section had flagged as still missing before more `E22` stories could open — now unblocked.
 - **`[E8-S9]`** (pre-existing story, not new) — user re-reported the same DM-opens-browser-and-re-auths issue this story already tracks, and guessed DEV already fixed it. Re-checked `telegram_notify.py` this session: still unimplemented on both DEV and PROD (plain `<a href>` anchor, no `web_app` button) — likely a mix-up with the separately-shipped `[E8-S6]` auto-login fix. No new story opened; a correction note was added to `[E8-S9]`'s own Handover instead.
 
+**Backlog grooming, 2026-08-07 (same session, immediately after the feedback batch above).** Full open-backlog review (22 items: 21 `backlog` + `[E19-S3]` `in-progress`; the other 80 are `done`). Three decisions resolved directly with the user:
+- **`[E21-S6]` formalized** (was a working-title proposal only since the 2026-08-05 review) — Analysis-pipeline regression sweep, auditing `[E17-S12]`/`[E21-S4]`/`[E21-S5]` together for the class of gap a single-bug-at-a-time fix wouldn't catch. User: "add it now, include in planning."
+- **`[E20-S4]` (50→20 competitor cap) deprioritized, not decided either way** — user: real usage right now is a single competitor account, so the cap question doesn't matter yet. Left `backlog`/unassigned; revisit once real usage grows past single digits.
+- **`[E20-S5]` (Apify 10-comment ceiling) split into two tracks** — Apify plan upgrade explicitly deferred until 5 external test users (beyond the 2 internal team users already using it) confirm product value; BrightData fallback approved to provision now, independent of that timing. The BrightData track's first AC item is a **human prerequisite** (the user creating a BrightData account and setting Railway credentials — account creation/payment is outside what an agent session can do), so it's not immediately codeable either, just no longer blocked on a decision.
+
+**Sprint 13 proposed (not yet locked — pending final user confirmation on ordering):** per the user's explicit sequencing choice ("after the feedback fixes" for `[E19-S3]`), and priority otherwise:
+
+| # | Story | Title | Priority |
+|---|---|---|---|
+| 0 | E22-S3 | Global notify toggles on Settings, replacing per-run overrides | high |
+| 1 | E18-S7 | Side drawers: close/X + Telegram-chrome color collision | medium |
+| 2 | E8-S10 | Investigate Mini App hardware back/swipe exiting to bot chat | medium |
+| 3 | E8-S9 | Telegram DM deep-link into Mini App instead of browser | medium |
+| 4 | E19-S3 | Resume DEV smoke sweep (Sprint 11's deferred items) | high |
+| 5 | E21-S6 | Analysis-pipeline regression sweep | high |
+
+**Not scheduled:** `[E20-S4]` (deprioritized, no near-term usage pressure) and `[E20-S5]` (blocked on the user provisioning real BrightData credentials before its remaining AC is workable).
+
 ## Sprint plan (projection, adjust at each /sprint-review)
 
 - **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)
