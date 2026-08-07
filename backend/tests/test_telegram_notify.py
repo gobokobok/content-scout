@@ -128,6 +128,13 @@ async def test_notify_done_sends_message_with_link():
     assert f"https://example.com/projects/{run.project_id}/runs/{run.id}" in text
     assert "Потрачено токенов: <b>42</b>" in text
     assert "358" in text
+    # E8-S9: a web_app inline-keyboard button opens the same link inside the Mini App,
+    # instead of forcing the system browser (and a fresh re-auth) via the plain <a href>.
+    reply_markup = call_kwargs["json"]["reply_markup"]
+    button = reply_markup["inline_keyboard"][0][0]
+    assert (
+        button["web_app"]["url"] == f"https://example.com/projects/{run.project_id}/runs/{run.id}"
+    )
 
 
 @pytest.mark.asyncio
@@ -186,6 +193,9 @@ async def test_notify_failed_sends_error_message():
     assert "❌ Задача «Ревью» завершилась с ошибкой." in payload["text"]
     assert "Тестовая ошибка" in payload["text"]
     assert "12" in payload["text"]
+    # No link shown on a failed run today, so no button either (E8-S9's AC scopes the button
+    # to "message variants where a link is shown").
+    assert "reply_markup" not in payload
 
 
 @pytest.mark.asyncio
@@ -274,6 +284,12 @@ async def test_notify_deep_analysis_done_sends_message_with_link():
         f"https://example.com/projects/{run.project_id}/deep-analyses/{analysis.id}"
         in (payload["text"])
     )
+    # E8-S9
+    button = payload["reply_markup"]["inline_keyboard"][0][0]
+    assert (
+        button["web_app"]["url"]
+        == f"https://example.com/projects/{run.project_id}/deep-analyses/{analysis.id}"
+    )
 
 
 @pytest.mark.asyncio
@@ -299,6 +315,7 @@ async def test_notify_deep_analysis_failed_sends_error_message():
     payload = mock_post.call_args[1]["json"]
     assert "Не удалось сформировать отчёт" in payload["text"]
     assert "100" in payload["text"]
+    assert "reply_markup" not in payload
 
 
 @pytest.mark.asyncio

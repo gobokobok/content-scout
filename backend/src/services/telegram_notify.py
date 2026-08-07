@@ -35,6 +35,18 @@ def _esc(text: str) -> str:
     return html.escape(text, quote=False)
 
 
+def _open_button_markup(text: str, url: str) -> dict:
+    """E8-S9: a `web_app`-type inline-keyboard button opens `url` inside the Mini App itself
+    (already authenticated) instead of the plain-`<a href>` anchor's system-browser fallback,
+    which forces a fresh login. Mirrors telegram_webhook.py's `_send_open_button` — the
+    existing `setChatMenuButton`/menu-button `web_app` config already opens `settings.web_url`
+    (no path) this same way, confirming inline-keyboard `web_app` buttons work in this bot;
+    Bot API docs place no domain restriction on the URL for this specific button type (unlike
+    `login_url` buttons or `ReplyKeyboardMarkup` web_app buttons, which need BotFather
+    domain binding), so passing the full result-page URL with its path is expected to work."""
+    return {"inline_keyboard": [[{"text": text, "web_app": {"url": url}}]]}
+
+
 def notify_enabled_for_run_type(user: User, run_type: str) -> bool:
     """E22-S3: global per-user toggle, replacing the old per-run/per-schedule
     notify_on_complete/notify_enabled field entirely — no per-run override, so this is the
@@ -135,11 +147,13 @@ async def notify_run_complete(run: AnalysisRun, user: User, session: AsyncSessio
         parts.append(f'<a href="{link}">Открыть результаты →</a>')
         parts.append(f"Потрачено токенов: <b>{tokens_spent}</b>\n{balance_line}")
         text = "\n\n".join(parts)
+        reply_markup = _open_button_markup("Открыть результаты →", link)
     else:
         error = _esc((run.error_message or "—")[:200])
         text = f"❌ Задача «Ревью» завершилась с ошибкой.\n\n{error}\n\n{balance_line}"
+        reply_markup = None
 
-    await _send(settings, user, text)
+    await _send(settings, user, text, reply_markup=reply_markup)
 
 
 async def notify_deep_analysis_complete(
@@ -179,25 +193,29 @@ async def notify_deep_analysis_complete(
             balance_line,
         ]
         text = "\n\n".join(parts)
+        reply_markup = _open_button_markup("Открыть разбор →", link)
     else:
         error = _esc((analysis.error_message or "—")[:200])
         text = f"❌ Разбор завершился с ошибкой.\n\n{error}\n\n{balance_line}"
+        reply_markup = None
 
-    await _send(settings, user, text)
+    await _send(settings, user, text, reply_markup=reply_markup)
 
 
-async def _send(settings: Settings, user: User, text: str) -> None:
+async def _send(
+    settings: Settings, user: User, text: str, *, reply_markup: dict | None = None
+) -> None:
     try:
         url = _BOT_API.format(token=settings.telegram_bot_token)
+        payload: dict = {
+            "chat_id": user.telegram_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
         async with httpx.AsyncClient(timeout=5) as client:
-            await client.post(
-                url,
-                json={
-                    "chat_id": user.telegram_id,
-                    "text": text,
-                    "parse_mode": "HTML",
-                    "disable_web_page_preview": True,
-                },
-            )
+            await client.post(url, json=payload)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Telegram notification failed (non-fatal): %s", exc)

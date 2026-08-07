@@ -2,6 +2,17 @@
 
 Completed stories land here, newest first. Format:
 
+## [E8-S9] Telegram completion DM: deep-link into the Mini App, not the browser
+**Completed:** 2026-08-07
+**Handover:**
+- Second live-user report of this exact issue (first surfaced during `[E19-S1]`'s smoke sweep, 2026-07-31): the completion DM's plain `<a href>` link opens the system browser and forces a fresh re-auth, instead of the already-authenticated Mini App.
+- Both `notify_run_complete` and `notify_deep_analysis_complete` (scope extended to both — same bug, same file, same fix) now send a `reply_markup` inline-keyboard `web_app` button on the `done` message variant, via new shared `_open_button_markup(text, url)`; `_send()` gained an optional `reply_markup` kwarg. The existing `<a href>` text link stays too, as cheap redundancy.
+- Confirmed against the existing `_send_open_button`/`setChatMenuButton` code in `telegram_webhook.py` that this bot's inline-keyboard `web_app` buttons already work; per Bot API docs the domain-binding restriction applies to `login_url`/`ReplyKeyboardMarkup` web_app buttons, not `InlineKeyboardButton.web_app` — no new BotFather config needed.
+- Existing `test_telegram_notify.py` done/failed tests (both functions) extended to assert the button's presence/absence. 393 backend tests passing (no count change — extended, not new). ruff/mypy clean. No new dependencies, no migration.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. Needs a real DEV/PROD run completion DM, tap the button, confirm it opens inside the Mini App.
+**Promoted to backlog:**
+- (none)
+
 ## [E18-S7] Side drawers: close/X button, easier-to-hit dismiss area, and Telegram-chrome color collision
 **Completed:** 2026-08-07
 **Handover:**
