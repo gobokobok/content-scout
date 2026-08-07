@@ -60,6 +60,8 @@ class ScheduledRunIn(BaseModel):
     time_of_day: time
     timezone: str = "Europe/Moscow"
     active: bool = True
+    # E22-S3: superseded by User.notify_review_enabled/notify_analysis_enabled (global,
+    # Settings page) — kept accepted-but-ignored for backward compat, no per-schedule override.
     notify_enabled: bool = False
 
     @model_validator(mode="after")

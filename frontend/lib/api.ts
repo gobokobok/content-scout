@@ -98,6 +98,8 @@ export interface UserResponse {
   is_admin: boolean;
   has_telegram: boolean;
   token_balance: number;
+  notify_review_enabled: boolean;
+  notify_analysis_enabled: boolean;
 }
 
 export interface ProjectResponse {
@@ -211,7 +213,8 @@ export interface RunRequest {
   analysis_mode?: AnalysisMode;
   target_post_url?: string;
   comments_limit?: number;
-  // Overarching notify toggle (was schedule-only) — applies to "run now" too.
+  // E22-S3: superseded by the global per-account Settings notify preference — accepted but
+  // ignored server-side, kept optional/unsent by the frontend now.
   notify_on_complete?: boolean;
 }
 
@@ -253,6 +256,8 @@ export interface ScheduledRunResponse {
   time_of_day: string;
   timezone: string;
   active: boolean;
+  // E22-S3: superseded by the global per-account Settings notify preference — no longer read
+  // by the frontend, kept in the response shape for backward compat.
   notify_enabled: boolean;
   last_run_id: string | null;
   last_skip_reason: ScheduledRunSkipReason | null;
@@ -281,7 +286,9 @@ export interface ScheduledRunRequest {
   time_of_day: string;
   timezone: string;
   active: boolean;
-  notify_enabled: boolean;
+  // E22-S3: superseded by the global per-account Settings notify preference — accepted but
+  // ignored server-side, kept optional/unsent by the frontend now.
+  notify_enabled?: boolean;
 }
 
 export interface ShortlistItemResponse {
@@ -489,6 +496,11 @@ export const api = {
     request<UserResponse>("/auth/me", {
       method: "PATCH",
       body: JSON.stringify({ display_name: displayName }),
+    }),
+  updateNotifyPrefs: (prefs: { notify_review_enabled: boolean; notify_analysis_enabled: boolean }) =>
+    request<UserResponse>("/auth/me/notifications", {
+      method: "PATCH",
+      body: JSON.stringify(prefs),
     }),
   getTelegramConfig: () =>
     request<{ enabled: boolean; bot_username: string }>("/auth/telegram/config"),

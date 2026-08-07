@@ -315,6 +315,10 @@ All three: full suite 385 passed (up from 378), ruff/mypy clean, frontend tsc/es
 
 **Order confirmed by direct user agreement ("agree") to the proposal above.** Proceeding to `[E22-S3]` first.
 
+**Autonomous back-to-back pass started 2026-08-07 (direct user request: "start and complete sprint 13 without my involvement").**
+
+**`[E22-S3]` closed, 2026-08-07.** Two global Settings toggles (Review/Analysis) replace the per-run/per-schedule notify field entirely, no per-run override, per the story's own explicit AC. New `User.notify_review_enabled`/`notify_analysis_enabled` (migration `a3b4c5d6e7f8`) + `PATCH /auth/me/notifications`; new `notify_enabled_for_run_type` helper consumed by all 4 `worker.py` notify call sites; old per-run request fields kept accepted-but-ignored, not removed. Per-run toggle UI fully removed (not hidden) from both run dialogs and the now-misleading per-schedule notify badges removed from the home feed and Scheduled Runs page. A real pre-existing test-isolation gap (3 `test_telegram_webapp.py` tests bypass the test DB) surfaced via the new migration, fixed practically (dev DB migrated too) without touching the isolation gap itself. 393 backend tests passed (up from 385), ruff/mypy clean, frontend tsc/eslint/build clean. Smoke test deferred, same established pattern. **Proceeding to `[E18-S7]` next**, per Sprint 13's declared order.
+
 ## Sprint plan (projection, adjust at each /sprint-review)
 
 - **Sprint 2:** E2-S1, E2-S2, E3-S1 — projects, competitor lists, run lifecycle with mock data (done)

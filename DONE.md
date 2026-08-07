@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E22-S3] Global notification-preference toggles on Settings, replacing per-run overrides
+**Completed:** 2026-08-07
+**Handover:**
+- First live-user feedback item — replaces the per-run/per-schedule `notify_on_complete`/`notify_enabled` toggle (`[E14-S6]`/`[E22-S2]`) with two global Settings-page toggles (Review, Analysis), no per-run override, per direct user decision.
+- New `User.notify_review_enabled`/`notify_analysis_enabled` (migration `a3b4c5d6e7f8`, default `True`, preserves pre-existing unconditional-notify behavior). New `PATCH /auth/me/notifications`; `GET`/`PATCH /auth/me` extended to return both fields (`UserOut`, via a new `_to_user_out` helper that also de-duplicated three near-identical construction sites).
+- New `notify_enabled_for_run_type(user, run_type)` in `telegram_notify.py`, consumed by all 4 notify call sites in `worker.py`. The old per-run/per-schedule request fields (`RunRequestIn.notify_on_complete`, `ScheduledRunIn.notify_enabled`) stay in the schema **accepted-but-ignored** — avoids a breaking API change; documented in place.
+- Frontend: per-run toggle UI fully **removed** (not hidden) from `run-dialog.tsx`/`scheduled-run-dialog.tsx`, replaced with a short RU note pointing to Settings; the now-misleading per-schedule notify badge removed from the home feed and the project Scheduled Runs page. New shared `ToggleSwitch` extracted to `frontend/components/ui/index.tsx` (was duplicated verbatim in both dialog files) and reused by the new Settings section.
+- **Real pre-existing test-isolation gap found via a full-suite run** (not caused by this story): 3 `test_telegram_webapp.py` tests bypass the test DB entirely (no `get_session` override on their raw `ASGITransport` client) and hit the local dev Postgres directly — surfaced only because the new migration hadn't been applied there. Fixed practically by running `alembic upgrade head` against the local dev DB too (round-trip verified); the isolation gap itself is untouched, noted for `[E21-S6]`-style attention later.
+- 393 backend tests passed (up from 385: 6 new/rewritten). ruff/ruff format/mypy clean. Frontend `tsc --noEmit`/`next lint`/`next build` clean. No new dependencies.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. Needs a real DEV pass: toggle each global switch off, run one Review and one Analysis, confirm DMs arrive only per the corresponding global toggle.
+**Promoted to backlog:**
+- (none)
+
 ## [E3-S10] Review base token charge (D52), tokens_charged ledger fixes
 **Completed:** 2026-08-05
 **Handover:**

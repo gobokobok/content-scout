@@ -783,14 +783,14 @@ async def test_scheduled_run_completion_notifies_telegram(
 ) -> None:
     """A schedule fires straight into the same enqueue_run -> process_run path a manual run
     takes (src/api/runs.py:create_run), so notify_run_complete needs no schedule-specific
-    call site — this proves that end to end rather than by inspection alone. notify_enabled
-    must be explicit here (E14-S6 changed the default to off)."""
+    call site — this proves that end to end rather than by inspection alone. E22-S3: the
+    per-schedule notify_enabled field is now accepted-but-ignored — firing is governed by the
+    requesting user's global User.notify_review_enabled (default True)."""
     owner, project = await _setup_project_with_accounts(session, n=1)
     await make_scheduled_run(
         session,
         project=project,
         created_by=owner,
-        notify_enabled=True,
         day_of_week=2,
         time_of_day=time(9, 0),
         timezone="UTC",
@@ -812,16 +812,19 @@ async def test_scheduled_run_completion_notifies_telegram(
 
 @patch("src.services.scheduled_runs.enqueue_run", new_callable=AsyncMock)
 @patch("src.worker.notify_run_complete", new_callable=AsyncMock)
-async def test_scheduled_run_completion_skips_notify_when_disabled(
+async def test_scheduled_run_completion_skips_notify_when_globally_disabled(
     mock_notify: AsyncMock, mock_enqueue: AsyncMock, session: AsyncSession
 ) -> None:
-    """Default notify_enabled=False (E14-S6) must mean no Telegram DM at all, even though
-    notify_run_complete's own gate (user.telegram_id set) would otherwise allow it."""
+    """E22-S3: the per-schedule notify_enabled toggle is gone — the only way to suppress a
+    Review completion DM now is the requesting user's global notify_review_enabled=False. A
+    schedule's own (accepted-but-ignored) notify_enabled=True must NOT override that."""
     owner, project = await _setup_project_with_accounts(session, n=1)
+    owner.notify_review_enabled = False
     await make_scheduled_run(
         session,
         project=project,
         created_by=owner,
+        notify_enabled=True,
         day_of_week=2,
         time_of_day=time(9, 0),
         timezone="UTC",

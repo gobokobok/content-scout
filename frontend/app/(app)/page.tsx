@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
-  Bell,
   CalendarClock,
   MessageCircle,
   MoreVertical,
@@ -135,7 +134,6 @@ export default function RunFeedPage() {
         time_of_day: sr.time_of_day,
         timezone: sr.timezone,
         active: !sr.active,
-        notify_enabled: sr.notify_enabled,
       });
       await loadFeed();
     } catch (err) {
@@ -445,12 +443,6 @@ export default function RunFeedPage() {
                           <Badge variant={sr.active ? "success" : "muted"}>
                             {sr.active ? tSched("activeLabel") : tSched("inactiveLabel")}
                           </Badge>
-                          {sr.notify_enabled && (
-                            <Bell
-                              className="h-3.5 w-3.5 text-secondary"
-                              aria-label={tSched("notifyBadge")}
-                            />
-                          )}
                         </div>
                       </button>
                       <button

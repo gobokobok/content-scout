@@ -15,7 +15,7 @@ import { useRunTracker } from "@/lib/run-tracker";
 import { useToast } from "@/components/ui/toast";
 import { formatFollowers } from "@/lib/format";
 import { detectLocalTimezone } from "@/lib/telegram-webapp";
-import { Segmented } from "@/components/ui";
+import { Segmented, ToggleSwitch } from "@/components/ui";
 
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 const ITEM_LIMIT_OPTIONS = [5, 10, 15, 20, 30, 50];
@@ -38,37 +38,6 @@ function chipClass(active: boolean): string {
 
 const disabledChipClass =
   "h-10 min-w-10 rounded-[10px] border border-border px-2 font-mono text-[13px] font-medium text-secondary/50 opacity-60 cursor-not-allowed";
-
-function ToggleSwitch({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: () => void;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-sm font-medium text-ink">{label}</span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={onChange}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-          checked ? "bg-lime" : "bg-border"
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-            checked ? "translate-x-5" : "translate-x-0"
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
 
 export function RunDialog({
   projectId,
@@ -119,9 +88,6 @@ export function RunDialog({
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("recurring");
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [timeOfDay, setTimeOfDay] = useState("09:00");
-  // Was schedule-only, defaulted off; now overarching (applies to "run now" too) — defaults on
-  // to preserve "run now"'s pre-existing unconditional-notify behavior.
-  const [notifyEnabled, setNotifyEnabled] = useState(true);
   const [timezone] = useState(() => detectLocalTimezone());
   const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
   const [deepEstimateTokens, setDeepEstimateTokens] = useState<number | null>(null);
@@ -302,14 +268,12 @@ export function RunDialog({
           time_of_day: `${timeOfDay}:00`,
           timezone,
           active: true,
-          notify_enabled: notifyEnabled,
         });
         setScheduled(true);
       } else {
         const created = await api.createRun(projectId, {
           ...scopeFields,
           run_type: runType,
-          notify_on_complete: notifyEnabled,
         });
         track(created, projectId, projectName);
         setRunId(created.id);
@@ -750,14 +714,9 @@ export function RunDialog({
                     </p>
                   </div>
                 )}
-                {/* Overarching — applies whether this run starts now or is scheduled. */}
-                <div className="rounded-[14px] bg-bg p-3">
-                  <ToggleSwitch
-                    checked={notifyEnabled}
-                    onChange={() => setNotifyEnabled((v) => !v)}
-                    label={t("notifyLabel")}
-                  />
-                </div>
+                {/* E22-S3: per-run toggle removed — notifications are now a global,
+                    per-account Settings preference (Review/Analysis), no per-run override. */}
+                <p className="text-xs text-secondary">{t("notifySettingsNote")}</p>
               </div>
 
               {/* Cost estimate */}

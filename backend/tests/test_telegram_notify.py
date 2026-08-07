@@ -11,6 +11,7 @@ from src.models import AnalysisRun, ContentType, DeepAnalysis, DeepAnalysisStatu
 from src.services.telegram_notify import (
     _top_items_lines,
     notify_deep_analysis_complete,
+    notify_enabled_for_run_type,
     notify_run_complete,
 )
 from tests.conftest import (
@@ -370,3 +371,28 @@ async def test_top_items_lines_orders_by_virality_and_formats_plain_text(
     assert "@viral_star" in lines[0]
     assert not any("quiet_one" in line for line in lines)
     assert not any("Quiet" in line for line in lines)
+
+
+# --- E22-S3: global notify preferences (replaces per-run/per-schedule notify_on_complete) ---
+
+
+def test_notify_enabled_for_run_type_stat_collection_reads_review_pref() -> None:
+    user = MagicMock(spec=User)
+    user.notify_review_enabled = True
+    user.notify_analysis_enabled = False
+    assert notify_enabled_for_run_type(user, "stat_collection") is True
+
+
+def test_notify_enabled_for_run_type_deep_analysis_reads_analysis_pref() -> None:
+    user = MagicMock(spec=User)
+    user.notify_review_enabled = True
+    user.notify_analysis_enabled = False
+    assert notify_enabled_for_run_type(user, "deep_analysis") is False
+
+
+def test_notify_enabled_for_run_type_independent_toggles() -> None:
+    user = MagicMock(spec=User)
+    user.notify_review_enabled = False
+    user.notify_analysis_enabled = True
+    assert notify_enabled_for_run_type(user, "stat_collection") is False
+    assert notify_enabled_for_run_type(user, "deep_analysis") is True

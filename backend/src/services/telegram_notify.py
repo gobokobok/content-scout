@@ -35,6 +35,16 @@ def _esc(text: str) -> str:
     return html.escape(text, quote=False)
 
 
+def notify_enabled_for_run_type(user: User, run_type: str) -> bool:
+    """E22-S3: global per-user toggle, replacing the old per-run/per-schedule
+    notify_on_complete/notify_enabled field entirely — no per-run override, so this is the
+    single decision point every call site should consult instead of reading the run/schedule
+    row's own (now-ignored) field."""
+    if run_type == "deep_analysis":
+        return user.notify_analysis_enabled
+    return user.notify_review_enabled
+
+
 def _log_skip_reason(run_id: object, settings: Settings, user: User) -> None:
     """Previously a silent no-op — a real PROD incident (2026-08-05) had zero record anywhere
     of *why* a run's completion DM never arrived, only that it didn't. Distinguishes the two

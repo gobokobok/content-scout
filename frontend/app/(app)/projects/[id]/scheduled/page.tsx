@@ -116,7 +116,6 @@ export default function ScheduledRunsPage() {
         time_of_day: schedule.time_of_day,
         timezone: schedule.timezone,
         active: !schedule.active,
-        notify_enabled: schedule.notify_enabled,
       });
       await load();
     } catch (err) {
@@ -223,7 +222,6 @@ export default function ScheduledRunsPage() {
                       <Badge variant={s.active ? "success" : "muted"}>
                         {s.active ? t("activeLabel") : t("inactiveLabel")}
                       </Badge>
-                      {s.notify_enabled && <Badge variant="default">{t("notifyBadge")}</Badge>}
                     </div>
                   </button>
                   {!isArchived && (

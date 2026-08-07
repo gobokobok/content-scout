@@ -18,6 +18,7 @@ from src.auth.tokens import create_access_token
 from src.config import get_settings
 from src.db import get_session
 from src.middleware.rate_limit import check_rate_limit
+from src.models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -63,6 +64,21 @@ class UserOut(BaseModel):
     is_admin: bool
     has_telegram: bool = False
     token_balance: int = 0
+    notify_review_enabled: bool = True
+    notify_analysis_enabled: bool = True
+
+
+def _to_user_out(user: User) -> UserOut:
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+        is_admin=user.is_admin,
+        has_telegram=user.telegram_id is not None,
+        token_balance=user.token_balance,
+        notify_review_enabled=user.notify_review_enabled,
+        notify_analysis_enabled=user.notify_analysis_enabled,
+    )
 
 
 class DisplayNameIn(BaseModel):
@@ -77,6 +93,14 @@ class DisplayNameIn(BaseModel):
         if len(v) > MAX_DISPLAY_NAME_LEN:
             raise ValueError(f"Имя должно быть не длиннее {MAX_DISPLAY_NAME_LEN} символов.")
         return v
+
+
+class NotifyPrefsIn(BaseModel):
+    """E22-S3: two global toggles replacing the per-run/per-schedule notify field —
+    explicit user decision, no per-run override."""
+
+    notify_review_enabled: bool
+    notify_analysis_enabled: bool
 
 
 @router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
@@ -116,28 +140,26 @@ async def login(body: CredentialsIn, request: Request, session: SessionDep) -> T
 
 @router.get("/me", response_model=UserOut)
 async def me(user: CurrentUser) -> UserOut:
-    return UserOut(
-        id=user.id,
-        email=user.email,
-        display_name=user.display_name,
-        is_admin=user.is_admin,
-        has_telegram=user.telegram_id is not None,
-        token_balance=user.token_balance,
-    )
+    return _to_user_out(user)
 
 
 @router.patch("/me", response_model=UserOut)
 async def update_me(body: DisplayNameIn, user: CurrentUser, session: SessionDep) -> UserOut:
     user.display_name = body.display_name
     await session.commit()
-    return UserOut(
-        id=user.id,
-        email=user.email,
-        display_name=user.display_name,
-        is_admin=user.is_admin,
-        has_telegram=user.telegram_id is not None,
-        token_balance=user.token_balance,
-    )
+    return _to_user_out(user)
+
+
+@router.patch("/me/notifications", response_model=UserOut)
+async def update_notify_prefs(
+    body: NotifyPrefsIn, user: CurrentUser, session: SessionDep
+) -> UserOut:
+    """E22-S3: global per-user notification preferences, replacing the per-run/per-schedule
+    notify_on_complete/notify_enabled toggle — no per-run override."""
+    user.notify_review_enabled = body.notify_review_enabled
+    user.notify_analysis_enabled = body.notify_analysis_enabled
+    await session.commit()
+    return _to_user_out(user)
 
 
 # ── Telegram Login Widget (E8-S1) ────────────────────────────────────────────
@@ -255,11 +277,4 @@ async def telegram_link(body: TelegramLoginIn, user: CurrentUser, session: Sessi
         )
     user.telegram_id = body.id
     await session.commit()
-    return UserOut(
-        id=user.id,
-        email=user.email,
-        display_name=user.display_name,
-        is_admin=user.is_admin,
-        has_telegram=user.telegram_id is not None,
-        token_balance=user.token_balance,
-    )
+    return _to_user_out(user)

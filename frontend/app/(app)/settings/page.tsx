@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { CheckCircle } from "lucide-react";
 import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { ToggleSwitch } from "@/components/ui";
 
 export default function SettingsPage() {
   const t = useTranslations("Settings");
@@ -25,6 +26,37 @@ export default function SettingsPage() {
   useEffect(() => {
     setDisplayName(user?.display_name ?? "");
   }, [user]);
+
+  // E22-S3: global notify toggles, replacing the per-run/per-schedule field entirely — no
+  // per-run override, this Settings section is the single place to control it.
+  const [notifyReview, setNotifyReview] = useState(user?.notify_review_enabled ?? true);
+  const [notifyAnalysis, setNotifyAnalysis] = useState(user?.notify_analysis_enabled ?? true);
+  const [notifySaving, setNotifySaving] = useState(false);
+  const [notifySaved, setNotifySaved] = useState(false);
+  const [notifyError, setNotifyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNotifyReview(user?.notify_review_enabled ?? true);
+    setNotifyAnalysis(user?.notify_analysis_enabled ?? true);
+  }, [user]);
+
+  const saveNotifyPrefs = useCallback(
+    async (next: { notify_review_enabled: boolean; notify_analysis_enabled: boolean }) => {
+      setNotifySaving(true);
+      setNotifyError(null);
+      setNotifySaved(false);
+      try {
+        await api.updateNotifyPrefs(next);
+        await refreshUser();
+        setNotifySaved(true);
+      } catch (err) {
+        setNotifyError(err instanceof ApiError ? err.messageRu : t("genericError"));
+      } finally {
+        setNotifySaving(false);
+      }
+    },
+    [refreshUser, t],
+  );
 
   const handleSaveName = useCallback(async () => {
     const trimmed = displayName.trim();
@@ -126,6 +158,42 @@ export default function SettingsPage() {
         >
           {t("displayNameSave")}
         </button>
+      </section>
+
+      <section className="mb-4 flex flex-col gap-3 rounded-card border border-border bg-card p-5">
+        <h2 className="text-base font-medium text-ink">{t("notifySection")}</h2>
+        <p className="text-sm text-secondary">{t("notifySectionHint")}</p>
+        <ToggleSwitch
+          checked={notifyReview}
+          onChange={() => {
+            const next = !notifyReview;
+            setNotifyReview(next);
+            void saveNotifyPrefs({
+              notify_review_enabled: next,
+              notify_analysis_enabled: notifyAnalysis,
+            });
+          }}
+          label={t("notifyReviewLabel")}
+        />
+        <ToggleSwitch
+          checked={notifyAnalysis}
+          onChange={() => {
+            const next = !notifyAnalysis;
+            setNotifyAnalysis(next);
+            void saveNotifyPrefs({
+              notify_review_enabled: notifyReview,
+              notify_analysis_enabled: next,
+            });
+          }}
+          label={t("notifyAnalysisLabel")}
+        />
+        {notifyError && <p className="text-sm text-danger">{notifyError}</p>}
+        {notifySaved && !notifyError && !notifySaving && (
+          <p className="flex items-center gap-2 text-sm text-success">
+            <CheckCircle className="h-4 w-4" />
+            {t("notifySaved")}
+          </p>
+        )}
       </section>
 
       <section className="flex flex-col gap-4 rounded-card border border-border bg-card p-5">

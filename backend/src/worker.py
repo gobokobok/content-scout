@@ -37,7 +37,11 @@ from src.services.run_summary import generate_run_summary
 from src.services.runs import resolve_target_accounts
 from src.services.scheduled_runs import fire_due_schedules
 from src.services.summarizer import summarize_run_items
-from src.services.telegram_notify import notify_deep_analysis_complete, notify_run_complete
+from src.services.telegram_notify import (
+    notify_deep_analysis_complete,
+    notify_enabled_for_run_type,
+    notify_run_complete,
+)
 from src.services.url_normalizer import InvalidAccountUrlError, normalize_instagram_input
 from src.services.usage import rollup_run_totals
 
@@ -243,11 +247,14 @@ async def _finish_run(session: AsyncSession, run: AnalysisRun, settings: Setting
     # actually finishes — notifying here would tell the user the run is "done" while only the
     # scrape has finished, before the real Analysis result exists.
     if run.run_type != "deep_analysis":
-        if requesting_user and run.notify_on_complete:
+        if requesting_user and notify_enabled_for_run_type(requesting_user, run.run_type):
             await notify_run_complete(run, requesting_user, session)
         elif requesting_user:
             logger.info(
-                "run_id=%s: notify_on_complete is False, skipping Telegram notification", run.id
+                "run_id=%s: global notify preference is off for run_type=%s, skipping Telegram "
+                "notification",
+                run.id,
+                run.run_type,
             )
 
 
@@ -381,12 +388,14 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         await asyncio.shield(session.commit())
         try:
             requesting_user = await session.get(User, run.requested_by)
-            if requesting_user and run.notify_on_complete:
+            if requesting_user and notify_enabled_for_run_type(requesting_user, run.run_type):
                 await notify_run_complete(run, requesting_user, session)
             elif requesting_user:
                 logger.info(
-                    "run_id=%s: notify_on_complete is False, skipping Telegram notification",
+                    "run_id=%s: global notify preference is off for run_type=%s, skipping "
+                    "Telegram notification",
                     run.id,
+                    run.run_type,
                 )
         except Exception:  # noqa: BLE001
             pass
@@ -399,12 +408,14 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         await session.commit()
         try:
             requesting_user = await session.get(User, run.requested_by)
-            if requesting_user and run.notify_on_complete:
+            if requesting_user and notify_enabled_for_run_type(requesting_user, run.run_type):
                 await notify_run_complete(run, requesting_user, session)
             elif requesting_user:
                 logger.info(
-                    "run_id=%s: notify_on_complete is False, skipping Telegram notification",
+                    "run_id=%s: global notify preference is off for run_type=%s, skipping "
+                    "Telegram notification",
                     run.id,
+                    run.run_type,
                 )
         except Exception:  # noqa: BLE001
             pass
@@ -466,11 +477,14 @@ async def _notify_deep_analysis(session: AsyncSession, analysis: DeepAnalysis) -
     try:
         run = await session.get(AnalysisRun, analysis.run_id)
         user = await session.get(User, analysis.requested_by)
-        if run and user and run.notify_on_complete:
+        if run and user and notify_enabled_for_run_type(user, run.run_type):
             await notify_deep_analysis_complete(analysis, run, user, session)
         elif run and user:
             logger.info(
-                "run_id=%s: notify_on_complete is False, skipping Telegram notification", run.id
+                "run_id=%s: global notify preference is off for run_type=%s, skipping Telegram "
+                "notification",
+                run.id,
+                run.run_type,
             )
     except Exception:  # noqa: BLE001
         pass

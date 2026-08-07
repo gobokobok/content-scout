@@ -232,3 +232,41 @@ async def test_update_display_name_rejects_too_long(session: AsyncSession) -> No
             headers={"Authorization": f"Bearer {token}"},
         )
     assert resp.status_code == 422
+
+
+# --- E22-S3: global notify preferences ------------------------------------------------------
+
+
+async def test_me_defaults_notify_prefs_true(session: AsyncSession) -> None:
+    """Preserves pre-existing unconditional-notify behavior for accounts that predate this
+    story — both toggles default on."""
+    async with await client(session) as c:
+        reg = await c.post(
+            "/auth/register", json={"email": "notifydefault@example.com", "password": "x" * 8}
+        )
+        token = reg.json()["access_token"]
+        me = await c.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.json()["notify_review_enabled"] is True
+    assert me.json()["notify_analysis_enabled"] is True
+
+
+async def test_update_notify_prefs(session: AsyncSession) -> None:
+    async with await client(session) as c:
+        reg = await c.post(
+            "/auth/register", json={"email": "notifyupdate@example.com", "password": "x" * 8}
+        )
+        token = reg.json()["access_token"]
+        resp = await c.patch(
+            "/auth/me/notifications",
+            json={"notify_review_enabled": False, "notify_analysis_enabled": True},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["notify_review_enabled"] is False
+    assert resp.json()["notify_analysis_enabled"] is True
+
+    # Persists — a fresh /me read reflects the update, not just the PATCH response.
+    async with await client(session) as c:
+        me = await c.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.json()["notify_review_enabled"] is False
+    assert me.json()["notify_analysis_enabled"] is True
