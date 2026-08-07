@@ -257,6 +257,90 @@ async def test_synthesize_report_retries_once_after_malformed_tool_input(
     assert len([u for u in usage if u.kind == KIND_CLAUDE_OUTPUT_TOKENS]) == 2
 
 
+# --- E21-S6 regression sweep: nested required-field gaps, not just the top-level shape --------
+
+
+async def test_synthesize_report_retries_when_stats_missing_nested_required_field(
+    session: AsyncSession,
+) -> None:
+    """E17-S12's own fix only checked that `stats`/`recommendations` were present dicts — a
+    response with `stats` present but missing one of ITS OWN required fields (e.g. `topics`,
+    which the frontend accesses unconditionally as `stats.topics.length`) would have sailed
+    through undetected before this fix, crashing the report page instead of retrying."""
+    user = await make_user(session)
+    run = await make_run(session, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    await _make_done_extraction_item(session, run, deep_analysis_id=analysis.id)
+    await session.commit()
+
+    broken_stats = {k: v for k, v in _VALID_REPORT["stats"].items() if k != "topics"}
+    responses = [
+        _tool_use_response(
+            {"stats": broken_stats, "recommendations": _VALID_REPORT["recommendations"]}
+        ),
+        _tool_use_response(_VALID_REPORT),
+    ]
+    fake_client = _FakeClient(responses=responses)
+    await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert analysis.status == DeepAnalysisStatus.done
+    assert analysis.report_stats == _VALID_REPORT["stats"]
+    assert len(fake_client.messages.calls) == 2
+
+
+async def test_synthesize_report_retries_when_recommendations_missing_nested_required_field(
+    session: AsyncSession,
+) -> None:
+    """Same gap, the other object: `recommendations` present but missing e.g. `do_more`."""
+    user = await make_user(session)
+    run = await make_run(session, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    await _make_done_extraction_item(session, run, deep_analysis_id=analysis.id)
+    await session.commit()
+
+    broken_recommendations = {
+        k: v for k, v in _VALID_REPORT["recommendations"].items() if k != "do_more"
+    }
+    responses = [
+        _tool_use_response(
+            {"stats": _VALID_REPORT["stats"], "recommendations": broken_recommendations}
+        ),
+        _tool_use_response(_VALID_REPORT),
+    ]
+    fake_client = _FakeClient(responses=responses)
+    await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert analysis.status == DeepAnalysisStatus.done
+    assert len(fake_client.messages.calls) == 2
+
+
+async def test_synthesize_report_fails_when_nested_field_still_missing_after_retry(
+    session: AsyncSession,
+) -> None:
+    """Mirrors test_synthesize_report_malformed_tool_input_marks_failed, but for the nested-
+    field gap — exhausting retries on a still-broken nested shape must fail cleanly, not ship
+    a report the frontend will crash rendering."""
+    user = await make_user(session)
+    run = await make_run(session, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    await _make_done_extraction_item(session, run, deep_analysis_id=analysis.id)
+    await session.commit()
+
+    broken_stats = {k: v for k, v in _VALID_REPORT["stats"].items() if k != "cadence_summary"}
+    fake_client = _FakeClient(
+        _tool_use_response(
+            {"stats": broken_stats, "recommendations": _VALID_REPORT["recommendations"]}
+        )
+    )
+    await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert analysis.status == DeepAnalysisStatus.failed
+    assert len(fake_client.messages.calls) == 2
+
+
 async def test_synthesize_report_thin_coverage_strips_sections(session: AsyncSession) -> None:
     user = await make_user(session, token_balance=1000)
     run = await make_run(session, requested_by=user)

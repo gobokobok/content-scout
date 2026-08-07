@@ -168,6 +168,25 @@ REPORT_TOOL = {
 }
 
 
+# E21-S6 regression-sweep finding: the malformed-tool_use fix (E17-S12) only ever checked that
+# `stats`/`recommendations` were present and were dicts — not that each contained its OWN
+# required sub-fields (e.g. `stats.topics`, `recommendations.do_more`). A response passing that
+# looser check but missing a nested required key would have sailed through to the frontend,
+# which accesses fields like `stats.topics.length` unconditionally and would crash on `undefined`
+# — the exact same failure *class* as the original bug, just one schema level deeper. Read
+# straight from REPORT_TOOL's own schema so the two can never drift apart again.
+_STATS_REQUIRED: list[str] = REPORT_TOOL["input_schema"]["properties"]["stats"][  # type: ignore[index]
+    "required"
+]
+_RECOMMENDATIONS_REQUIRED: list[str] = REPORT_TOOL["input_schema"]["properties"][  # type: ignore[index]
+    "recommendations"
+]["required"]
+
+
+def _has_required_fields(candidate: dict[str, Any], required: Sequence[str]) -> bool:
+    return all(key in candidate for key in required)
+
+
 def _comment_coverage_ratio(rows: Sequence[Any]) -> float:
     """E17-S9: share of synthesized items that had any fetched comments at all — the signal
     a thin/degraded comment-data run is detected from."""
@@ -347,17 +366,25 @@ async def synthesize_report(
             data = tool_use.input
             candidate_stats = data.get("stats")
             candidate_recommendations = data.get("recommendations")
-            if not isinstance(candidate_stats, dict) or not isinstance(
-                candidate_recommendations, dict
+            if (
+                not isinstance(candidate_stats, dict)
+                or not isinstance(candidate_recommendations, dict)
+                or not _has_required_fields(candidate_stats, _STATS_REQUIRED)
+                or not _has_required_fields(candidate_recommendations, _RECOMMENDATIONS_REQUIRED)
             ):
                 logger.warning(
-                    "deep analysis synthesis: tool_use missing stats/recommendations for "
-                    "analysis_id=%s attempt=%s/%s (stop_reason=%s, keys=%s)",
+                    "deep analysis synthesis: tool_use missing required stats/recommendations "
+                    "fields for analysis_id=%s attempt=%s/%s (stop_reason=%s, top_keys=%s, "
+                    "stats_keys=%s, recommendations_keys=%s)",
                     analysis.id,
                     attempt,
                     _MAX_SYNTHESIS_ATTEMPTS,
                     response.stop_reason,
                     list(data.keys()),
+                    list(candidate_stats.keys()) if isinstance(candidate_stats, dict) else None,
+                    list(candidate_recommendations.keys())
+                    if isinstance(candidate_recommendations, dict)
+                    else None,
                 )
                 continue
 

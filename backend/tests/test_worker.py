@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
@@ -763,6 +764,54 @@ async def test_process_run_post_mode_reuses_existing_account(session: AsyncSessi
     # An already-real (non-hidden) competitor stays visible — only a genuinely new row is
     # created hidden.
     assert existing.hidden is False
+
+
+async def test_process_run_post_mode_does_not_resurrect_archived_account(
+    session: AsyncSession,
+) -> None:
+    """E21-S6 regression-sweep finding: resolving a post's author for post-mode Analysis must
+    not silently un-archive a competitor the user deliberately removed — that's an implicit
+    side effect, unlike api/accounts.py:add_accounts' reactivation, which only fires on an
+    explicit user re-add. Nothing downstream in the post-mode pipeline needs archived_at
+    cleared for the run itself to work."""
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    removed = await make_account(session, account_list=account_list, handle="removed_author")
+    removed.archived_at = datetime.now(UTC)
+    user = await make_user(session)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        run_type="deep_analysis",
+        analysis_mode="post",
+        duration_days=None,
+        target_post_url="https://www.instagram.com/p/OLD456/",
+    )
+    await session.commit()
+
+    raw_item = RawContentItem(
+        external_id="old456",
+        type=ContentType.post,
+        published_at=run.created_at,
+        url="https://www.instagram.com/p/OLD456/",
+        raw={"ownerUsername": "removed_author"},
+    )
+
+    class _PostPlatform:
+        async def fetch_post(self, post_url: str) -> RawContentItem:
+            return raw_item
+
+    with patch("src.worker.get_platform", return_value=_PostPlatform()):
+        await process_run(session, run)
+
+    items = (await session.scalars(select(ContentItem).where(ContentItem.run_id == run.id))).all()
+    assert len(items) == 1
+    assert items[0].account_id == removed.id
+    # The run itself still succeeds using the archived row as the FK target — but the
+    # competitor is not silently resurrected into the visible list.
+    assert run.status == RunStatus.done
+    assert removed.archived_at is not None
 
 
 async def test_process_run_post_mode_fetch_failure_marks_run_failed_gracefully(

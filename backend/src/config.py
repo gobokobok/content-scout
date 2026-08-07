@@ -87,6 +87,14 @@ class Settings(BaseSettings):
     avg_claude_output_tokens_per_item: int = 80
     claude_input_token_cost_usd: float = 0.000001
     claude_output_token_cost_usd: float = 0.000005
+    # E21-S6 regression-sweep finding: the Message Batches API (summarizer.py's
+    # _summarize_via_batches, triggered at summary_batch_threshold+ items) bills at half the
+    # standard per-token price per Anthropic's own published Batches pricing — the internal
+    # usage_events cost tracking for that path was recording the full non-batch rate instead,
+    # overstating real spend ~2x for every large Review run. Multiplied into unit_cost_usd only
+    # at that one call site; does not touch token_balance/tokens_charged (what the user is
+    # billed), only the internal $ cost ledger admin/usage views read.
+    claude_batch_cost_multiplier: float = 0.5
 
     # E17/D48/D50: Run Deep Analysis token charging — 1 token per publication analyzed + 1
     # token per comment actually analyzed, charged incrementally as each item's real work

@@ -288,13 +288,22 @@ async def _summarize_via_batches(
             msg = result.result.message
             text = "".join(b.text for b in msg.content if b.type == "text").strip()
             target.summary = text or FALLBACK_TEXT
+            # E21-S6: the Message Batches API bills at half the standard per-token price
+            # (Anthropic's own published Batches pricing) — apply that discount to the
+            # internal cost record too, or admin/usage cost views overstate real spend ~2x
+            # for every batch-processed item.
             session.add(
                 UsageEvent(
                     user_id=user_id,
                     run_id=run_id,
                     kind=KIND_CLAUDE_INPUT_TOKENS,
                     quantity=msg.usage.input_tokens,
-                    unit_cost_usd=Decimal(str(settings.claude_input_token_cost_usd)),
+                    unit_cost_usd=Decimal(
+                        str(
+                            settings.claude_input_token_cost_usd
+                            * settings.claude_batch_cost_multiplier
+                        )
+                    ),
                 )
             )
             session.add(
@@ -303,7 +312,12 @@ async def _summarize_via_batches(
                     run_id=run_id,
                     kind=KIND_CLAUDE_OUTPUT_TOKENS,
                     quantity=msg.usage.output_tokens,
-                    unit_cost_usd=Decimal(str(settings.claude_output_token_cost_usd)),
+                    unit_cost_usd=Decimal(
+                        str(
+                            settings.claude_output_token_cost_usd
+                            * settings.claude_batch_cost_multiplier
+                        )
+                    ),
                 )
             )
         else:

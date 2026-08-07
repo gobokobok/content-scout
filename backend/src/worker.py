@@ -74,7 +74,17 @@ async def _resolve_or_create_account(
     Конкуренты picker/list or count against the 50-per-list cap (Account.hidden, filtered out
     in api/accounts.py:list_accounts and services/runs.py:resolve_target_accounts). If the
     account already existed as a real (non-hidden) competitor, it's reused as-is and stays
-    visible; only a genuinely new row is created hidden."""
+    visible; only a genuinely new row is created hidden.
+
+    E21-S6 regression-sweep finding: this used to also un-archive an `existing` match
+    (`archived_at = None`) — the same reuse pattern api/accounts.py:add_accounts uses when the
+    user explicitly re-adds a handle. But that reactivation is *implicit* here: resolving one
+    post's byline for an Analysis run is not the user asking to re-add a competitor they
+    deliberately removed, and nothing downstream in the post-mode pipeline (this function's own
+    caller never joins through `resolve_target_accounts`, and the run-accounts/virality/export
+    queries don't filter on `archived_at` either) actually needs the row un-archived to work.
+    Left unarchived, an archived match simply stays out of the competitor picker/list, same as
+    the hidden case just below — no reactivation, ever, as a side effect of this function."""
     normalized = normalize_instagram_input(owner_username)
     account_list = await session.scalar(
         select(AccountList).where(
@@ -93,8 +103,6 @@ async def _resolve_or_create_account(
         )
     )
     if existing is not None:
-        if existing.archived_at is not None:
-            existing.archived_at = None
         return existing
 
     account = Account(

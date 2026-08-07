@@ -1,3 +1,4 @@
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -313,6 +314,19 @@ async def test_batch_api_maps_results_to_summaries_and_usage(session: AsyncSessi
     assert len(usage) == 6
     input_events = [u for u in usage if u.kind == KIND_CLAUDE_INPUT_TOKENS]
     assert all(u.quantity == 80 for u in input_events)
+    # E21-S6 regression-sweep finding: the Message Batches API bills at half the standard
+    # per-token price — the internal usage_events cost record must reflect that discount, not
+    # the full non-batch rate (which overstated real spend ~2x for every batch-processed run).
+    output_events = [u for u in usage if u.kind == KIND_CLAUDE_OUTPUT_TOKENS]
+    settings = get_settings()
+    expected_input_rate = Decimal(
+        str(settings.claude_input_token_cost_usd * settings.claude_batch_cost_multiplier)
+    )
+    expected_output_rate = Decimal(
+        str(settings.claude_output_token_cost_usd * settings.claude_batch_cost_multiplier)
+    )
+    assert all(u.unit_cost_usd == expected_input_rate for u in input_events)
+    assert all(u.unit_cost_usd == expected_output_rate for u in output_events)
 
 
 async def test_batch_failure_falls_back_to_concurrent_path(session: AsyncSession) -> None:

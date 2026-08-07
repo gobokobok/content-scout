@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E21-S6] Analysis-pipeline regression sweep: synthesis retry, hidden-account flow, and pricing model audited together
+**Completed:** 2026-08-07
+**Handover:**
+- Deliberate audit of `[E17-S12]`/`[E21-S4]`/`[E21-S5]` (and `[E17-S11]`) *together*, per the 2026-08-05 `/sprint-review` proposal — two bug clusters in two sprints on the same pipeline signaled that one-at-a-time fixes weren't closing the actual gap. Found the common shape: each prior fix handled the one concrete failure shape a real incident produced, without generalizing to the class it belonged to. This audit found three more instances of exactly that pattern:
+- **Synthesis retry**: `[E17-S12]`'s validation checked `stats`/`recommendations` were present dicts, not that either contained its OWN required nested fields — a response missing e.g. `stats.topics` would have shipped a report the frontend crashes rendering (`stats.topics.length` on `undefined`). Fixed with `_has_required_fields()`, cross-referenced directly against `REPORT_TOOL`'s own schema.
+- **Hidden-account flow**: `_resolve_or_create_account`'s reuse branch silently un-archived (`archived_at = None`) a match with no safeguard — a deliberately-removed competitor could silently resurface via a post-mode Analysis referencing their handle. Removed the reactivation; confirmed nothing downstream in the post-mode pipeline needs it.
+- **Pricing model**: checklist of all 5 real Claude call sites against their `usage_events` recording found one gap — `summarizer.py`'s Message Batches path billed internal cost tracking at the full non-batch rate instead of Anthropic's real 50%-discounted Batches price, overstating admin/usage cost views ~2x for large Review runs. New `Settings.claude_batch_cost_multiplier` (0.5), applied only to that call site's cost record — does not touch what the user is charged.
+- Decision: one-off regression tests sufficient for all three, no new test-infrastructure category needed.
+- 397 backend tests passed (up from 393). ruff/ruff format/mypy clean. No new dependencies, no migration, no ENV vars.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. Needs a real DEV Analysis (account + post mode) plus a run against a previously-archived handle and a large (≥`summary_batch_threshold`) Review run.
+**Promoted to backlog:**
+- (none)
+
 ## [E8-S9] Telegram completion DM: deep-link into the Mini App, not the browser
 **Completed:** 2026-08-07
 **Handover:**
