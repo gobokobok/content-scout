@@ -7,6 +7,9 @@ interface SideDrawerProps {
   open: boolean;
   onClose: () => void;
   side: "left" | "right";
+  // Rendered on the same row as the close button (title / user info / etc.) — each call site
+  // supplies its own content, SideDrawer just owns the row layout + close button once.
+  header: React.ReactNode;
   children: React.ReactNode;
   // E18-S7: real accidental-exit trap reported by the first outside user — the drawer had no
   // in-drawer close control, only a ~10% backdrop-tap sliver, and on a light-theme phone the
@@ -16,7 +19,7 @@ interface SideDrawerProps {
   closeLabel: string;
 }
 
-export function SideDrawer({ open, onClose, side, children, closeLabel }: SideDrawerProps) {
+export function SideDrawer({ open, onClose, side, header, children, closeLabel }: SideDrawerProps) {
   useEffect(() => {
     if (!open) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -49,15 +52,15 @@ export function SideDrawer({ open, onClose, side, children, closeLabel }: SideDr
           paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
-        {/* Dedicated close row, once here rather than duplicated per call site — sits above
-            each drawer's own header content, so it never overlaps an existing tap target
-            (e.g. the left drawer's full-width profile link). */}
-        <div className="flex shrink-0 items-center justify-end px-2 pt-2">
+        {/* Header row: caller content + close button share one line — once here rather than
+            duplicated per call site. */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
+          <div className="min-w-0 flex-1">{header}</div>
           <button
             type="button"
             onClick={onClose}
             aria-label={closeLabel}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-secondary transition-colors hover:bg-bg hover:text-ink active:scale-[0.98]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-secondary transition-colors hover:bg-bg hover:text-ink active:scale-[0.98]"
           >
             <X className="h-5 w-5" />
           </button>

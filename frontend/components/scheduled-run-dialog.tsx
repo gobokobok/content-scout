@@ -445,37 +445,41 @@ export function ScheduledRunDialog({
 
         {/* Publication URL (post mode only) */}
         {isDeepAnalysis && analysisMode === "post" && (
-          <div className="flex flex-col gap-2.5 pt-7">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
-              {tRunDialog("postUrlLabel")}
-            </span>
-            <div className="flex items-center gap-2 rounded-control border border-border px-3.5 py-2.5">
-              <Link2 className="h-4 w-4 shrink-0 text-secondary" />
-              <input
-                type="url"
-                value={postUrl}
-                onChange={(e) => setPostUrl(e.target.value)}
-                placeholder={tRunDialog("postUrlPlaceholder")}
-                className="w-full bg-transparent text-sm text-ink placeholder:text-secondary focus:outline-none"
-              />
+          <div className="flex flex-col gap-6 pt-7">
+            <div className="flex flex-col gap-2.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+                {tRunDialog("postUrlLabel")}
+              </span>
+              <div className="flex items-center gap-2 rounded-control border border-border px-3.5 py-2.5">
+                <Link2 className="h-4 w-4 shrink-0 text-secondary" />
+                <input
+                  type="url"
+                  value={postUrl}
+                  onChange={(e) => setPostUrl(e.target.value)}
+                  placeholder={tRunDialog("postUrlPlaceholder")}
+                  className="w-full bg-transparent text-sm text-ink placeholder:text-secondary focus:outline-none"
+                />
+              </div>
             </div>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
-              {tRunDialog("commentsLimitLabel")}
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {COMMENTS_LIMIT_OPTIONS.map((n) => {
-                const enabled = ACTIVE_COMMENTS_LIMIT_OPTIONS.has(n);
-                return (
-                  <button
-                    key={n}
-                    onClick={() => enabled && setCommentsLimit(n)}
-                    disabled={!enabled}
-                    className={enabled ? chipClass(commentsLimit === n) : disabledChipClass}
-                  >
-                    {n}
-                  </button>
-                );
-              })}
+            <div className="flex flex-col gap-2.5 border-t border-border pt-6">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-secondary">
+                {tRunDialog("commentsLimitLabel")}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {COMMENTS_LIMIT_OPTIONS.map((n) => {
+                  const enabled = ACTIVE_COMMENTS_LIMIT_OPTIONS.has(n);
+                  return (
+                    <button
+                      key={n}
+                      onClick={() => enabled && setCommentsLimit(n)}
+                      disabled={!enabled}
+                      className={enabled ? chipClass(commentsLimit === n) : disabledChipClass}
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}

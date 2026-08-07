@@ -3658,6 +3658,35 @@ backend/src/config.py, backend/src/models/analysis_run.py, backend/alembic/versi
 ### Handover
 No new code beyond what already shipped in commit `dc32712` (2026-08-05) — this entry is documentation backfill only, per CLAUDE.md's story-tracking discipline. Thematically related to `[E21-S5]`/D51 (same "base charge for the one per-run Claude call" pattern) but not part of that story's recurring-bug cluster — this was a deliberate parity extension from a direct user question, not an unplanned regression found via a live incident.
 
+## [E3-S11] Run-dialog post-mode screen: remove stray divider, add breathing room between sections
+**Epic:** Analysis Pipeline
+**Sprint:** unassigned
+**Status:** done
+**Completed:** 2026-08-08
+**Priority:** low
+**Depends on:** none
+### Goal
+Direct chat report on the post-mode ("по публикации") Analysis screen in `run-dialog.tsx` (and the identically-structured screen in `scheduled-run-dialog.tsx`): a `border-t` divider sat above the "Ссылка на публикацию" section title with nothing above it to separate from — visually a stray line. The user's own read: that divider belongs *between* the link section and the comments-scope section instead, since currently nothing visually separates those two at all. Also asked for more breathing room between sections generally — the existing `gap-2.5` read as too tight.
+### Acceptance Criteria
+- [x] `run-dialog.tsx`: removed the `border-t border-border pt-6` from the outer wrapper of the post-mode block (the stray line above "Ссылка на публикацию") — nothing precedes this block in post mode (the account/scope-step logic returns `null` for `analysisMode === "post"`), so the wrapper's own `flex flex-col gap-6` spacing from the parent is sufficient
+- [x] Split the block into two sub-sections (URL input; comments-limit chips), each its own `flex flex-col gap-2.5`, wrapped in an outer `gap-6` — the second sub-section gets `border-t border-border pt-6`, placing the divider exactly where the user wanted it
+- [x] Same restructuring applied to `scheduled-run-dialog.tsx` for consistency — that screen never had the stray top divider, but had the identical "sections glued together" tightness, so the same two-sub-section split (with a `border-t` between them) was applied there too
+### Definition of Done
+- [x] All AC checked
+- [x] `tsc --noEmit`/`next lint`/`next build` all clean — no test suite for this presentational component
+- [x] CI green (pending push)
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. Needs a real DEV pass at 375px on the post-mode screen in both dialogs, confirming the divider now reads as intentional (between link and comment-scope sections) and the extra spacing doesn't push the confirm button off-screen on a short viewport.
+### Files to read
+frontend/components/run-dialog.tsx, frontend/components/scheduled-run-dialog.tsx
+### Files to create or modify
+frontend/components/run-dialog.tsx, frontend/components/scheduled-run-dialog.tsx
+### Handover
+Direct chat request 2026-08-08, implemented same session. Pure frontend, no backend/tests/migrations/new dependencies.
+
 ## [E8-S10] Investigate: Mini App hardware back / swipe-back exits to bot chat instead of navigating in-app
 **Epic:** Telegram Integration & Monetization
 **Sprint:** 13
@@ -3715,7 +3744,36 @@ CLAUDE.md (D16 375px constraint, D28 light-theme-only), frontend/components/ui/s
 ### Files to create or modify
 frontend/components/ui/side-drawer.tsx, frontend/app/(app)/layout.tsx, frontend/lib/telegram-webapp.ts, frontend/messages/ru.json
 ### Handover
-Opened 2026-08-07 from direct first-user feedback (item 2 of a 4-item batch — see `[E8-S10]`, `[E22-S3]`, `[E8-S9]`'s Handover). Implemented as part of an autonomous back-to-back pass through Sprint 13 (direct user request: "start and complete sprint 13 without my involvement"). The color-collision fix is genuinely unverifiable in this sandbox (no Telegram client) — flagged clearly above rather than assumed correct; if a real DEV pass shows `secondary_bg_color` doesn't render distinctly enough on some client/theme combination, the fallback is an explicit hex via `setHeaderColor` (client-version-dependent, see the code comment in `telegram-webapp.ts` for why theme-key was chosen first).
+Opened 2026-08-07 from direct first-user feedback (item 2 of a 4-item batch — see `[E8-S10]`, `[E22-S3]`, `[E8-S9]`'s Handover). Implemented as part of an autonomous back-to-back pass through Sprint 13 (direct user request: "start and complete sprint 13 without my involvement"). The color-collision fix is genuinely unverifiable in this sandbox (no Telegram client) — flagged clearly above rather than assumed correct; if a real DEV pass shows `secondary_bg_color` doesn't render distinctly enough on some client/theme combination, the fallback is an explicit hex via `setHeaderColor` (client-version-dependent, see the code comment in `telegram-webapp.ts` for why theme-key was chosen first). **Follow-up in `[E18-S8]`**: the shipped close row was its own full-width line above the drawer's actual header content — the user's next live look at it asked for the close button to share the header's own line instead, to save vertical space.
+
+## [E18-S8] Side drawers: close button shares the header row instead of its own line; left drawer's settings icon moves next to the name
+**Epic:** Run-Centric Navigation & Redesign
+**Sprint:** unassigned
+**Status:** done
+**Completed:** 2026-08-08
+**Priority:** medium
+**Depends on:** E18-S7
+### Goal
+Direct follow-up feedback on `[E18-S7]` (shipped one day earlier): the new close/X row sat on its own line above each drawer's actual header content, wasting vertical space the user wanted back. Two concrete asks: (1) put the close button on the same line as the drawer's title/header instead of a dedicated row; (2) in the left (menu) drawer specifically, move the settings-icon chip to sit right next to the user's name (it was previously a separate chip pushed to the far right), and put the close button where the old chevron-right arrow used to be (removing the arrow).
+### Acceptance Criteria
+- [x] `SideDrawer` (`components/ui/side-drawer.tsx`) takes a new `header: ReactNode` prop instead of relying on each drawer's own `children` for header markup — the close button and `header` share one flex row, with the row's `border-b`/padding now owned centrally instead of duplicated per call site
+- [x] Right (notifications) drawer: `header` is just the existing title text, unchanged visually apart from now sharing the row with the close button
+- [x] Left (menu) drawer: `header` is the user name/email `Link` to `/settings`, with the settings icon moved to sit immediately next to the name (smaller inline chip, `h-6 w-6`, was `h-9 w-9` pushed to the far right) and the `ChevronRight` arrow removed entirely — the close button now occupies that visual position at the far right of the row
+### Definition of Done
+- [x] All AC checked
+- [x] `tsc --noEmit`/`next lint`/`next build` all clean — no test suite for this presentational component
+- [x] CI green (pending push)
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. Needs a real phone pass confirming the header row reads cleanly at 375px with the close button, name, and settings icon all sharing one line without crowding.
+### Files to read
+`[E18-S7]` entry above, frontend/components/ui/side-drawer.tsx, frontend/app/(app)/layout.tsx
+### Files to create or modify
+frontend/components/ui/side-drawer.tsx, frontend/app/(app)/layout.tsx
+### Handover
+Direct chat request 2026-08-08, implemented same session. Pure frontend, no backend/tests/migrations/new dependencies. `ChevronRight` import removed from `layout.tsx` as now-unused.
 
 ## [E22-S3] Global notification-preference toggles on Settings, replacing per-run overrides
 **Epic:** Report & Notification Messaging

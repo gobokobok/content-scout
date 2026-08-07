@@ -2,6 +2,28 @@
 
 Completed stories land here, newest first. Format:
 
+## [E18-S8] Side drawers: close button shares the header row; left drawer's settings icon moves next to the name
+**Completed:** 2026-08-08
+**Handover:**
+- Direct follow-up feedback on `[E18-S7]` (shipped one day earlier): the close/X button occupied its own full-width row above each drawer's header content, wasting vertical space.
+- `SideDrawer` (`components/ui/side-drawer.tsx`) now takes a `header: ReactNode` prop — the close button shares one row with it, `border-b`/padding owned centrally instead of duplicated.
+- Right (notifications) drawer: header is just the title, now sharing the row with the close button.
+- Left (menu) drawer: settings icon moved to sit right next to the user's name (smaller inline chip), `ChevronRight` arrow removed — the close button now sits where the arrow used to be.
+- Pure frontend, no backend/tests/migrations. `tsc --noEmit`/`next lint`/`next build` clean.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. Needs a real phone pass confirming the header row reads cleanly at 375px.
+**Promoted to backlog:**
+- (none)
+
+## [E3-S11] Run-dialog post-mode screen: remove stray divider, add breathing room between sections
+**Completed:** 2026-08-08
+**Handover:**
+- Direct chat report: the post-mode ("по публикации") Analysis screen had a stray `border-t` divider above its first section title (nothing above it to separate from), and the URL/comments-scope sections read as glued together with no divider between them at all.
+- `run-dialog.tsx`: removed the stray top divider; split into two sub-sections (URL, comments-limit) with the divider moved between them and more breathing room (`gap-6` outer, `gap-2.5` inner). Same restructuring applied to `scheduled-run-dialog.tsx` for consistency (it never had the stray divider, but had the same tightness).
+- Pure frontend, no backend/tests/migrations. `tsc --noEmit`/`next lint`/`next build` clean.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint.
+**Promoted to backlog:**
+- (none)
+
 ## [E21-S6] Analysis-pipeline regression sweep: synthesis retry, hidden-account flow, and pricing model audited together
 **Completed:** 2026-08-07
 **Handover:**

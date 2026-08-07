@@ -15,7 +15,6 @@ import {
   Settings,
   Users,
   Activity,
-  ChevronRight,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
@@ -140,21 +139,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         onClose={() => setMenuOpen(false)}
         side="left"
         closeLabel={t("closeDrawerLabel")}
+        header={
+          <Link
+            href="/settings"
+            onClick={() => setMenuOpen(false)}
+            className="flex min-w-0 items-center gap-1.5 rounded-control py-1 transition-colors hover:text-accent"
+          >
+            <div className="min-w-0">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate text-base font-semibold text-ink">
+                  {user.display_name}
+                </span>
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+                  <Settings className="h-3.5 w-3.5" />
+                </span>
+              </span>
+              {!isTelegram && (
+                <p className="mt-0.5 truncate text-xs text-secondary">{user.email}</p>
+              )}
+            </div>
+          </Link>
+        }
       >
-        <Link
-          href="/settings"
-          onClick={() => setMenuOpen(false)}
-          className="flex items-center gap-3 border-b border-border px-4 py-4 transition-colors hover:bg-bg"
-        >
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-semibold text-ink">{user.display_name}</p>
-            {!isTelegram && <p className="mt-0.5 truncate text-xs text-secondary">{user.email}</p>}
-          </div>
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-chip bg-accent-soft text-accent">
-            <Settings className="h-4 w-4" />
-          </span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-secondary" />
-        </Link>
         <nav className="flex flex-1 flex-col overflow-y-auto py-2">
           <Link
             href="/"
@@ -212,10 +218,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         onClose={() => setNotifOpen(false)}
         side="right"
         closeLabel={t("closeDrawerLabel")}
+        header={<p className="text-base font-semibold text-ink">{t("notificationsLabel")}</p>}
       >
-        <div className="border-b border-border px-4 py-4">
-          <p className="text-base font-semibold text-ink">{t("notificationsLabel")}</p>
-        </div>
         <div className="flex-1 overflow-y-auto py-1">
           {trackedRuns.length === 0 && scheduleAlerts.length === 0 && (
             <p className="px-4 py-6 text-sm text-secondary">{t("noRuns")}</p>
