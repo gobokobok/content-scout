@@ -1185,6 +1185,40 @@ backend/src/config.py, backend/src/api/auth.py, backend/src/api/runs.py, backend
 - `frontend/app/(auth)/register/page.tsx` — fetches /auth/register/config on mount; renders invite code field only when `require_invite` is true
 - ENV vars added: `REGISTRATION_INVITE_CODE` (api), `MAX_RUNS_PER_USER_PER_DAY` (api)
 
+## [E7-S5] Admin analytics v2: budget/purchases, run adoption, failure monitoring, general KPI framework
+**Epic:** Usage Metering & Admin
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E7-S2
+### Goal
+Direct user request (2026-08-08), prompted by noticing the existing `/admin` page (E7-S2) for the first time. The current admin view is just a per-user Apify/Claude $ cost table — not enough operational visibility as the app moves toward real paying customers. User named three concrete gaps and one general ask, explicitly framed as needing a proper scoping/discussion pass before implementation ("this is something we will need to dig deeper later"):
+1. **Bought tokens (Telegram Stars top-ups, `[E8-S3]`/`[E8-S7]`)** visible to admin — real revenue in vs. real Apify/Anthropic spend out, so admin knows when a provider budget top-up is actually needed before hitting a cap, not after.
+2. **Runs started vs. completed in a given period** — an adoption/engagement signal (how much of the product is actually being used), distinct from the existing cost-per-user view.
+3. **All failures across runs/deep-analyses in a period**, surfaced for monitoring — so a stuck/failing pattern gets caught and fixed proactively rather than discovered via a user report, which is how most bugs in this project's history have actually surfaced (see DONE.md's `[E17-S10]`/`[E17-S11]`/`[E17-S12]`/`[E21-S4]`/`[E21-S5]` cluster, and `[E21-S6]`'s own framing of that pattern).
+4. **General ask**: think through and define the fuller set of product-usage KPIs worth an admin tracking — not just these three. This item is explicitly not actionable yet; it needs its own scoping conversation with the user, same shape as `[E21-S1]`'s scoping-only story for the standalone Analysis pipeline.
+### Acceptance Criteria (draft — user explicitly wants a deeper scoping pass before real AC; these are a starting point, not a commitment)
+- [ ] Scope a concrete KPI list with the user (starting point: items 1–3 above, plus whatever comes out of item 4's discussion) before finalizing real AC
+- [ ] Admin view surfaces token-purchase totals (Stars revenue, `TokenPurchase` rows already exist per `[E8-S3]`) alongside the existing Apify/Claude cost figures, framed for budget-topup decision-making
+- [ ] Admin view surfaces run counts (started vs. completed, broken down by `run_type`) for a chosen date range
+- [ ] Admin view surfaces failed runs/deep-analyses in a period with enough detail (`error_message`, run type, timestamp, user) to triage without a `railway logs` dive first
+- [ ] Decide during scoping whether this extends the existing single-table `/admin` page or needs its own small layout rework — four-plus KPI categories may not fit the current shape
+### Definition of Done
+- [ ] All AC checked (post-scoping)
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+TBD — depends on final scope.
+### Files to read
+CLAUDE.md, backend/src/api/admin.py, backend/src/api/usage.py, frontend/app/(app)/admin/page.tsx, `[E7-S2]`, `[E8-S3]`, `[E8-S7]`, `[E21-S6]` entries above
+### Files to create or modify
+Depends on scoping — likely backend/src/api/admin.py, frontend/app/(app)/admin/page.tsx
+### Handover
+(none yet — story just opened, no work started)
+
 ## [E8-S1] Telegram Login
 **Epic:** Telegram Integration & Monetization
 **Sprint:** 6
