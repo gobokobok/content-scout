@@ -296,18 +296,24 @@ All three: full suite 385 passed (up from 378), ruff/mypy clean, frontend tsc/es
 - **`[E20-S4]` (50→20 competitor cap) deprioritized, not decided either way** — user: real usage right now is a single competitor account, so the cap question doesn't matter yet. Left `backlog`/unassigned; revisit once real usage grows past single digits.
 - **`[E20-S5]` (Apify 10-comment ceiling) split into two tracks** — Apify plan upgrade explicitly deferred until 5 external test users (beyond the 2 internal team users already using it) confirm product value; BrightData fallback approved to provision now, independent of that timing. The BrightData track's first AC item is a **human prerequisite** (the user creating a BrightData account and setting Railway credentials — account creation/payment is outside what an agent session can do), so it's not immediately codeable either, just no longer blocked on a decision.
 
-**Sprint 13 proposed (not yet locked — pending final user confirmation on ordering):** per the user's explicit sequencing choice ("after the feedback fixes" for `[E19-S3]`), and priority otherwise:
+## Sprint 13 — First-user feedback fixes + Analysis pipeline hardening (locked 2026-08-07 backlog grooming)
 
-| # | Story | Title | Priority |
-|---|---|---|---|
-| 0 | E22-S3 | Global notify toggles on Settings, replacing per-run overrides | high |
-| 1 | E18-S7 | Side drawers: close/X + Telegram-chrome color collision | medium |
-| 2 | E8-S10 | Investigate Mini App hardware back/swipe exiting to bot chat | medium |
-| 3 | E8-S9 | Telegram DM deep-link into Mini App instead of browser | medium |
-| 4 | E19-S3 | Resume DEV smoke sweep (Sprint 11's deferred items) | high |
-| 5 | E21-S6 | Analysis-pipeline regression sweep | high |
+**Goal:** close out the four items from the app's first real outside-user feedback (notification settings, drawer UX, back-button behavior, DM deep-linking), then resume the carried-over `[E19-S3]` smoke sweep, then run the newly-approved `[E21-S6]` regression sweep over the Analysis pipeline's recent bug cluster.
 
-**Not scheduled:** `[E20-S4]` (deprioritized, no near-term usage pressure) and `[E20-S5]` (blocked on the user provisioning real BrightData credentials before its remaining AC is workable).
+**Stories (in order):**
+
+| # | Story | Title | Priority | Status |
+|---|---|---|---|---|
+| 0 | E22-S3 | Global notify toggles on Settings, replacing per-run overrides | high | backlog |
+| 1 | E18-S7 | Side drawers: close/X + Telegram-chrome color collision | medium | backlog |
+| 2 | E8-S10 | Investigate Mini App hardware back/swipe exiting to bot chat | medium | backlog |
+| 3 | E8-S9 | Telegram DM deep-link into Mini App instead of browser | medium | backlog |
+| 4 | E19-S3 | Resume DEV smoke sweep (Sprint 11's deferred items) | high | in-progress (carried over) |
+| 5 | E21-S6 | Analysis-pipeline regression sweep | high | backlog |
+
+**Not scheduled:** `[E20-S4]` (deprioritized, no near-term usage pressure — real usage is single-competitor scale) and `[E20-S5]` (blocked on the user provisioning real BrightData credentials — a human step outside this session — before its remaining AC is workable).
+
+**Order confirmed by direct user agreement ("agree") to the proposal above.** Proceeding to `[E22-S3]` first.
 
 ## Sprint plan (projection, adjust at each /sprint-review)
 
