@@ -3625,32 +3625,32 @@ No new code beyond what already shipped in commit `dc32712` (2026-08-05) — thi
 
 ## [E8-S10] Investigate: Mini App hardware back / swipe-back exits to bot chat instead of navigating in-app
 **Epic:** Telegram Integration & Monetization
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 13
+**Status:** in-progress
 **Priority:** medium
 **Depends on:** none
 ### Goal
 First live-user feedback (2026-08-07): inside the Mini App, the phone's hardware/gesture back action (Android back button, iOS edge-swipe) does not navigate back within the app — it exits the Mini App entirely, dropping the user back into the Telegram bot chat. Only the app's own in-app "return" control (top of screen) navigates within the app. This may be a hard Telegram platform constraint rather than a bug: Telegram's Mini App `BackButton` API (`window.Telegram.WebApp.BackButton`) only controls a button Telegram renders in its own chrome, and is meant to be shown/hidden per-screen with a `click` handler wired to in-app navigation — it does not intercept the OS-level swipe/hardware-back gesture, which Telegram treats as "close the Mini App" unless the client explicitly binds it to `BackButton` too (behavior has varied across Bot API versions and platforms). No `BackButton` usage exists in this codebase yet (`frontend/lib/telegram-webapp.ts` currently only wraps `ready`/`expand`/`disableVerticalSwipes`/`downloadFile`/`openInvoice`).
 ### Acceptance Criteria
-- [ ] Confirm current Bot API version behavior (check Telegram's official Mini Apps docs, not assumption) for: does enabling `WebApp.BackButton` + wiring its `click` event to in-app back navigation also capture the hardware/gesture back action, or are they genuinely independent (hardware back always closes, regardless of `BackButton` state)?
-- [ ] If capturable: wire `BackButton.show()`/`.hide()` per screen (shown on any non-root screen, hidden on the app's root/home) with a `click` handler that calls the same in-app "return" logic the current top button uses, in `frontend/lib/telegram-webapp.ts` + `frontend/app/(app)/layout.tsx`
-- [ ] If not capturable (hard platform constraint): document that finding here and in DECISIONS.md if it forecloses a class of future UX ideas; consider whether a confirmation prompt before exit (`WebApp.enableClosingConfirmation`) is an acceptable partial mitigation, and ask the user before assuming it's wanted
-- [ ] Either way, verify behavior separately on Android and iOS (gesture back and hardware back are implemented differently across Telegram's own clients) rather than assuming one platform's result generalizes
+- [x] Confirmed against official docs, not assumption (see D53): `core.telegram.org/bots/webapps#backbutton` scopes `BackButton` to "a button which can be displayed in the header of the Mini App in the Telegram interface" — an in-app UI element only. Cross-checked the community `telegram-mini-apps.com` docs (Back Button, Sticky App pages) — neither claims any relationship between `BackButton` and OS-level hardware back or gesture-level swipe-back. No official or community source documents `BackButton` capturing hardware/gesture back
+- [x] **Not capturable per available documentation** — real platform constraint, not a code gap. Skipping the "if capturable" wiring branch: implementing `BackButton.show()`/`.hide()` anyway would add real UI surface (Telegram's native header chevron) with no verified evidence it changes the reported hardware-back-exits behavior. Documented as **D53** in DECISIONS.md, per this AC item's own instruction
+- [ ] `enableClosingConfirmation()` as a partial mitigation — **left as an open decision for the user**, not enabled unilaterally, per this AC item's own explicit "ask the user before assuming it's wanted" instruction. It's a real, documented API (a confirmation prompt before *any* exit, hardware-back included) but changes exit UX on every screen for every user; needs a direct answer, not a guess, in a session where the user is actually present
+- [ ] Real per-platform (Android/iOS) live verification — not done, no Telegram client in this sandbox (same established constraint as every other Telegram-behavior investigation in this project)
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests updated if behavior changes (no test suite currently covers this — presentational/platform-integration only)
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md updated
+- [x] Documentable AC items checked (2 of 4 — the doc-research half)
+- [ ] Remaining 2 AC items need the user directly: a decision on `enableClosingConfirmation`, and real Android/iOS device verification — not completable in a headless session
+- [x] No code changed — investigation-only story, correctly so per its own "investigate-first" framing
+- [x] DECISIONS.md's D53 added
+- [x] DONE.md **not** updated — story isn't closing this session, stays `in-progress`
+- [x] BACKLOG.md updated
 ### Smoke test
-On a real Android and a real iOS device inside Telegram, navigate two levels deep into the Mini App, then use the hardware back button (Android) and edge-swipe (iOS): confirm it now navigates back within the app rather than exiting to the bot chat, on both platforms.
+Not applicable yet — no code shipped to smoke-test. Once `enableClosingConfirmation` is decided (on or explicitly declined), that decision plus the still-open per-platform verification becomes this story's smoke test: on a real Android and a real iOS device inside Telegram, navigate two levels deep, then hardware-back/edge-swipe, confirm the actual (now-understood-as-constrained) behavior matches what was decided.
 ### Files to read
 CLAUDE.md, frontend/lib/telegram-webapp.ts, frontend/app/(app)/layout.tsx, Telegram Bot API Mini Apps docs (`BackButton`, `enableClosingConfirmation`)
 ### Files to create or modify
-frontend/lib/telegram-webapp.ts, frontend/app/(app)/layout.tsx (exact scope depends on the investigation's outcome)
+frontend/lib/telegram-webapp.ts, frontend/app/(app)/layout.tsx — only if the user opts into `enableClosingConfirmation`; no other code changes anticipated given this session's findings
 ### Handover
-Opened 2026-08-07 from direct first-user feedback (item 1 of a 4-item feedback batch — see `[E18-S7]`, `[E22-S3]`, and `[E8-S9]`'s Handover for the other three). Not yet investigated — genuinely unknown whether this is fixable in-app or a hard Telegram platform constraint; the AC's first item is the actual next step, not a guess at implementation.
+Opened 2026-08-07 from direct first-user feedback (item 1 of a 4-item feedback batch — see `[E18-S7]`, `[E22-S3]`, and `[E8-S9]`'s Handover for the other three). Investigated 2026-08-07 as part of an autonomous back-to-back pass through Sprint 13 (direct user request: "start and complete sprint 13 without my involvement") — this is the one Sprint 13 story that genuinely can't fully close headlessly: two of its four AC items are explicit user-decision/live-device items by the story's own original design, not things a headless session skipped out of laziness. **Concrete next step for the user:** decide whether `WebApp.enableClosingConfirmation()` (a real, low-effort, documented API — one call, see D53) is worth adding as a "confirm before any exit" safety net, understanding it doesn't distinguish hardware-back from any other exit path and will show on every screen. If yes, this becomes a small, mechanical follow-up story rather than reopening the investigation.
 
 ## [E18-S7] Side drawers: close/X button, easier-to-hit dismiss area, and Telegram-chrome color collision
 **Epic:** Run-Centric Navigation & Redesign
