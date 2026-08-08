@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E17-S13] Fix: PROD client-side crash on report recommendations tab from optional-field omission
+**Completed:** 2026-08-08
+**Handover:**
+- Direct PROD bug report on a just-completed real run: opening the report's Рекомендации tab produced Next.js's generic "Application error: a client-side exception has occurred" instead of the report.
+- **Root cause**: `REPORT_TOOL`'s schema (`deep_analysis_synthesis.py`) deliberately leaves `stats.cta_share`/`representative_quotes` and `recommendations.steal_this` optional (not in either object's `required` list) — a well-formed response can legally omit them (this run: only 5 publications, thin material). Nothing normalized the stored shape, and the frontend's TS types + rendering both assumed they were always-present arrays, calling `.length` on `undefined`.
+- Same gap class `[E21-S6]`'s own Goal text predicted but hadn't found a live instance of — one schema level past what E17-S12/E21-S6 checked (required fields, not optional ones with no default).
+- Two-layer fix: (1) `synthesize_report` now backfills the three optional fields' documented defaults via `setdefault` before storing. (2) Frontend types corrected to `?:` (honest about the real contract) and all three read sites in the report page use `?? []` — necessary since the backend fix can't retroactively repair already-stored PROD rows, including this bug's own origin report.
+- 403 backend tests passed (1 new regression test). Frontend `tsc`/`eslint`/`next build` clean — the type-honesty fix alone caught two previously-silent `.map()` call sites needing the same guard.
+- Initially misdiagnosed the run's comment data as the cause (an Apify Free-Plan-restriction log line read as "zero comments") — corrected by the user's screenshot of the real Apify console (all 8 comment-scraper calls succeeded, 10 results each), which redirected to the actual client-side crash.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. The reporting user's own already-broken PROD report is the natural smoke test once shipped.
+**Promoted to backlog:**
+- (none)
+
 ## [E2-S5] Fix: an account permanently excluded from every future run after one transient scrape failure
 **Completed:** 2026-08-08
 **Handover:**

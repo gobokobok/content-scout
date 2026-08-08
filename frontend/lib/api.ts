@@ -419,10 +419,15 @@ export interface DeepAnalysisStats {
   topics: DeepAnalysisTopicStat[];
   formats: DeepAnalysisFormatStat[];
   hooks: DeepAnalysisHookStat[];
-  cta_share: number | null;
   cadence_summary: string;
   sentiment_summary: string;
-  representative_quotes: string[];
+  // Real PROD crash found 2026-08-08: REPORT_TOOL's schema leaves cta_share/
+  // representative_quotes OPTIONAL — the model can legally omit either, and older stored
+  // reports (pre-fix) may still lack them even though synthesis now backfills both going
+  // forward (deep_analysis_synthesis.py). Typed optional here on purpose, not required, so
+  // `tsc` can't hide the same gap again — every read site must handle the missing case.
+  cta_share?: number | null;
+  representative_quotes?: string[];
   // E17-S9: set when comment coverage across the run's items was too thin to trust
   // comment-derived sections — those sections are stripped server-side when this is true.
   comment_coverage_degraded?: boolean;
@@ -447,7 +452,9 @@ export interface DeepAnalysisRecommendations {
   hook_templates: string[];
   faq_pack: string[];
   posting_schedule: string;
-  steal_this: DeepAnalysisStealThisItem[];
+  // Optional per REPORT_TOOL's schema (not in its required list) — see DeepAnalysisStats'
+  // cta_share/representative_quotes comment above for why this is typed optional on purpose.
+  steal_this?: DeepAnalysisStealThisItem[];
   comment_coverage_degraded?: boolean;
 }
 

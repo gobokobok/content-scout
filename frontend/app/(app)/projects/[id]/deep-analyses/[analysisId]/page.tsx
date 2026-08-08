@@ -268,7 +268,7 @@ export default function DeepAnalysisReportPage() {
                       </div>
                     </div>
                   )}
-                  {stats.cta_share !== null && (
+                  {stats.cta_share !== null && stats.cta_share !== undefined && (
                     <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
                       <span className="text-sm text-secondary">{t("ctaShareTitle")}</span>
                       <span className="font-mono text-sm font-medium text-ink">
@@ -293,10 +293,10 @@ export default function DeepAnalysisReportPage() {
                     {t("sentimentTitle")}
                   </p>
                   <p className="text-sm text-secondary">{stats.sentiment_summary}</p>
-                  {stats.representative_quotes.length > 0 && (
+                  {(stats.representative_quotes ?? []).length > 0 && (
                     <div className="mt-3 flex flex-col gap-2">
                       <p className="text-xs font-medium text-secondary">{t("quotesTitle")}</p>
-                      {stats.representative_quotes.map((quote, idx) => (
+                      {(stats.representative_quotes ?? []).map((quote, idx) => (
                         <div
                           key={idx}
                           className="flex items-start gap-2 rounded-control bg-bg p-2.5 text-sm text-secondary"
@@ -427,10 +427,10 @@ export default function DeepAnalysisReportPage() {
                 </div>
               )}
 
-              {recommendations && recommendations.steal_this.length > 0 && analysis && (
+              {recommendations && (recommendations.steal_this ?? []).length > 0 && analysis && (
                 <div className="flex flex-col gap-2">
                   <p className="text-sm font-semibold text-ink">{t("stealThisTitle")}</p>
-                  {recommendations.steal_this.map((item, idx) => (
+                  {(recommendations.steal_this ?? []).map((item, idx) => (
                     <Link
                       key={idx}
                       href={`/projects/${params.id}/runs/${analysis.run_id}?tab=publications`}

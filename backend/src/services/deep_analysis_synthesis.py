@@ -395,6 +395,20 @@ async def synthesize_report(
             await fail_deep_analysis(session, analysis, _UNPARSEABLE_MESSAGE_RU, user_id=user_id)
             return
 
+        # Real PROD crash found 2026-08-08 ("Application error: a client-side exception") on
+        # the report page's recommendations tab. Root cause: REPORT_TOOL's schema deliberately
+        # leaves `stats.cta_share`/`representative_quotes` and `recommendations.steal_this`
+        # OPTIONAL (not in either object's `required` list, unlike E17-S12/E21-S6's fix, which
+        # only ever validated required fields) — a well-formed, schema-compliant response can
+        # legally omit them when there isn't enough material (e.g. a short, 5-publication run).
+        # The frontend's TS types and rendering both assume these are always present arrays and
+        # call `.length` on them unconditionally, throwing when the model leaves one out. Fill
+        # in the documented defaults here so the stored/returned shape always matches what every
+        # consumer (frontend today, any future one) is entitled to assume.
+        stats.setdefault("cta_share", None)
+        stats.setdefault("representative_quotes", [])
+        recommendations.setdefault("steal_this", [])
+
         if _comment_coverage_ratio(rows) < settings.deep_analysis_comment_coverage_threshold:
             _strip_comment_derived_sections(stats, recommendations)
 

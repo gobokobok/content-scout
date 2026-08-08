@@ -4038,3 +4038,34 @@ backend/src/services/runs.py, backend/src/worker.py (`_fetch_one` / `process_run
 backend/src/services/runs.py, backend/src/worker.py, backend/tests/test_worker.py
 ### Handover
 Diagnosed and fixed same session, 2026-08-08, from a direct PROD bug report by a real test user ("не выбран аккаунт для анализа" despite a visibly selected account). Root-caused by reading `resolve_target_accounts`/`worker.py` directly rather than guessing from the error string alone (the string she saw doesn't even appear verbatim in the frontend — it's the backend's `NO_ACCOUNTS` `message_ru`, `runs.py:47-53`). Deliberately kept scope to the backend logic bug only — did not add a UI "this account previously failed" indicator (AccountOut/AccountResponse already carry `status`/`fail_reason`, unused in the run-creation account picker) since the fix already makes `status=failed` a non-blocking, self-healing signal rather than a trap; a future UI affordance could still be worth adding if failures turn out to recur often enough to warrant a proactive warning, but that's speculative until real usage shows it's needed. User's explicit next step: fix in DEV, verify, then promote straight to PROD.
+
+## [E17-S13] Fix: PROD client-side crash on report recommendations tab from optional-field omission
+**Epic:** Run Deep Analysis
+**Sprint:** unassigned
+**Status:** done
+**Completed:** 2026-08-08
+**Priority:** high
+**Depends on:** E17-S12, E21-S6
+### Goal
+Direct PROD bug report 2026-08-08, on a real completed run: opening the report's Рекомендации tab produced Next.js's generic "Application error: a client-side exception has occurred" instead of the report. Root-caused by reading `REPORT_TOOL`'s actual schema (`deep_analysis_synthesis.py`), not guessed — `stats.cta_share`/`representative_quotes` and `recommendations.steal_this` are deliberately **optional** (not in either object's `required` list), so a well-formed, schema-compliant Sonnet response can legally omit them when there isn't enough material (this run: 5 publications, thinner than usual). Nothing normalized the stored/returned shape to fill in the gap, and the frontend's TS types (`representative_quotes: string[]`, `steal_this: [...][]`, both non-optional) plus its rendering (`stats.representative_quotes.length`, `recommendations.steal_this.length`, both unconditional) assumed they were always present arrays — throwing `TypeError: Cannot read properties of undefined` the moment the model omitted one. This is exactly the gap `[E21-S6]`'s own Goal text flagged as an open risk ("other tool-schema fields the model could omit besides `stats`") but hadn't found a live instance of yet — this is that instance, one schema level over from where E17-S12/E21-S6 both looked (top-level and nested *required* fields; this is an *optional* field with no default).
+### Acceptance Criteria
+- [x] `synthesize_report` backfills the three optional fields' documented defaults (`cta_share: None`, `representative_quotes: []`, `steal_this: []`) via `dict.setdefault` right after validation, before storing — every report the API returns going forward has the complete shape every consumer is entitled to assume
+- [x] Frontend types corrected to be honest about the real (optional) contract — `DeepAnalysisStats.cta_share`/`representative_quotes` and `DeepAnalysisRecommendations.steal_this` all marked `?:` in `lib/api.ts`, with a comment pointing back at this story so `tsc` can't hide the same gap again
+- [x] All three read sites in the report page (`deep-analyses/[analysisId]/page.tsx`) use `?? []` fallbacks — necessary as defense-in-depth for **already-stored PROD rows** predating this fix, which the backend backfill cannot retroactively repair (it only runs at synthesis time)
+- [x] `cta_share`'s existing `!== null` guard extended to `!== null && !== undefined` (the two are distinct in a schema-optional field: omitted key vs. explicit `null`)
+### Definition of Done
+- [x] All AC checked
+- [x] Tests written and passing — 403 backend tests (1 new: `test_synthesize_report_backfills_omitted_optional_fields`, constructing a schema-valid-but-sparse response missing all three optional fields and asserting the stored report has the defaults). Frontend `tsc --noEmit`/`eslint`/`next build` all clean — the type change alone caught the two previously-silent `.map()` call sites needing the same `?? []` guard
+- [x] ruff/ruff format/mypy clean
+- [x] CI green (pending push)
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. The reporting user's own already-broken PROD report (this story's origin) is the natural smoke test once this ships — the frontend fix alone should repair its rendering even without a re-run, since the guard is applied at read time.
+### Files to read
+backend/src/services/deep_analysis_synthesis.py (`REPORT_TOOL`, `synthesize_report`), frontend/lib/api.ts (`DeepAnalysisStats`, `DeepAnalysisRecommendations`), frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, `[E17-S12]`, `[E21-S6]` entries above
+### Files to create or modify
+backend/src/services/deep_analysis_synthesis.py, backend/tests/test_deep_analysis_synthesis.py, frontend/lib/api.ts, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx
+### Handover
+Diagnosed and fixed same session, 2026-08-08, from a direct PROD bug report (screenshot of Next.js's generic client-exception page) on the very run reviewed earlier that session. Initially misdiagnosed the run's comment data as the likely culprit (an Apify Free-Plan-restriction log line read as "zero comments returned") — the user corrected this with a screenshot of the real Apify console showing all 8 comment-scraper calls succeeded with 10 real results each, which redirected the investigation to the actual cause. Deliberately fixed both layers (backend backfill for all future reports, frontend `?? []` guards for this and any other already-stored sparse report) rather than either alone — the backend fix alone wouldn't repair rows already in PROD's database.

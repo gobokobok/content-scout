@@ -378,6 +378,40 @@ async def test_synthesize_report_thin_coverage_strips_sections(session: AsyncSes
     assert user.token_balance == 1000 - 5
 
 
+async def test_synthesize_report_backfills_omitted_optional_fields(
+    session: AsyncSession,
+) -> None:
+    """Real PROD crash found 2026-08-08: "Application error: a client-side exception" on the
+    report page's recommendations tab. Root cause: REPORT_TOOL's schema deliberately leaves
+    `stats.cta_share`/`representative_quotes` and `recommendations.steal_this` OPTIONAL (not in
+    either object's `required` list) — a well-formed, schema-compliant response can legally omit
+    them (e.g. a short run with too little material for a "steal this" pick), but the frontend's
+    TS types/rendering assumed they were always present arrays and crashed calling `.length` on
+    `undefined`. synthesize_report must backfill the documented defaults so every stored/returned
+    report has the complete shape every consumer is entitled to assume."""
+    user = await make_user(session)
+    run = await make_run(session, requested_by=user)
+    analysis = await make_deep_analysis(session, run=run, requested_by=user)
+    await _make_done_extraction_item(session, run, deep_analysis_id=analysis.id)
+    await session.commit()
+
+    sparse_report = copy.deepcopy(_VALID_REPORT)
+    del sparse_report["stats"]["cta_share"]
+    del sparse_report["stats"]["representative_quotes"]
+    del sparse_report["recommendations"]["steal_this"]
+
+    fake_client = _FakeClient(_tool_use_response(sparse_report))
+    await synthesize_report(session, analysis, user_id=user.id, client=fake_client)
+    await session.commit()
+
+    assert analysis.status == DeepAnalysisStatus.done
+    assert analysis.report_stats["cta_share"] is None
+    assert analysis.report_stats["representative_quotes"] == []
+    assert analysis.report_recommendations["steal_this"] == []
+    # Required fields the model did send are untouched.
+    assert analysis.report_stats["topics"] == _VALID_REPORT["stats"]["topics"]
+
+
 async def test_synthesize_report_charges_only_the_flat_base_fee(session: AsyncSession) -> None:
     """D50 supersedes the old post-hoc reconciliation (D48): extraction already charges the
     real per-item/per-comment cost incrementally as it happens, so synthesis never reconciles
