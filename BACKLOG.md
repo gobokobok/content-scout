@@ -3962,3 +3962,49 @@ CLAUDE.md, DECISIONS.md (D48, D49, D50, D51, D52), backend/src/services/deep_ana
 backend/src/services/deep_analysis_synthesis.py, backend/src/worker.py, backend/src/services/summarizer.py, backend/src/config.py, backend/tests/test_deep_analysis_synthesis.py, backend/tests/test_worker.py, backend/tests/test_summarizer.py
 ### Handover
 Formalized 2026-08-07 during a backlog grooming session, per direct user go-ahead ("add it now, include in planning"). Implemented same day as part of an autonomous back-to-back pass through Sprint 13 (direct user request: "start and complete sprint 13 without my involvement"). All three findings follow the exact pattern the story's own Goal predicted — a prior fix that handled the one concrete shape a real incident produced without generalizing to the shape's whole class. None of the three is dramatic on its own (a still-rare malformed-response edge case; an edge case requiring a removed-then-reused handle; an internal cost-accounting number nobody's shipped a decision off of yet) — the value here is closing them *before* they each cost their own separate incident-diagnosis session, the way the four stories this audit re-read all did.
+
+## [E24-S1] Publication-only recommendations for Review runs (no comment scraping required)
+**Epic:** Publication-Only Recommendations (new epic)
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E17-S3, E17-S4 (deep-analysis extraction/synthesis)
+### Goal
+Direct request 2026-08-08, following the user's own read of a live Analysis report (`run_id=b1f19671-0e44-4f12-b7b7-a81cae9bdc0b`, 09:11 MSK): the report's "Рекомендации" section (content ideas, do more/less, hook templates, FAQ pack, posting schedule, "steal this idea") reads like it should be buildable from publications alone, without the comment-scraping step. Verified against the actual code, not just intuition: `deep_analysis_synthesis.py`'s own `_strip_comment_derived_sections` (used below the comment-coverage threshold) already proves which report fields are comment-dependent and which aren't — only `stats.sentiment_summary`, `stats.representative_quotes`, and `recommendations.faq_pack` require comments. Everything else (`stats.topics/formats/hooks/cta_share/cadence_summary`, `recommendations.content_ideas/do_more/do_less/hook_templates/posting_schedule/steal_this`) is derived purely from per-item Haiku extraction (`deep_analysis_extraction.py`'s `_extract_item`, fed only by caption + cover image — literally writes "Комментарии: отсутствуют" and proceeds fine with zero comments) plus one Sonnet synthesis call (`synthesize_report`). Today this whole extraction+synthesis pipeline only runs for `run_type == "deep_analysis"` (`worker.py:process_run_and_maybe_analyze` gates `run_deep_analysis_pipeline` on that check) — Review runs (`stat_collection`) only get the lightweight per-item caption summary (`summarize_run_items`), no topic/format/hook tagging, no synthesis call, no recommendations. This story is about giving Review that publication-only subset of Analysis's output, without adding comment scraping to Review (which would blur Review's cheap/fast positioning vs. Analysis's expensive/deep one).
+### Acceptance Criteria (draft — needs product scoping before implementation, see Handover)
+- [ ] Decide the product shape: is this (a) a new opt-in step on Review's run-creation flow ("+ рекомендации"), (b) always-on for every Review run, or (c) a new lightweight run type distinct from both today's Review and Analysis? Affects pricing exposure and run-dialog UX materially — needs a direct decision, not an assumption
+- [ ] Decide pricing: this adds one Haiku tagging call per item (beyond Review's existing per-item caption call) plus one Sonnet synthesis call per run — real added cost per D51's Sonnet-rate precedent. Needs its own token-charge line, not silently folded into Review's existing per-item charge
+- [ ] Reuse `deep_analysis_extraction.py`'s per-item tagging (topic/format/hook_type/has_cta) and `deep_analysis_synthesis.py`'s `REPORT_TOOL`/`synthesize_report` machinery rather than forking a parallel implementation — likely needs `extract_deep_analysis_items`/`synthesize_report` to accept a "no comments" mode (call with `comments_by_item` empty for every item, and confirm `_comment_coverage_ratio` degrades cleanly to 0 so `_strip_comment_derived_sections` fires automatically, hiding the three comment-only fields without new branching)
+- [ ] Report UI: Review's run detail page needs its own place to show `stats`/`recommendations` (today only the Analysis report page — `deep-analyses/[analysisId]/page.tsx` — renders this shape) — reuse that page's rendering, don't rebuild it
+- [ ] Russian copy for a Review-flavored version of the report needs review — the synthesis system prompt currently references "тональность комментариев" (comment sentiment) as a standing section; a comments-free invocation must not ask the model for something it structurally cannot have
+### Definition of Done
+- [ ] Not started — scoping only at this point
+### Files to read
+backend/src/services/deep_analysis_extraction.py, backend/src/services/deep_analysis_synthesis.py, backend/src/worker.py (`process_run_and_maybe_analyze`, `_finish_run`), frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx, DECISIONS.md (D50, D51 — token-charging precedent)
+### Files to create or modify
+TBD pending scoping decision above
+### Handover
+Opened 2026-08-08 directly from the user reading a real Analysis report and asking "this outcome can be built inside Review run, since it is purely based on publications analysis, and does not require comments analysis, right?" — confirmed correct by reading the actual synthesis/extraction code (see Goal). Deliberately left unscoped past the AC-drafting stage: this is a real product surface decision (new run type vs. Review option vs. always-on, plus pricing), not a bug fix or a mechanical extension, and shouldn't be assumed without the user's direct input — same posture as `[E23-S1]`/`[E7-S5]`.
+
+## [E14-S7] Distinguish schedule-triggered runs from manually-started ones in the feed and run detail
+**Epic:** Scheduled Runs
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E14-S2 (schedule firing), E18-S1 (unified run feed)
+### Goal
+Direct bug-shaped report 2026-08-08: the user saw a completed Review run in their feed they hadn't started themselves (a schedule they'd forgotten configuring fired it) and initially read it as a bug — a run appearing without any visible action on their part. Today `AnalysisRun` rows created by `fire_due_schedules`/`_fire_one` (`scheduled_runs.py`) are indistinguishable from manually-started ones anywhere in the UI — no field on the run itself records that it came from a schedule, so the feed card and the run detail page's Summary tab have no way to show it even if they wanted to. Needs a small, visible "this ran automatically" signal so a forgotten schedule reads as expected behavior, not a surprise.
+### Acceptance Criteria
+- [ ] New nullable `AnalysisRun.scheduled_run_id` FK → `scheduled_runs.id` (migration), set in `_fire_one` (`scheduled_runs.py:103`) alongside the existing `AnalysisRun(...)` construction — manually-started runs leave it `NULL`
+- [ ] `RunOut` (`backend/src/api/runs.py`) exposes the new field (just presence/absence is enough — a boolean-shaped `scheduled: bool` derived field is fine if simpler than exposing the raw FK)
+- [ ] Home feed run card (`frontend/app/(app)/page.tsx`, near the existing run-type badge ~line 328) shows a small calendar/clock icon (lucide-react, no emoji per D28) when the run originated from a schedule
+- [ ] Run detail Summary tab (`frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx`) shows the same signal, with a short label (e.g. "Запущено по расписанию") rather than just an icon — the feed card is icon-only for space, the detail page has room to be explicit
+- [ ] Existing runs (pre-migration) have `scheduled_run_id = NULL` — no backfill possible (the row-level link never existed), acceptable since this is a forward-looking signal, not a historical audit
+### Definition of Done
+- [ ] Not started
+### Files to read
+backend/src/services/scheduled_runs.py (`_fire_one`), backend/src/api/runs.py (`RunOut`), backend/src/models/run.py (or wherever `AnalysisRun` lives), frontend/app/(app)/page.tsx, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx
+### Files to create or modify
+backend/src/models/*.py (AnalysisRun), a new alembic migration, backend/src/services/scheduled_runs.py, backend/src/api/runs.py, frontend/app/(app)/page.tsx, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/lib/api.ts, frontend/messages/ru.json
+### Handover
+Opened 2026-08-08 directly from the user's own report of being confused by a schedule-fired run appearing in their feed unannounced ("i though it was a bug that a new run completed without me starting it"). Small, mechanical story — the only real design call is icon-only (feed) vs. icon+label (detail), captured in the AC above.
