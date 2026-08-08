@@ -362,6 +362,14 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
                     "run_id=%s account_id=%s content fetch failed: %s", run.id, account.id, exc
                 )
             else:
+                # Direct bug fix (chat-reported, 2026-08-08): status was only ever written to
+                # `failed` here, never reset — a single transient scrape failure (IG blocking/
+                # rate-limiting, observed live even on runs that otherwise succeeded) permanently
+                # excluded the account from every future run via resolve_target_accounts' status
+                # filter, with no UI signal and a misleading "no accounts to analyze" error on
+                # the next attempt. A clean fetch clears it.
+                account.status = AccountStatus.active
+                account.fail_reason = None
                 if len(raw_items) >= 50:
                     # 50 is InstagramPlatform's hardcoded resultsLimit fallback when item_limit
                     # is unset (duration_days mode) — landing exactly there is a signal the

@@ -190,18 +190,27 @@ async def test_process_run_item_limit_mode_fetches_last_n_publications(
     assert len(items) == 5
 
 
-async def test_process_run_only_targets_active_accounts(session: AsyncSession) -> None:
+async def test_process_run_retries_previously_failed_accounts(session: AsyncSession) -> None:
+    """Direct bug fix (chat-reported, 2026-08-08): a `failed`-status account (a prior run's
+    transient scrape failure) used to be permanently excluded by resolve_target_accounts —
+    every future run silently dropped it, with no way for it to ever recover. Status is now
+    informational only: it's still a valid, retried target, and a clean fetch resets it."""
     project = await make_project(session)
     account_list = await make_account_list(session, project=project)
     await make_account(session, account_list=account_list)
-    await make_account(session, account_list=account_list, status=AccountStatus.failed)
+    previously_failed = await make_account(
+        session, account_list=account_list, status=AccountStatus.failed, fail_reason="blocked"
+    )
     run = await make_run(session, project=project, duration_days=1)
     await session.commit()
 
     with patch("src.worker.summarize_run_items", side_effect=_fake_summarize):
         await process_run(session, run)
 
-    assert run.progress_accounts == 1
+    assert run.progress_accounts == 2
+    await session.refresh(previously_failed)
+    assert previously_failed.status == AccountStatus.active
+    assert previously_failed.fail_reason is None
 
 
 async def test_process_run_respects_account_subset(session: AsyncSession) -> None:

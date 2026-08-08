@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E2-S5] Fix: an account permanently excluded from every future run after one transient scrape failure
+**Completed:** 2026-08-08
+**Handover:**
+- Direct PROD bug report: a real test user selected a clearly-active-looking competitor for an Analysis account-mode run and got "Нет аккаунтов для анализа. Добавьте конкурентов на вкладке «Конкуренты»." — reads like she has no competitors at all, confusing when one was plainly selected.
+- **Root cause**: `worker.py`'s scrape loop sets `Account.status = failed` whenever a single run's fetch for that account throws (IG blocking/rate-limiting — observed live, self-resolving, even on the very run analyzed the same session), and nothing ever reset it back. `resolve_target_accounts` (`services/runs.py`), used by every run-creation path (manual Review, manual Analysis, scheduled-run firing) and the worker's own scrape step, filtered on `status == active` — so one transient failure permanently blacklisted the account everywhere, silently for multi-account Review/scheduled runs and as a hard, misleadingly-worded 400 for Analysis's exactly-one-account mode. The account stayed fully visible/selectable in the UI the whole time, no indication anything was wrong.
+- Two-part fix: (1) `resolve_target_accounts` no longer filters on `status` — every non-hidden, non-archived account is always a valid, retryable target; `status`/`fail_reason` are informational only. (2) `worker.py`'s success path now resets `status = active`/`fail_reason = None` on a clean fetch — a recovered account self-heals.
+- 402 backend tests passed (rewrote `test_process_run_only_targets_active_accounts` → `test_process_run_retries_previously_failed_accounts`). ruff/ruff format/mypy clean. No new dependencies, no migration.
+- Deliberately did not add a UI "previously failed" indicator — the fix already makes `status=failed` non-blocking and self-healing rather than a trap; `AccountOut`/`AccountResponse` already carry `status`/`fail_reason` unused in the run-creation picker if a future proactive-warning UI turns out to be worth adding.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. Needs a DEV pass confirming the specific repro, then PROD confirmation once shipped (user's own next step: fix in DEV, verify, promote to PROD).
+**Promoted to backlog:**
+- (none)
+
 ## [E20-S6] CI deploy path-filtering + worker-cancellation notification/messaging fixes
 **Completed:** 2026-08-08
 **Handover:**

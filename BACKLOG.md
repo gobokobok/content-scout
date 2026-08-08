@@ -4008,3 +4008,33 @@ backend/src/services/scheduled_runs.py (`_fire_one`), backend/src/api/runs.py (`
 backend/src/models/*.py (AnalysisRun), a new alembic migration, backend/src/services/scheduled_runs.py, backend/src/api/runs.py, frontend/app/(app)/page.tsx, frontend/app/(app)/projects/[id]/runs/[runId]/page.tsx, frontend/lib/api.ts, frontend/messages/ru.json
 ### Handover
 Opened 2026-08-08 directly from the user's own report of being confused by a schedule-fired run appearing in their feed unannounced ("i though it was a bug that a new run completed without me starting it"). Small, mechanical story — the only real design call is icon-only (feed) vs. icon+label (detail), captured in the AC above.
+
+## [E2-S5] Fix: an account permanently excluded from every future run after one transient scrape failure
+**Epic:** Competitor Management
+**Sprint:** unassigned
+**Status:** done
+**Completed:** 2026-08-08
+**Priority:** high
+**Depends on:** none
+### Goal
+Direct bug report 2026-08-08 (a real test user in PROD): selecting a clearly-visible, clearly-active-looking competitor for an Analysis account-mode run failed with "Нет аккаунтов для анализа. Добавьте конкурентов на вкладке «Конкуренты»." — a message that reads as "you have no competitors at all," confusing when one was plainly selected. Root cause traced from the live incident, not guessed: `worker.py`'s scrape loop sets `Account.status = AccountStatus.failed` whenever any single run's fetch for that account throws (IG blocking/rate-limiting — observed live, self-resolving, even on the very run analyzed the same session) — and **nothing anywhere ever reset it back**. `resolve_target_accounts` (`services/runs.py`), used by every run-creation path (manual Review, manual Analysis, and scheduled-run firing) and by the worker's own scrape step, filtered on `status == active` — so one transient failure permanently blacklisted the account from every future run, silently for multi-account Review/scheduled runs, and as a hard, misleadingly-worded 400 for Analysis's exactly-one-account mode. The account stayed fully visible and selectable everywhere in the UI throughout, with zero indication anything was wrong.
+### Acceptance Criteria
+- [x] `resolve_target_accounts` no longer filters on `Account.status` — `status`/`fail_reason` are informational only; every non-hidden, non-archived account is always a valid, retryable scrape target
+- [x] `worker.py`'s per-account fetch result handling resets `status = active`/`fail_reason = None` on a clean fetch (previously only ever wrote `failed`, never reset) — a recovered account self-heals on its next successful scrape
+- [x] Also fixes the same silent exclusion for scheduled-run firing (`_fire_one` → `no_accounts` skip reason) and multi-account Review runs (previously just quietly dropped the account, no error at all)
+### Definition of Done
+- [x] All AC checked
+- [x] Tests written and passing — 402 backend tests (rewrote `test_process_run_only_targets_active_accounts` → `test_process_run_retries_previously_failed_accounts`, asserting the previously-failed account is retried and its status/fail_reason clear on success)
+- [x] ruff/ruff format/mypy clean
+- [x] CI green (pending push)
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. DEV pass needed: confirm the specific reported repro (an account with `status=failed` from a real prior scrape failure is selectable and completes an Analysis account-mode run), and ideally the original PROD user re-tries her run once this reaches PROD.
+### Files to read
+backend/src/services/runs.py, backend/src/worker.py (`_fetch_one` / `process_run`), backend/src/services/scheduled_runs.py (`_fire_one`)
+### Files to create or modify
+backend/src/services/runs.py, backend/src/worker.py, backend/tests/test_worker.py
+### Handover
+Diagnosed and fixed same session, 2026-08-08, from a direct PROD bug report by a real test user ("не выбран аккаунт для анализа" despite a visibly selected account). Root-caused by reading `resolve_target_accounts`/`worker.py` directly rather than guessing from the error string alone (the string she saw doesn't even appear verbatim in the frontend — it's the backend's `NO_ACCOUNTS` `message_ru`, `runs.py:47-53`). Deliberately kept scope to the backend logic bug only — did not add a UI "this account previously failed" indicator (AccountOut/AccountResponse already carry `status`/`fail_reason`, unused in the run-creation account picker) since the fix already makes `status=failed` a non-blocking, self-healing signal rather than a trap; a future UI affordance could still be worth adding if failures turn out to recur often enough to warrant a proactive warning, but that's speculative until real usage shows it's needed. User's explicit next step: fix in DEV, verify, then promote straight to PROD.
