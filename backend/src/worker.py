@@ -39,6 +39,7 @@ from src.services.scheduled_runs import fire_due_schedules
 from src.services.summarizer import summarize_run_items
 from src.services.telegram_notify import (
     notify_deep_analysis_complete,
+    notify_deep_analysis_scrape_failed,
     notify_enabled_for_run_type,
     notify_run_complete,
 )
@@ -266,6 +267,27 @@ async def _finish_run(session: AsyncSession, run: AnalysisRun, settings: Setting
             )
 
 
+def _cancellation_error_message(run: AnalysisRun, settings: Settings) -> str:
+    """Real bug found 2026-08-08 (live DEV incident): `asyncio.CancelledError` fires both on a
+    genuine `job_timeout` AND whenever arq's worker process itself shuts down (e.g. a Railway
+    redeploy sends SIGTERM, which arq's default signal handler turns into `task.cancel()` on
+    every in-flight job) — confirmed by reading arq's own source, both paths route through the
+    identical `asyncio.wait_for` cancellation with no distinguishing flag passed to the job.
+    "Превышено время выполнения" was always shown regardless, which is actively misleading
+    when the real cause was a deploy, not the run genuinely running long — the incident that
+    surfaced this ran for well under a minute of real work before being cancelled, nowhere
+    near `worker_job_timeout_secs` (3600s default). Elapsed wall-clock time since the run
+    started is the only signal available to tell the two apart without a deeper arq patch."""
+    started = run.started_at or datetime.now(UTC)
+    elapsed = (datetime.now(UTC) - started).total_seconds()
+    if elapsed >= settings.worker_job_timeout_secs * 0.9:
+        return "Превышено время выполнения"
+    return (
+        "Обработка была прервана (например, из-за перезапуска сервиса). "
+        "Попробуйте запустить ещё раз."
+    )
+
+
 async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
     """Core run lifecycle logic, isolated from session/queue plumbing for testability."""
     try:
@@ -391,20 +413,13 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
 
     except asyncio.CancelledError:
         run.status = RunStatus.failed
-        run.error_message = "Превышено время выполнения"
+        run.error_message = _cancellation_error_message(run, get_settings())
         run.finished_at = datetime.now(UTC)
         await asyncio.shield(session.commit())
         try:
             requesting_user = await session.get(User, run.requested_by)
-            if requesting_user and notify_enabled_for_run_type(requesting_user, run.run_type):
-                await notify_run_complete(run, requesting_user, session)
-            elif requesting_user:
-                logger.info(
-                    "run_id=%s: global notify preference is off for run_type=%s, skipping "
-                    "Telegram notification",
-                    run.id,
-                    run.run_type,
-                )
+            if requesting_user:
+                await _notify_scrape_failure(run, requesting_user, session)
         except Exception:  # noqa: BLE001
             pass
         raise
@@ -416,17 +431,31 @@ async def process_run(session: AsyncSession, run: AnalysisRun) -> None:
         await session.commit()
         try:
             requesting_user = await session.get(User, run.requested_by)
-            if requesting_user and notify_enabled_for_run_type(requesting_user, run.run_type):
-                await notify_run_complete(run, requesting_user, session)
-            elif requesting_user:
-                logger.info(
-                    "run_id=%s: global notify preference is off for run_type=%s, skipping "
-                    "Telegram notification",
-                    run.id,
-                    run.run_type,
-                )
+            if requesting_user:
+                await _notify_scrape_failure(run, requesting_user, session)
         except Exception:  # noqa: BLE001
             pass
+
+
+async def _notify_scrape_failure(run: AnalysisRun, user: User, session: AsyncSession) -> None:
+    """Shared by process_run's CancelledError/Exception handlers — a failure during the base
+    scrape itself, before run_deep_analysis_pipeline (deep_analysis) or _finish_run's own
+    notify (stat_collection) ever runs. Real bug found 2026-08-08: this used to always call
+    notify_run_complete (the Review-branded message) regardless of run_type — a deep_analysis
+    run failing here would get a "Задача «Ревью» завершилась с ошибкой" DM for a task the user
+    never asked to Review. Branches to the correctly-labeled equivalent instead."""
+    if not notify_enabled_for_run_type(user, run.run_type):
+        logger.info(
+            "run_id=%s: global notify preference is off for run_type=%s, skipping Telegram "
+            "notification",
+            run.id,
+            run.run_type,
+        )
+        return
+    if run.run_type == "deep_analysis":
+        await notify_deep_analysis_scrape_failed(run, user)
+    else:
+        await notify_run_complete(run, user, session)
 
 
 async def run_deep_analysis_pipeline(session: AsyncSession, run: AnalysisRun, user: User) -> None:
@@ -463,10 +492,14 @@ async def run_deep_analysis_pipeline(session: AsyncSession, run: AnalysisRun, us
         # CancelledError is a BaseException, not Exception — arq's job_timeout cancels the
         # task via asyncio.wait_for, which would otherwise bypass the except Exception below
         # and leave the row stuck in extracting/synthesizing forever (mirrors process_run's
-        # same handling above).
+        # same handling above). Also fires on a plain worker shutdown (e.g. a redeploy), not
+        # just a genuine timeout — _cancellation_error_message picks the accurate message.
         await asyncio.shield(
             fail_deep_analysis(
-                session, analysis, "Превышено время выполнения", user_id=analysis.requested_by
+                session,
+                analysis,
+                _cancellation_error_message(run, get_settings()),
+                user_id=analysis.requested_by,
             )
         )
         await asyncio.shield(session.commit())

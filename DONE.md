@@ -2,6 +2,19 @@
 
 Completed stories land here, newest first. Format:
 
+## [E20-S6] CI deploy path-filtering + worker-cancellation notification/messaging fixes
+**Completed:** 2026-08-08
+**Handover:**
+- Direct user report of a real overnight DEV incident: an Analysis run got cancelled twice (two Telegram failure DMs, one mislabeled "Ревью") before a third automatic retry succeeded. Root-caused via `railway logs` + `git log` correlation: the worker container restarted twice, each restart within ~30s of an unrelated push to `main` from an autonomous Sprint 13 session earlier the same day.
+- **Root cause**: `.github/workflows/ci.yml`'s `deploy-dev` job had no path filtering — every push, including docs-only/frontend-only commits, unconditionally redeployed `api`/`worker`/`web`. A Railway redeploy sends SIGTERM; arq's default shutdown handler cancels in-flight jobs via the identical `asyncio.CancelledError` a genuine `job_timeout` uses, which is also one of arq's automatic-retry triggers — so the run silently restarted from scratch each time.
+- Three fixes: (1) `deploy-dev` now only redeploys `api`/`worker` when `backend/` changed and `web` when `frontend/` changed, via a `git diff` between the push's before/after SHAs (safe fallback: deploy everything if no usable base commit). (2) New `notify_deep_analysis_scrape_failed` + `_notify_scrape_failure` branching helper — a `deep_analysis` run cancelled during its own base scrape now gets the correctly-labeled "Разбор" failure DM instead of the generic Review-branded one. (3) New `_cancellation_error_message(run, settings)` compares elapsed time against `worker_job_timeout_secs` — a cancellation well short of that window now blames a service interruption instead of falsely claiming a timeout.
+- 402 backend tests passed (up from 397: 3 new unit tests, 2 new regression tests, 2 existing tests updated for the new message). ruff/ruff format/mypy clean. `ci.yml` YAML validated locally. No new dependencies, no migration.
+- `deploy-prod` (`cd.yml`) deliberately left unfiltered — it only fires on version tags, a deliberate/infrequent real release where deploying all services together is intended.
+- **Promoted to backlog**: `[E20-S7]` (retry should resume instead of restarting from scratch — the deeper fix the incident's own balance trail showed is needed, direct user preference, scoped separately as billing-sensitive architecture work).
+**Smoke test:** DEFERRED — the CI path-filtering change is only provable by a real push (this story's own commit is effectively the first live test).
+**Promoted to backlog:**
+- `[E20-S7]`: deep-analysis retry should resume from where it stopped, preserving previous results, instead of restarting the whole pipeline
+
 ## [E18-S8] Side drawers: close button shares the header row; left drawer's settings icon moves next to the name
 **Completed:** 2026-08-08
 **Handover:**

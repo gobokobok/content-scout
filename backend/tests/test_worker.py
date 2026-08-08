@@ -1,6 +1,7 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -25,6 +26,7 @@ from src.models import (
 from src.platforms.base import RawContentItem
 from src.worker import (
     WorkerSettings,
+    _cancellation_error_message,
     process_run,
     process_run_and_maybe_analyze,
     run_deep_analysis_pipeline,
@@ -361,7 +363,14 @@ async def test_process_run_cancellation_marks_failed(session: AsyncSession) -> N
             await task
 
     assert run.status == RunStatus.failed
-    assert run.error_message == "Превышено время выполнения"
+    # E22-S3-follow-up (2026-08-08 live incident): cancelled almost immediately after starting
+    # — nowhere near worker_job_timeout_secs — so the message must NOT claim a timeout was
+    # exceeded (that used to be hardcoded regardless of real elapsed time, misleading whenever
+    # the real cause was a worker shutdown, not a genuine timeout).
+    assert run.error_message == (
+        "Обработка была прервана (например, из-за перезапуска сервиса). "
+        "Попробуйте запустить ещё раз."
+    )
     assert run.finished_at is not None
 
 
@@ -587,13 +596,145 @@ async def test_run_deep_analysis_pipeline_cancellation_marks_failed_without_refu
         await session.scalars(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
     ).one()
     assert analysis.status == DeepAnalysisStatus.failed
-    assert analysis.error_message == "Превышено время выполнения"
+    # E22-S3-follow-up (2026-08-08 live incident): cancelled almost immediately — see the
+    # equivalent assertion in test_process_run_cancellation_marks_failed for why this is no
+    # longer the hardcoded "Превышено время выполнения".
+    assert analysis.error_message == (
+        "Обработка была прервана (например, из-за перезапуска сервиса). "
+        "Попробуйте запустить ещё раз."
+    )
     assert analysis.completed_at is not None
     # Regression test for the bug where arq's job_timeout cancellation (CancelledError, a
     # BaseException) bypassed `except Exception` entirely and left rows stuck forever — no
     # refund expected either, since nothing was charged before the cancellation.
     assert analysis.tokens_charged == 0
     assert user.token_balance == 100
+
+
+# --- _cancellation_error_message: distinguish a genuine job_timeout from a worker-shutdown-
+# triggered cancellation (both raise the identical asyncio.CancelledError) ------------------
+
+
+def test_cancellation_error_message_near_timeout_says_timeout_exceeded() -> None:
+    settings = get_settings()
+    run = SimpleNamespace(
+        started_at=datetime.now(UTC) - timedelta(seconds=settings.worker_job_timeout_secs)
+    )
+    assert _cancellation_error_message(run, settings) == "Превышено время выполнения"
+
+
+def test_cancellation_error_message_quick_cancel_blames_interruption_not_timeout() -> None:
+    settings = get_settings()
+    run = SimpleNamespace(started_at=datetime.now(UTC))  # cancelled almost immediately
+    assert _cancellation_error_message(run, settings) == (
+        "Обработка была прервана (например, из-за перезапуска сервиса). "
+        "Попробуйте запустить ещё раз."
+    )
+
+
+def test_cancellation_error_message_missing_started_at_defaults_to_quick_cancel() -> None:
+    """A run that never even reached the point of setting started_at (e.g. cancelled before
+    process_run's own first commit) must not crash the message-selection logic."""
+    settings = get_settings()
+    run = SimpleNamespace(started_at=None)
+    assert _cancellation_error_message(run, settings) != "Превышено время выполнения"
+
+
+# --- E22-S3-follow-up: a deep_analysis run cancelled/failed during its own base scrape must
+# notify with the "Разбор" (not "Ревью") message — no DeepAnalysis row exists yet at that point
+
+
+async def test_process_run_deep_analysis_cancellation_notifies_as_analysis_not_review(
+    session: AsyncSession,
+) -> None:
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        duration_days=1,
+        run_type="deep_analysis",
+    )
+    await session.commit()
+
+    inside = asyncio.Event()
+
+    async def _blocking_fetch(account, since=None, limit=None):
+        inside.set()
+        await asyncio.sleep(60)
+        return []
+
+    class _BlockingPlatform:
+        async def fetch_content(self, account, since=None, limit=None):
+            return await _blocking_fetch(account, since=since, limit=limit)
+
+    with (
+        patch("src.worker.get_platform", return_value=_BlockingPlatform()),
+        patch(
+            "src.worker.notify_deep_analysis_scrape_failed", new_callable=AsyncMock
+        ) as mock_notify_analysis,
+        patch("src.worker.notify_run_complete", new_callable=AsyncMock) as mock_notify_review,
+    ):
+        task = asyncio.create_task(process_run(session, run))
+        await inside.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert run.status == RunStatus.failed
+    # The real bug: this used to call notify_run_complete (Review-branded) for a run the user
+    # never asked to Review, since no run_type check existed on this failure path.
+    mock_notify_analysis.assert_awaited_once()
+    mock_notify_review.assert_not_awaited()
+
+
+async def test_process_run_stat_collection_cancellation_still_notifies_as_review(
+    session: AsyncSession,
+) -> None:
+    """Sibling of the test above — a stat_collection (Review) run cancelled during its own
+    scrape must still use notify_run_complete, not the Analysis-branded message."""
+    project = await make_project(session)
+    account_list = await make_account_list(session, project=project)
+    await make_account(session, account_list=account_list)
+    user = await make_user(session, token_balance=1000)
+    run = await make_run(
+        session,
+        project=project,
+        requested_by=user,
+        duration_days=1,
+        run_type="stat_collection",
+    )
+    await session.commit()
+
+    inside = asyncio.Event()
+
+    async def _blocking_fetch(account, since=None, limit=None):
+        inside.set()
+        await asyncio.sleep(60)
+        return []
+
+    class _BlockingPlatform:
+        async def fetch_content(self, account, since=None, limit=None):
+            return await _blocking_fetch(account, since=since, limit=limit)
+
+    with (
+        patch("src.worker.get_platform", return_value=_BlockingPlatform()),
+        patch(
+            "src.worker.notify_deep_analysis_scrape_failed", new_callable=AsyncMock
+        ) as mock_notify_analysis,
+        patch("src.worker.notify_run_complete", new_callable=AsyncMock) as mock_notify_review,
+    ):
+        task = asyncio.create_task(process_run(session, run))
+        await inside.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    mock_notify_review.assert_awaited_once()
+    mock_notify_analysis.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

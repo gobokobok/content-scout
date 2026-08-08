@@ -3282,6 +3282,126 @@ backend/src/services/comment_scraper.py (soft-failure/fallback trigger logic, if
 ### Handover
 Opened 2026-08-04 from `[E21-S2]`'s second smoke-test round — see that story's Changelog for the full `railway logs` trace that found this. **2026-08-07:** user decision narrows this story's near-term scope to "provision + verify BrightData fallback," with the Apify-upgrade half explicitly parked until 5 external test users confirm product value. The credential-provisioning step itself needs the user to act outside this session (create the BrightData account, set Railway env vars) before the remaining AC items are workable.
 
+## [E20-S6] CI deploy path-filtering + worker-cancellation notification/messaging fixes
+**Epic:** Performance & Scale
+**Sprint:** unassigned
+**Status:** done
+**Completed:** 2026-08-08
+**Priority:** high
+**Depends on:** none
+### Goal
+Root-caused live from a direct user report: an overnight DEV Analysis run (1 account, 10 publications) got cancelled twice and sent two failure Telegram DMs before a third retry succeeded. `railway logs` traced it precisely: the worker container restarted twice during the run's window, each restart lining up within ~30s of a `git push` to `main` from an unrelated autonomous Sprint 13 session. Root cause: `.github/workflows/ci.yml`'s `deploy-dev` job has no path filtering — every push to `main`, including docs-only and frontend-only commits with zero backend changes, unconditionally redeploys `api`/`worker`/`web`. A Railway redeploy sends the worker SIGTERM; arq's default shutdown handler cancels every in-flight job via the identical `asyncio.CancelledError` path a genuine `job_timeout` uses (confirmed by reading `arq/worker.py` — no distinguishing signal is passed to the job). That cancellation is also one of arq's automatic-retry triggers (default `max_tries=5`), so the run silently re-ran from scratch on each restart. This story fixes the three parts of the resulting bad experience the user explicitly asked for; the deeper "retries should resume instead of restarting from scratch" question is scoped separately as `[E20-S7]`.
+### Acceptance Criteria
+- [x] `deploy-dev` only redeploys `api`/`worker` when `backend/` changed in the push, and only redeploys `web` when `frontend/` changed — detected via `git diff` between the push's before/after SHAs, with a safe fallback (deploy everything) when no usable base commit exists (new branch, force-push, history rewrite)
+- [x] A `deep_analysis` run cancelled or failed during its own base scrape (`process_run`, before `run_deep_analysis_pipeline` ever starts — no `DeepAnalysis` row exists yet at that point) now sends the correctly-labeled "Разбор" failure DM instead of the generic Review-branded `notify_run_complete` — new `notify_deep_analysis_scrape_failed` in `telegram_notify.py`, new shared `_notify_scrape_failure` branching helper in `worker.py`
+- [x] The hardcoded "Превышено время выполнения" message no longer fires on every `asyncio.CancelledError` regardless of real elapsed time — new `_cancellation_error_message(run, settings)` compares elapsed wall-clock time since `run.started_at` against `worker_job_timeout_secs`; a cancellation well short of that window now says the processing was interrupted (e.g. a service restart) instead of falsely claiming a timeout
+### Definition of Done
+- [x] All AC checked
+- [x] Tests written and passing — 402 backend tests (up from 397: 3 new `_cancellation_error_message` unit tests, 2 new mislabeled-notification regression tests, 2 existing cancellation tests updated for the new message). ruff/ruff format/mypy clean
+- [x] CI green (pending push) — `ci.yml` changes verified as valid YAML locally before commit
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint, and because the CI path-filtering change can only be genuinely proven by a real push to `main` (this story's own commit will be the first live test: a docs/backend-touching commit should still redeploy `worker`, and a subsequent frontend-only commit should not).
+### Files to read
+CLAUDE.md, .github/workflows/ci.yml, backend/src/worker.py, backend/src/services/telegram_notify.py, `[E17-S10]`, `[E17-S11]`, `[E22-S3]` entries above (existing CancelledError/notify-decision precedent)
+### Files to create or modify
+.github/workflows/ci.yml, backend/src/worker.py, backend/src/services/telegram_notify.py, backend/tests/test_worker.py
+### Handover
+Direct chat report 2026-08-08 ("Last night i started an analysis run on DEV... Check, what is the reason"), root-caused via `railway logs --since/--until` against the exact incident window plus `git log` correlation against this session's own push timestamps — the smoking gun was a worker "Starting Container" log line 2.5 minutes after a push, and a prior cancellation landing within 24 seconds of an even earlier push. User confirmed proceeding with these three fixes ("first tree - yes") plus flagged the deeper retry-resumption question, opened separately as `[E20-S7]`. `deploy-prod` (`cd.yml`) deliberately **not** path-filtered — it only fires on version tags, a deliberate/infrequent real-release action where deploying all three services together is the intended behavior, not an accident of an unrelated commit.
+
+## [E20-S7] Deep-analysis retry should resume from where it stopped, not restart from scratch
+**Epic:** Performance & Scale
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E20-S6
+### Goal
+Direct user decision from the `[E20-S6]` incident review: when a run's worker job gets cancelled and arq automatically retries it (job_timeout, or a worker restart per `[E20-S6]`), the retry should **resume from where it stopped, preserving whatever results already completed** — not re-run the entire pipeline from scratch. Confirmed feasible on inspection: `process_run`'s `ContentItem` inserts are already idempotent (`on_conflict_do_nothing(index_elements=["run_id", "external_id"])`), but the fetch loop still re-calls Apify (real cost) for accounts already scraped in a prior attempt, and `run_deep_analysis_pipeline` creates a **brand-new** `DeepAnalysis` row via `create_pending_deep_analysis` on every invocation with no check for a prior attempt's row — so a retry re-extracts (real Anthropic cost, real token charge) publications a previous, cancelled attempt already paid for and completed. The `[E20-S6]` incident's own balance trail shows this concretely: 110 tokens charged and never refunded from a cancelled attempt whose results were entirely discarded when the next attempt started over.
+### Acceptance Criteria
+- [ ] `process_run`'s account-fetch loop skips accounts that already have `ContentItem` rows for this `run_id` (a prior attempt already scraped them) — no repeat Apify call, no repeat `UsageEvent` charge, for an account already done
+- [ ] `run_deep_analysis_pipeline` reuses an existing non-terminal (`pending`/`extracting`/`synthesizing`) `DeepAnalysis` row for this `run_id` instead of always creating a new one via `create_pending_deep_analysis` — confirm what "non-terminal" should mean precisely (e.g. does a `failed` row from a genuinely-completed-but-wrong attempt ever get reused, or only one that was mid-flight when cancelled?)
+- [ ] `extract_deep_analysis_items` skips `ContentItem`s that already have a `done` `DeepAnalysisItem` row for this analysis (already extracted, already charged) — resumes only on the remaining unprocessed items
+- [ ] Decide and implement what happens to a cancelled attempt's own already-charged tokens: since resumption means the same real work isn't redone, is there anything left to refund, or does resumption alone (not double-charging on the next attempt) fully close the gap the incident's 110-token loss showed?
+- [ ] `run.started_at` should not be overwritten on a resumed attempt — the first attempt's start time is the real one, needed for `[E20-S6]`'s `_cancellation_error_message` elapsed-time heuristic to stay accurate across retries
+- [ ] Confirm this resumption logic is safe against a job that failed for a *real* reason (not a restart) — e.g. a permanently broken account shouldn't be retried into an infinite loop; arq's `max_tries=5` ceiling already bounds this, confirm that's sufficient or whether a resumed attempt needs its own additional guard
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing — should include a test proving a second `process_run`/`run_deep_analysis_pipeline` invocation for the same `run_id` does not re-charge or re-scrape already-completed work
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On DEV, start a real Analysis run, forcibly cancel the worker mid-run (e.g. trigger a redeploy), confirm the automatic retry picks up from the already-scraped/already-extracted items rather than starting over, and confirm the token balance doesn't show a double-charge for the same publications.
+### Files to read
+CLAUDE.md, backend/src/worker.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_extraction.py, `[E20-S6]` entry above
+### Files to create or modify
+backend/src/worker.py, backend/src/services/deep_analysis.py, backend/src/services/deep_analysis_extraction.py, backend/tests/
+### Handover
+Opened 2026-08-08 from the `[E20-S6]` incident review, direct user preference ("i prefer retry is done and continues from where it stopped, preserving previous results"). Not implemented yet — this is a genuine architecture change to the pipeline's idempotency/resumption model, billing-sensitive (the whole point is avoiding a repeat of the incident's uncredited double-charge), and deserves its own dedicated implementation pass rather than being bundled into `[E20-S6]`'s three narrower, lower-risk fixes.
+
+## [E22-S4] Audit all user-facing exception/hint/error messages for accuracy and consistency
+**Epic:** Report & Notification Messaging
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** none
+### Goal
+Direct user request, prompted by `[E20-S6]`'s incident: the "Превышено время выполнения" message turned out to be wrong for how it was actually being triggered, and the Review/Analysis mislabeling bug showed the same message infrastructure has more than one accuracy gap. User asked for a systematic review of **all** exception messages and hint/explanation copy throughout the app — not just the two `[E20-S6]` happened to catch — for accuracy (does the message actually describe what happened) and consistency (does similar copy read the same way across screens).
+### Acceptance Criteria
+- [ ] Inventory every user-facing error/exception message: backend `{"code": ..., "message_ru": ...}` error responses (CONVENTIONS.md's error shape), Telegram notification failure text (`telegram_notify.py`), and frontend-rendered error/toast copy (`ApiError.messageRu`, generic `genericError` fallbacks across `ru.json`)
+- [ ] Inventory every user-facing hint/explanation string: `*Hint`/`*Explanation`/`*Note` keys across `ru.json` (e.g. `reviewEstimateExplanation`, `deepEstimateExplanation`, `scopeDaysExplanation`, `tokenInfo`, `notifySettingsNote`, etc.)
+- [ ] For each, confirm the copy is still accurate against actual current behavior (the exact kind of drift `[E20-S6]`'s "Превышено время выполнения" had) — not just grammatically fine
+- [ ] Check for consistency: similar situations (e.g. a failed Review vs. a failed Analysis) should read with a consistent voice/structure unless there's a real reason they differ
+- [ ] Produce a concrete list of what's wrong/inconsistent before fixing anything broad — this is an audit-first story like `[E21-S1]`/`[E21-S6]`, not a blind rewrite
+### Definition of Done
+- [ ] All AC checked
+- [ ] Fixes for confirmed-wrong copy implemented with tests where the string reflects real logic (not just static text)
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+DEFERRED — mostly a copy/UX review; any behavior-adjacent fixes get their own test coverage per usual.
+### Files to read
+CLAUDE.md, frontend/messages/ru.json (full file), backend/src/services/telegram_notify.py, `[E20-S6]` entry above, CONVENTIONS.md (error-shape convention)
+### Files to create or modify
+Depends on audit findings — likely frontend/messages/ru.json plus scattered backend error sites
+### Handover
+Opened 2026-08-08 from the `[E20-S6]` incident review, direct user request ("add a small story to review all exception messages, all hint messages thoughout the app"). Not started — audit-first, per its own AC.
+
+## [E23-S1] "How it works" help page: main-menu entry with navigation/functionality walkthrough
+**Epic:** Onboarding & Help (new)
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** none
+### Goal
+Direct user request: a new page, linked from the main side menu, explaining how the app works — descriptions of the app's navigation and functionality, illustrated with screenshots of the actual UI. Intended for a new user who's never used the product before, to reduce first-use confusion without needing a human to walk them through it.
+### Acceptance Criteria
+- [ ] New page (route TBD, e.g. `/how-it-works`) linked from the left side-drawer menu (`frontend/app/(app)/layout.tsx`, alongside `runs`/`competitors`/`usage`/`admin`)
+- [ ] Content covers, at minimum: the run feed/home screen, creating a Review vs. an Analysis run, the run-detail/report pages, the competitor list, the Balance/Usage page, Settings (including the new notification toggles from `[E22-S3]`) — confirm the exact scope/outline with the user before writing final copy, since this is product-voice content, not a mechanical port of existing strings
+- [ ] Real screenshots of the actual app UI, not mockups — needs a live DEV pass to capture (this session can't screenshot the running app per CLAUDE.md's no-agent-UI-testing constraint), or the user supplies them
+- [ ] All copy through next-intl (`ru.json`), no hardcoded strings, consistent with the rest of the app's Russian voice
+- [ ] Confirm with the user whether this is a single long page or a multi-section/tabbed layout — a full app walkthrough may not fit comfortably as one scroll at 375px (D16)
+### Definition of Done
+- [ ] All AC checked
+- [ ] `tsc --noEmit`/`next lint`/`next build` clean
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md updated
+### Smoke test
+On a real device, open the menu, tap "Как это работает" (or equivalent), confirm the page renders correctly at 375px with all screenshots loading and text readable, and that it accurately reflects the current app UI (not stale screenshots from a prior redesign).
+### Files to read
+CLAUDE.md (D16 375px, D28 light-theme-only, next-intl no-hardcoded-strings), frontend/app/(app)/layout.tsx (menu entry point)
+### Files to create or modify
+A new frontend/app/(app)/how-it-works/ (or similar) route, frontend/app/(app)/layout.tsx, frontend/messages/ru.json, real screenshot assets
+### Handover
+Opened 2026-08-08, direct user request ("add a 'how it works' page in the main menu and include some descriptions with printscreens of how the user navigates in the app and what functionality is available"). Not started — needs scoping (exact content outline, page structure) and real screenshots before implementation, neither of which this session can produce alone (screenshots specifically need a live device pass, per CLAUDE.md's constraint).
+
 ## [E21-S1] Scope standalone Analysis pipeline: Apify usage audit + worker capacity
 **Epic:** Standalone Analysis Pipeline (new, D40)
 **Sprint:** unassigned — scoping complete, follow-on stories unassigned

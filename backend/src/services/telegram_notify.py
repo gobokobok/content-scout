@@ -156,6 +156,25 @@ async def notify_run_complete(run: AnalysisRun, user: User, session: AsyncSessio
     await _send(settings, user, text, reply_markup=reply_markup)
 
 
+async def notify_deep_analysis_scrape_failed(run: AnalysisRun, user: User) -> None:
+    """Real bug found 2026-08-08 (live DEV incident, user report): a `deep_analysis` run that
+    fails or is cancelled during its own base scrape (`process_run` itself) never reaches
+    `run_deep_analysis_pipeline`, so no `DeepAnalysis` row exists yet for
+    `notify_deep_analysis_complete` to notify from — `process_run`'s except blocks were
+    falling back to the generic `notify_run_complete`, sending a Review-branded "Задача
+    «Ревью» завершилась с ошибкой" message for a run the user never asked to Review. This is
+    the correctly-labeled "Разбор" equivalent for exactly that gap, needing only the run and
+    user (no DeepAnalysis row to read from)."""
+    settings = get_settings()
+    if not settings.telegram_bot_token or user.telegram_id is None:
+        _log_skip_reason(run.id, settings, user)
+        return
+    balance_line = f"Баланс токенов: <b>{user.token_balance}</b>"
+    error = _esc((run.error_message or "—")[:200])
+    text = f"❌ Разбор завершился с ошибкой.\n\n{error}\n\n{balance_line}"
+    await _send(settings, user, text)
+
+
 async def notify_deep_analysis_complete(
     analysis: DeepAnalysis, run: AnalysisRun, user: User, session: AsyncSession
 ) -> None:
