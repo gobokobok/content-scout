@@ -417,6 +417,50 @@ async def test_get_run_default_summary_status_is_pending(session: AsyncSession) 
         assert body["summary_topics"] is None
 
 
+async def test_get_run_surfaces_deep_analysis_status_separately_from_run_status(
+    session: AsyncSession,
+) -> None:
+    """Real bug fix (chat-reported, 2026-08-08): a deep_analysis run's own `status` reaches
+    "done" once its base scrape finishes — run_deep_analysis_pipeline (extraction + synthesis)
+    still has real work left at that point. The notifications drawer (run-tracker.tsx) polls
+    this exact endpoint and, before this fix, had no way to tell the difference — it marked the
+    run "Готово" the moment `status` alone said done. `deep_analysis_status` must reflect the
+    analysis's own in-progress lifecycle independently of the base run's."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    run = await make_run(session, project=project, requested_by=owner, run_type="deep_analysis")
+    run.status = RunStatus.done  # base scrape finished
+    analysis = await make_deep_analysis(
+        session, run=run, requested_by=owner, status=DeepAnalysisStatus.extracting
+    )
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "done"
+        assert body["deep_analysis_id"] == str(analysis.id)
+        assert body["deep_analysis_status"] == "extracting"
+
+
+async def test_get_run_deep_analysis_status_null_before_pipeline_starts(
+    session: AsyncSession,
+) -> None:
+    """No DeepAnalysis row exists yet while the base scrape is still running (or if it fails
+    before ever reaching the pipeline) — deep_analysis_status must be null, not some stale or
+    default value, so the tracker correctly keeps treating the run as still in progress."""
+    owner, project = await _setup_project_with_accounts(session, n=1)
+    run = await make_run(session, project=project, requested_by=owner, run_type="deep_analysis")
+    await session.commit()
+
+    async with await client(session) as c:
+        resp = await c.get(f"/runs/{run.id}", headers=auth_headers(owner.id))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["deep_analysis_id"] is None
+        assert body["deep_analysis_status"] is None
+
+
 async def test_run_feed_exposes_accounts_and_items_progress(session: AsyncSession) -> None:
     """Home feed cards (nav-overhaul) show Competitors/Publications figures straight off
     AnalysisRun's own progress counters — no aggregation needed for a plain run."""

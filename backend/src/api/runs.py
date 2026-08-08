@@ -140,9 +140,24 @@ class RunOut(BaseModel):
     analysis_mode: str | None
     target_post_url: str | None
     comments_limit: int | None
+    # Real bug fix (chat-reported, 2026-08-08): a deep_analysis run's `status` flips to `done`
+    # once its base scrape finishes — *before* run_deep_analysis_pipeline (extraction +
+    # synthesis) even starts, let alone finishes. The run tracker (frontend/lib/run-tracker.tsx)
+    # polls this endpoint and only ever saw `status`, so it marked the run "Готово" in the
+    # notifications drawer the moment the scrape finished, minutes before the real analysis was
+    # done — same underlying fact `RunFeedItem` already accounts for (see its own comment above),
+    # just missing here on the single-run endpoint the tracker actually calls.
+    deep_analysis_id: uuid.UUID | None = None
+    deep_analysis_status: str | None = None
 
     @classmethod
-    def from_model(cls, run: AnalysisRun) -> "RunOut":
+    def from_model(
+        cls,
+        run: AnalysisRun,
+        *,
+        deep_analysis_id: uuid.UUID | None = None,
+        deep_analysis_status: str | None = None,
+    ) -> "RunOut":
         return cls(
             id=run.id,
             project_id=run.project_id,
@@ -167,6 +182,8 @@ class RunOut(BaseModel):
             analysis_mode=run.analysis_mode,
             target_post_url=run.target_post_url,
             comments_limit=run.comments_limit,
+            deep_analysis_id=deep_analysis_id,
+            deep_analysis_status=deep_analysis_status,
         )
 
 
@@ -342,7 +359,21 @@ async def get_run(run_id: uuid.UUID, user: CurrentUser, session: SessionDep) -> 
         await get_owned_project(session, user, run.project_id)
     except ProjectNotFoundError:
         raise RUN_NOT_FOUND from None
-    return RunOut.from_model(run)
+
+    deep_analysis_id: uuid.UUID | None = None
+    deep_analysis_status: str | None = None
+    if run.run_type == "deep_analysis":
+        # At most one DeepAnalysis per run (the auto-chain creates it once run_deep_analysis_
+        # pipeline starts) — None here just means the pipeline hasn't reached that point yet,
+        # which the tracker's terminal check (frontend/lib/run-tracker.tsx) treats as "still
+        # in progress", exactly as it should.
+        analysis = await session.scalar(select(DeepAnalysis).where(DeepAnalysis.run_id == run.id))
+        if analysis is not None:
+            deep_analysis_id = analysis.id
+            deep_analysis_status = analysis.status.value
+    return RunOut.from_model(
+        run, deep_analysis_id=deep_analysis_id, deep_analysis_status=deep_analysis_status
+    )
 
 
 @router.get("/runs/{run_id}/accounts", response_model=list[RunAccountOut])

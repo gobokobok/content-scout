@@ -8,7 +8,18 @@ const STORAGE_KEY = "content-scout-tracked-runs";
 const POLL_INTERVAL_MS = 3000;
 const MAX_TRACKED = 20;
 
-const TERMINAL = new Set(["done", "failed"]);
+// Real bug fix (chat-reported, 2026-08-08): a deep_analysis run's own `status` reaches "done"
+// as soon as its base scrape finishes — run_deep_analysis_pipeline (extraction + synthesis)
+// still has minutes of work left at that point. Plain `TERMINAL.has(run.status)` was marking
+// the notifications drawer "Готово" that early. `status === "failed"` still means done for
+// good (the base scrape itself failed, no analysis will ever run) regardless of run_type.
+function isTerminalRun(run: RunResponse): boolean {
+  if (run.status === "failed") return true;
+  if (run.run_type === "deep_analysis") {
+    return run.deep_analysis_status === "done" || run.deep_analysis_status === "failed";
+  }
+  return run.status === "done";
+}
 
 export interface TrackedRun {
   run: RunResponse;
@@ -74,7 +85,7 @@ export function RunTrackerProvider({ children }: { children: React.ReactNode }) 
             run: r.run,
             projectId: r.ref.projectId,
             projectName: r.ref.projectName,
-            seen: TERMINAL.has(r.run.status),
+            seen: isTerminalRun(r.run),
           });
         }
         return next;
@@ -96,7 +107,7 @@ export function RunTrackerProvider({ children }: { children: React.ReactNode }) 
   // this is what lets a run keep reporting progress after its dialog has been closed.
   useEffect(() => {
     const interval = setInterval(() => {
-      const inProgress = Array.from(runsRef.current.values()).filter((t) => !TERMINAL.has(t.run.status));
+      const inProgress = Array.from(runsRef.current.values()).filter((t) => !isTerminalRun(t.run));
       if (inProgress.length === 0) return;
       void Promise.all(
         inProgress.map(async (t) => {
@@ -114,7 +125,7 @@ export function RunTrackerProvider({ children }: { children: React.ReactNode }) 
             if (!updated) continue;
             const existing = next.get(updated.id);
             if (!existing) continue;
-            const justFinished = !TERMINAL.has(existing.run.status) && TERMINAL.has(updated.status);
+            const justFinished = !isTerminalRun(existing.run) && isTerminalRun(updated);
             if (justFinished) anyJustFinished = true;
             next.set(updated.id, { ...existing, run: updated, seen: justFinished ? false : existing.seen });
           }
@@ -131,10 +142,10 @@ export function RunTrackerProvider({ children }: { children: React.ReactNode }) 
   const track = useCallback((run: RunResponse, projectId: string, projectName: string) => {
     setRuns((prev) => {
       const next = new Map(prev);
-      next.set(run.id, { run, projectId, projectName, seen: TERMINAL.has(run.status) });
+      next.set(run.id, { run, projectId, projectName, seen: isTerminalRun(run) });
       if (next.size > MAX_TRACKED) {
         const oldestTerminal = Array.from(next.values())
-          .filter((t) => TERMINAL.has(t.run.status))
+          .filter((t) => isTerminalRun(t.run))
           .sort((a, b) => a.run.created_at.localeCompare(b.run.created_at))[0];
         if (oldestTerminal) next.delete(oldestTerminal.run.id);
       }

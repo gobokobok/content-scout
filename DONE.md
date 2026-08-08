@@ -2,6 +2,18 @@
 
 Completed stories land here, newest first. Format:
 
+## [E18-S9] Fix: notifications drawer shows a deep-analysis run "Готово" before the real analysis finishes
+**Completed:** 2026-08-08
+**Handover:**
+- Direct PROD bug report: right after starting an Analysis run, the notifications drawer showed "Готово" while the report page itself still correctly said the analysis was in progress.
+- **Root cause**: a `deep_analysis` run's `AnalysisRun.status` reaches `done` once its base scrape finishes — before `run_deep_analysis_pipeline` (extraction + synthesis, most of the real wall time) even starts. The run tracker (`frontend/lib/run-tracker.tsx`) polls `GET /runs/{id}`, whose response model (`RunOut`) was missing the `deep_analysis_id`/`deep_analysis_status` fields the home feed's own model (`RunFeedItem`) already carries for exactly this reason.
+- Fix: `RunOut`/`get_run` now surface `deep_analysis_status`; `run-tracker.tsx`'s terminal check is now run-type-aware — `status === "failed"` still means done for good, but a `deep_analysis` run additionally needs `deep_analysis_status` to be `done`/`failed`, not just the base `status`.
+- Checked `run-dialog.tsx`'s own in-progress view — no change needed, its existing copy already correctly describes ongoing background work.
+- 405 backend tests passed (2 new). Frontend `tsc`/`eslint`/`next build` clean.
+**Smoke test:** DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. The reporting user's own next Analysis run on PROD is the natural smoke test.
+**Promoted to backlog:**
+- (none)
+
 ## [E17-S13] Fix: PROD client-side crash on report recommendations tab from optional-field omission
 **Completed:** 2026-08-08
 **Handover:**

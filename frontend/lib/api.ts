@@ -170,6 +170,13 @@ export interface RunResponse {
   analysis_mode: AnalysisMode | null;
   target_post_url: string | null;
   comments_limit: number | null;
+  // Real bug fix (chat-reported, 2026-08-08): a deep_analysis run's own `status` flips to
+  // "done" once its base scrape finishes, before the real analysis (extraction + synthesis)
+  // even starts — these two fields carry the analysis's own lifecycle so run-tracker.tsx can
+  // tell the difference instead of showing "Готово" minutes early. null until the auto-chained
+  // DeepAnalysis row exists.
+  deep_analysis_id: string | null;
+  deep_analysis_status: "pending" | "extracting" | "synthesizing" | "done" | "failed" | null;
 }
 
 // E15-S5: the run-settings drill-down sheet's account list (Review + Analysis report pages).

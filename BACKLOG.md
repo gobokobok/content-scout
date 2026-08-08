@@ -4069,3 +4069,34 @@ backend/src/services/deep_analysis_synthesis.py (`REPORT_TOOL`, `synthesize_repo
 backend/src/services/deep_analysis_synthesis.py, backend/tests/test_deep_analysis_synthesis.py, frontend/lib/api.ts, frontend/app/(app)/projects/[id]/deep-analyses/[analysisId]/page.tsx
 ### Handover
 Diagnosed and fixed same session, 2026-08-08, from a direct PROD bug report (screenshot of Next.js's generic client-exception page) on the very run reviewed earlier that session. Initially misdiagnosed the run's comment data as the likely culprit (an Apify Free-Plan-restriction log line read as "zero comments returned") — the user corrected this with a screenshot of the real Apify console showing all 8 comment-scraper calls succeeded with 10 real results each, which redirected the investigation to the actual cause. Deliberately fixed both layers (backend backfill for all future reports, frontend `?? []` guards for this and any other already-stored sparse report) rather than either alone — the backend fix alone wouldn't repair rows already in PROD's database.
+
+## [E18-S9] Fix: notifications drawer shows a deep-analysis run "Готово" before the real analysis finishes
+**Epic:** Run-Centric Navigation & Redesign
+**Sprint:** unassigned
+**Status:** done
+**Completed:** 2026-08-08
+**Priority:** high
+**Depends on:** E17-S3, E17-S4 (deep-analysis extraction/synthesis lifecycle)
+### Goal
+Direct PROD bug report 2026-08-08: right after starting an Analysis run, the notifications drawer ("Анализы") showed it as "Готово" while the report page itself still correctly said "Анализ выполняется, это может занять несколько минут." Root cause: a `deep_analysis` run's own `AnalysisRun.status` flips to `done` as soon as its **base scrape** finishes (`_finish_run` in `worker.py`) — *before* `run_deep_analysis_pipeline` (extraction + synthesis, the part that actually takes most of the wall time) even starts. The frontend's run tracker (`frontend/lib/run-tracker.tsx`, the single source behind the notifications drawer) polls `GET /runs/{id}` and only ever received `status` — nothing told it a `deep_analysis` run has a second, longer stage still ahead. `RunOut` (backend/src/api/runs.py), the response model for that exact endpoint, was missing the `deep_analysis_id`/`deep_analysis_status` fields that `RunFeedItem` (the home feed's own model) already carries for precisely this reason — the fields existed, just not on the endpoint the tracker actually calls.
+### Acceptance Criteria
+- [x] `RunOut` gains `deep_analysis_id`/`deep_analysis_status` (mirroring `RunFeedItem`), populated in `GET /runs/{run_id}` via a lookup of the run's DeepAnalysis row (null until the pipeline creates one)
+- [x] `run-tracker.tsx`'s terminal-state check (`isTerminalRun`) is run-type-aware: `status === "failed"` is still terminal regardless of type (the base scrape itself failed, no analysis will ever run); for `deep_analysis` runs, "really done" means `deep_analysis_status` is `done`/`failed`, not the base `status`; for `stat_collection` runs, behavior is unchanged (`status === "done"`)
+- [x] Frontend `RunResponse` type carries the two new fields
+- [x] The run-creation dialog's own in-progress view (`run-dialog.tsx`) was checked and needs no change — its existing `deepHint` copy ("Публикации анализируются — отчёт появится в истории анализов после завершения") already correctly describes ongoing background work rather than claiming completion
+### Definition of Done
+- [x] All AC checked
+- [x] Tests written and passing — 405 backend tests (2 new: `deep_analysis_status` surfaced correctly while the base run is already `done`, and correctly `null` before the pipeline has started). Frontend `tsc --noEmit`/`eslint`/`next build` all clean
+- [x] ruff/ruff format/mypy clean
+- [x] CI green (pending push)
+- [ ] Smoke test passed — DEFERRED, see below
+- [x] DONE.md updated
+- [x] BACKLOG.md updated
+### Smoke test
+DEFERRED — per CLAUDE.md's no-agent-UI-testing constraint. The reporting user's own next Analysis run on PROD is the natural smoke test: the drawer should now stay "В процессе" (or equivalent) until the report itself is actually ready, not just once the base scrape finishes.
+### Files to read
+backend/src/api/runs.py (`RunOut`, `RunFeedItem`, `get_run`), backend/src/worker.py (`_finish_run`, `run_deep_analysis_pipeline`), frontend/lib/run-tracker.tsx, frontend/lib/api.ts
+### Files to create or modify
+backend/src/api/runs.py, backend/tests/test_runs.py, frontend/lib/run-tracker.tsx, frontend/lib/api.ts
+### Handover
+Diagnosed and fixed same session, 2026-08-08, from a direct PROD bug report (two screenshots: report page correctly "in progress", drawer incorrectly "Готово", same run, one minute apart). Traced to the exact same two-stage-lifecycle fact `RunFeedItem`'s own code comment already documents ("a run can finish scraping cleanly while its deep analysis still fails") — the gap was that the single-run endpoint the tracker polls never got the same fields the feed endpoint already had.
